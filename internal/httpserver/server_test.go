@@ -678,6 +678,7 @@ func (f fakeDeviceService) Delete(ctx context.Context, actor db.User, id uuid.UU
 type fakeClientAuthService struct {
 	createFn   func(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error)
 	approveFn  func(ctx context.Context, userCode string, user db.User) error
+	denyFn     func(ctx context.Context, userCode string, user db.User) error
 	exchangeFn func(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error)
 	refreshFn  func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
 	logoutFn   func(ctx context.Context, request api.LogoutRequest) error
@@ -695,6 +696,13 @@ func (f fakeClientAuthService) ApproveDeviceCode(ctx context.Context, userCode s
 		return nil
 	}
 	return f.approveFn(ctx, userCode, user)
+}
+
+func (f fakeClientAuthService) DenyDeviceCode(ctx context.Context, userCode string, user db.User) error {
+	if f.denyFn == nil {
+		return nil
+	}
+	return f.denyFn(ctx, userCode, user)
 }
 
 func (f fakeClientAuthService) ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {

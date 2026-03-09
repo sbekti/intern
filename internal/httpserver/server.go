@@ -57,6 +57,7 @@ type DeviceService interface {
 type ClientAuthService interface {
 	CreateDeviceCode(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error)
 	ApproveDeviceCode(ctx context.Context, userCode string, user db.User) error
+	DenyDeviceCode(ctx context.Context, userCode string, user db.User) error
 	ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error)
 	RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
 	Logout(ctx context.Context, request api.LogoutRequest) error
@@ -432,6 +433,26 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			}
 
 			if err := clientAuthService.ApproveDeviceCode(r.Context(), chi.URLParam(r, "user_code"), user); err != nil {
+				handleClientAuthError(w, err)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Post("/auth/device_codes/{user_code}/deny", func(w http.ResponseWriter, r *http.Request) {
+			if clientAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth service not configured")
+				return
+			}
+
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			if err := clientAuthService.DenyDeviceCode(r.Context(), chi.URLParam(r, "user_code"), user); err != nil {
 				handleClientAuthError(w, err)
 				return
 			}

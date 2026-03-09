@@ -385,6 +385,9 @@ type ClientInterface interface {
 	// ApproveDeviceCode request
 	ApproveDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DenyDeviceCode request
+	DenyDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// LogoutSessionWithBody request with any body
 	LogoutSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -509,6 +512,18 @@ func (c *Client) CreateDeviceCode(ctx context.Context, body CreateDeviceCodeJSON
 
 func (c *Client) ApproveDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApproveDeviceCodeRequest(c.Server, userCode)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DenyDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDenyDeviceCodeRequest(c.Server, userCode)
 	if err != nil {
 		return nil, err
 	}
@@ -961,6 +976,40 @@ func NewApproveDeviceCodeRequest(server string, userCode UserCode) (*http.Reques
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/auth/device_codes/%s/approve", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDenyDeviceCodeRequest generates requests for DenyDeviceCode
+func NewDenyDeviceCodeRequest(server string, userCode UserCode) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "user_code", userCode, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/device_codes/%s/deny", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1701,6 +1750,9 @@ type ClientWithResponsesInterface interface {
 	// ApproveDeviceCodeWithResponse request
 	ApproveDeviceCodeWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*ApproveDeviceCodeResponse, error)
 
+	// DenyDeviceCodeWithResponse request
+	DenyDeviceCodeWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*DenyDeviceCodeResponse, error)
+
 	// LogoutSessionWithBodyWithResponse request with any body
 	LogoutSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error)
 
@@ -1865,6 +1917,31 @@ func (r ApproveDeviceCodeResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ApproveDeviceCodeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DenyDeviceCodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON404      *NotFound
+	JSON409      *Conflict
+}
+
+// Status returns HTTPResponse.Status
+func (r DenyDeviceCodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DenyDeviceCodeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2378,6 +2455,15 @@ func (c *ClientWithResponses) ApproveDeviceCodeWithResponse(ctx context.Context,
 	return ParseApproveDeviceCodeResponse(rsp)
 }
 
+// DenyDeviceCodeWithResponse request returning *DenyDeviceCodeResponse
+func (c *ClientWithResponses) DenyDeviceCodeWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*DenyDeviceCodeResponse, error) {
+	rsp, err := c.DenyDeviceCode(ctx, userCode, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDenyDeviceCodeResponse(rsp)
+}
+
 // LogoutSessionWithBodyWithResponse request with arbitrary body returning *LogoutSessionResponse
 func (c *ClientWithResponses) LogoutSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error) {
 	rsp, err := c.LogoutSessionWithBody(ctx, contentType, body, reqEditors...)
@@ -2735,6 +2821,53 @@ func ParseApproveDeviceCodeResponse(rsp *http.Response) (*ApproveDeviceCodeRespo
 	}
 
 	response := &ApproveDeviceCodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDenyDeviceCodeResponse parses an HTTP response from a DenyDeviceCodeWithResponse call
+func ParseDenyDeviceCodeResponse(rsp *http.Response) (*DenyDeviceCodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DenyDeviceCodeResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -3596,6 +3729,9 @@ type ServerInterface interface {
 	// Approve a pending device code request for the current authenticated user.
 	// (POST /api/v1/auth/device_codes/{user_code}/approve)
 	ApproveDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode)
+	// Deny a pending device code request for the current authenticated user.
+	// (POST /api/v1/auth/device_codes/{user_code}/deny)
+	DenyDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode)
 	// Revoke the presented refresh session.
 	// (POST /api/v1/auth/logout)
 	LogoutSession(w http.ResponseWriter, r *http.Request)
@@ -3680,6 +3816,12 @@ func (_ Unimplemented) CreateDeviceCode(w http.ResponseWriter, r *http.Request) 
 // Approve a pending device code request for the current authenticated user.
 // (POST /api/v1/auth/device_codes/{user_code}/approve)
 func (_ Unimplemented) ApproveDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Deny a pending device code request for the current authenticated user.
+// (POST /api/v1/auth/device_codes/{user_code}/deny)
+func (_ Unimplemented) DenyDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3893,6 +4035,37 @@ func (siw *ServerInterfaceWrapper) ApproveDeviceCode(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ApproveDeviceCode(w, r, userCode)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DenyDeviceCode operation middleware
+func (siw *ServerInterfaceWrapper) DenyDeviceCode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "user_code" -------------
+	var userCode UserCode
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_code", chi.URLParam(r, "user_code"), &userCode, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_code", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DenyDeviceCode(w, r, userCode)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4467,6 +4640,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/auth/device_codes/{user_code}/approve", wrapper.ApproveDeviceCode)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/api/v1/auth/device_codes/{user_code}/deny", wrapper.DenyDeviceCode)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/api/v1/auth/logout", wrapper.LogoutSession)
 	})
 	r.Group(func(r chi.Router) {
@@ -4530,59 +4706,60 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"AA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

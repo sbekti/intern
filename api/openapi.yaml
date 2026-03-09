@@ -442,6 +442,26 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /api/v1/auth/device_codes/{user_code}/deny:
+    post:
+      operationId: denyDeviceCode
+      tags: [Auth]
+      summary: Deny a pending device code request for the current authenticated user.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserCode'
+      responses:
+        '204':
+          description: Authorization denied.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /api/v1/auth/tokens:
     post:
       operationId: exchangeDeviceCode

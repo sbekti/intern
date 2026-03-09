@@ -69,7 +69,7 @@ SET
   revoke_reason = sqlc.arg(revoke_reason),
   updated_at = NOW()
 WHERE refresh_token_family_id = sqlc.arg(refresh_token_family_id)
-  AND revoked_at IS NULL;
+;
 
 -- name: TouchAuthSession :one
 UPDATE auth_sessions

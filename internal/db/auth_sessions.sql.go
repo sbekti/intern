@@ -267,7 +267,6 @@ SET
   revoke_reason = $1,
   updated_at = NOW()
 WHERE refresh_token_family_id = $2
-  AND revoked_at IS NULL
 `
 
 type RevokeAuthSessionFamilyParams struct {

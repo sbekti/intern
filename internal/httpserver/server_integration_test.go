@@ -194,6 +194,43 @@ func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	deviceCode, err := testEnv.clientAuthService.CreateDeviceCode(context.Background(), &api.DeviceCodeCreateRequest{
+		ClientName: stringPtr("mobile-app"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create device code: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/deny", nil)
+	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	record, err := testEnv.queries.GetAuthDeviceAuthorizationByDeviceCode(context.Background(), db.GetAuthDeviceAuthorizationByDeviceCodeParams{
+		DeviceCode: deviceCode.DeviceCode,
+	})
+	if err != nil {
+		t.Fatalf("failed to reload device code: %v", err)
+	}
+	if record.Status != "denied" {
+		t.Fatalf("expected denied status, got %q", record.Status)
+	}
+}
+
 func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
 	t.Parallel()
 

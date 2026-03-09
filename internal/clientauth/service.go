@@ -144,6 +144,14 @@ func (s *Service) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeC
 }
 
 func (s *Service) ApproveDeviceCode(ctx context.Context, userCode string, user db.User) error {
+	return s.transitionDeviceCode(ctx, userCode, user, "approved")
+}
+
+func (s *Service) DenyDeviceCode(ctx context.Context, userCode string, user db.User) error {
+	return s.transitionDeviceCode(ctx, userCode, user, "denied")
+}
+
+func (s *Service) transitionDeviceCode(ctx context.Context, userCode string, user db.User, nextStatus string) error {
 	if strings.TrimSpace(userCode) == "" {
 		return ValidationError{Message: "user_code must not be empty"}
 	}
@@ -167,7 +175,7 @@ func (s *Service) ApproveDeviceCode(ctx context.Context, userCode string, user d
 
 	_, err = s.queries.UpdateAuthDeviceAuthorizationStatus(ctx, db.UpdateAuthDeviceAuthorizationStatusParams{
 		ID:               record.ID,
-		Status:           "approved",
+		Status:           nextStatus,
 		ApprovedByUserID: user.ID,
 		ApprovedAt:       timestamptz(s.now()),
 		LastPolledAt:     record.LastPolledAt,
