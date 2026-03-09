@@ -73,9 +73,7 @@ func StartPostgres(t *testing.T) *PostgresContainer {
 	}
 	t.Cleanup(pool.Close)
 
-	if err := pool.Ping(ctx); err != nil {
-		t.Fatalf("failed to ping postgres: %v", err)
-	}
+	waitForPostgres(t, pool)
 
 	applyPostgresSchema(t, ctx, pool)
 
@@ -105,12 +103,17 @@ func StartRedis(t *testing.T) *RedisContainer {
 		_ = container.Terminate(context.Background())
 	})
 
-	addr, err := container.ConnectionString(ctx)
+	connectionURL, err := container.ConnectionString(ctx)
 	if err != nil {
 		t.Fatalf("failed to get redis connection string: %v", err)
 	}
 
-	client := redis.NewClient(&redis.Options{Addr: addr})
+	options, err := redis.ParseURL(connectionURL)
+	if err != nil {
+		t.Fatalf("failed to parse redis connection string: %v", err)
+	}
+
+	client := redis.NewClient(options)
 	t.Cleanup(func() { _ = client.Close() })
 
 	if err := client.Ping(ctx).Err(); err != nil {
@@ -119,7 +122,7 @@ func StartRedis(t *testing.T) *RedisContainer {
 
 	return &RedisContainer{
 		Container: container,
-		URL:       "redis://" + addr + "/0",
+		URL:       connectionURL,
 		Client:    client,
 	}
 }
@@ -179,5 +182,27 @@ func requireDocker(t *testing.T) {
 	cmd := exec.CommandContext(ctx, "docker", "info")
 	if err := cmd.Run(); err != nil {
 		t.Skipf("docker is unavailable for integration tests: %v", err)
+	}
+}
+
+func waitForPostgres(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if err := pool.Ping(ctx); err == nil {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("failed to ping postgres: %v", ctx.Err())
+		case <-ticker.C:
+		}
 	}
 }
