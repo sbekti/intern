@@ -17,6 +17,8 @@ Bootstrap service only. Current scope:
 - `GET /readyz`
 - `GET /api/v1/system/ping`
 
+Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
+
 ## API contract
 
 - OpenAPI source: [`api/openapi.yaml`](./api/openapi.yaml)
