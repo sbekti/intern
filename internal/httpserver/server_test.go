@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
 
@@ -378,6 +380,115 @@ func TestGetVlanReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestListDevicesRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestCreateDeviceReturnsCreated(t *testing.T) {
+	t.Parallel()
+
+	deviceID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{
+					ID:       pgtype.UUID{Bytes: [16]byte(deviceID), Valid: true},
+					Username: arg.Username,
+					Name:     arg.Name,
+					Email:    arg.Email,
+					Groups:   arg.Groups,
+				}, nil
+			},
+		},
+		DeviceService: fakeDeviceService{
+			createFn: func(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error) {
+				return devices.DeviceRecord{
+					Device: db.NetworkDevice{
+						ID:              pgtype.UUID{Bytes: [16]byte(deviceID), Valid: true},
+						MacAddress:      "aa:bb:cc:dd:ee:ff",
+						DisplayName:     input.DisplayName,
+						VlanID:          input.VlanId,
+						CreatedAt:       testTimestamp(),
+						UpdatedAt:       testTimestamp(),
+						CreatedByUserID: actor.ID,
+						UpdatedByUserID: actor.ID,
+					},
+					VLAN: db.Vlan{
+						ID:     input.VlanId,
+						Name:   "iot",
+						VlanID: 20,
+					},
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","vlan_id":2}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestGetDeviceReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		DeviceService: fakeDeviceService{
+			getFn: func(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error) {
+				return devices.DeviceRecord{}, devices.ErrNotFound
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices/11111111-1111-1111-1111-111111111111", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -448,6 +559,34 @@ func testTimestamp() pgtype.Timestamptz {
 		Time:  time.Date(2026, 3, 9, 12, 0, 0, 0, time.UTC),
 		Valid: true,
 	}
+}
+
+type fakeDeviceService struct {
+	listFn   func(ctx context.Context) ([]devices.DeviceRecord, error)
+	getFn    func(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error)
+	createFn func(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
+	updateFn func(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error)
+	deleteFn func(ctx context.Context, actor db.User, id uuid.UUID) error
+}
+
+func (f fakeDeviceService) List(ctx context.Context) ([]devices.DeviceRecord, error) {
+	return f.listFn(ctx)
+}
+
+func (f fakeDeviceService) Get(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error) {
+	return f.getFn(ctx, id)
+}
+
+func (f fakeDeviceService) Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error) {
+	return f.createFn(ctx, actor, input)
+}
+
+func (f fakeDeviceService) Update(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error) {
+	return f.updateFn(ctx, actor, id, patch)
+}
+
+func (f fakeDeviceService) Delete(ctx context.Context, actor db.User, id uuid.UUID) error {
+	return f.deleteFn(ctx, actor, id)
 }
 
 func mustTestConfig(t *testing.T) config.Config {

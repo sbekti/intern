@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/httpserver"
 	"github.com/sbekti/intern-api/internal/vlans"
 	"github.com/sbekti/intern-api/internal/weather"
@@ -70,6 +71,7 @@ func main() {
 	logger.Info("connected to redis")
 
 	queries := db.New(pool)
+	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
 	server := &http.Server{
@@ -79,6 +81,7 @@ func main() {
 			DashboardStore: queries,
 			WeatherService: weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
 			VLANService:    vlanService,
+			DeviceService:  deviceService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

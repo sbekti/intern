@@ -17,6 +17,8 @@ type Querier interface {
 	CreateNetworkDevice(ctx context.Context, arg CreateNetworkDeviceParams) (NetworkDevice, error)
 	CreateVlan(ctx context.Context, arg CreateVlanParams) (Vlan, error)
 	DeleteNetworkDevice(ctx context.Context, arg DeleteNetworkDeviceParams) error
+	DeleteRadcheckCleartextPasswordByUsername(ctx context.Context, arg DeleteRadcheckCleartextPasswordByUsernameParams) error
+	DeleteRadusergroupsByUsername(ctx context.Context, arg DeleteRadusergroupsByUsernameParams) error
 	DeleteVlan(ctx context.Context, arg DeleteVlanParams) error
 	GetAuthDeviceAuthorizationByDeviceCode(ctx context.Context, arg GetAuthDeviceAuthorizationByDeviceCodeParams) (AuthDeviceAuthorization, error)
 	GetAuthDeviceAuthorizationByUserCode(ctx context.Context, arg GetAuthDeviceAuthorizationByUserCodeParams) (AuthDeviceAuthorization, error)
@@ -28,6 +30,7 @@ type Querier interface {
 	GetUserByUsername(ctx context.Context, arg GetUserByUsernameParams) (User, error)
 	GetVlanByID(ctx context.Context, arg GetVlanByIDParams) (Vlan, error)
 	GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error)
+	InsertRadusergroup(ctx context.Context, arg InsertRadusergroupParams) error
 	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
@@ -38,6 +41,7 @@ type Querier interface {
 	UpdateAuthDeviceAuthorizationStatus(ctx context.Context, arg UpdateAuthDeviceAuthorizationStatusParams) (AuthDeviceAuthorization, error)
 	UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error)
 	UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, error)
+	UpsertRadcheckCleartextPassword(ctx context.Context, arg UpsertRadcheckCleartextPasswordParams) error
 	UpsertUserByUsername(ctx context.Context, arg UpsertUserByUsernameParams) (User, error)
 	UpsertUserPreferences(ctx context.Context, arg UpsertUserPreferencesParams) (UserPreference, error)
 }

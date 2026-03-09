@@ -10,12 +10,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/dashboard"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/identity"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
@@ -31,6 +33,7 @@ type Dependencies struct {
 	DashboardStore dashboard.Querier
 	WeatherService dashboard.WeatherService
 	VLANService    VLANService
+	DeviceService  DeviceService
 }
 
 type VLANService interface {
@@ -39,6 +42,14 @@ type VLANService interface {
 	Create(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error)
 	Update(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error)
 	Delete(ctx context.Context, actor db.User, id int64) error
+}
+
+type DeviceService interface {
+	List(ctx context.Context) ([]devices.DeviceRecord, error)
+	Get(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error)
+	Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
+	Update(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error)
+	Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 }
 
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
@@ -51,6 +62,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	userSyncer := identity.NewSyncer(deps.UserStore)
 	dashboardService := dashboard.NewService(deps.DashboardStore, deps.WeatherService)
 	vlanService := deps.VLANService
+	deviceService := deps.DeviceService
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -245,6 +257,133 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 
 			w.WriteHeader(http.StatusNoContent)
 		})
+
+		r.With(authorizer.RequireAdmin()).Get("/networks/devices", func(w http.ResponseWriter, r *http.Request) {
+			if deviceService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "device service not configured")
+				return
+			}
+
+			items, err := deviceService.List(r.Context())
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list devices")
+				return
+			}
+
+			responseItems := make([]api.NetworkDevice, 0, len(items))
+			for _, item := range items {
+				responseItems = append(responseItems, toAPINetworkDevice(item))
+			}
+
+			writeJSON(w, http.StatusOK, api.NetworkDeviceList{Items: responseItems})
+		})
+
+		r.With(authorizer.RequireAdmin()).Get("/networks/devices/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if deviceService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "device service not configured")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid device id")
+				return
+			}
+
+			record, err := deviceService.Get(r.Context(), id)
+			if err != nil {
+				handleDeviceError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, toAPINetworkDevice(record))
+		})
+
+		r.With(authorizer.RequireAdmin()).Post("/networks/devices", func(w http.ResponseWriter, r *http.Request) {
+			if deviceService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "device service not configured")
+				return
+			}
+
+			actor, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			var body api.NetworkDeviceWrite
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			record, err := deviceService.Create(r.Context(), actor, body)
+			if err != nil {
+				handleDeviceError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusCreated, toAPINetworkDevice(record))
+		})
+
+		r.With(authorizer.RequireAdmin()).Patch("/networks/devices/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if deviceService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "device service not configured")
+				return
+			}
+
+			actor, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid device id")
+				return
+			}
+
+			var body api.NetworkDevicePatch
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			record, err := deviceService.Update(r.Context(), actor, id, body)
+			if err != nil {
+				handleDeviceError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, toAPINetworkDevice(record))
+		})
+
+		r.With(authorizer.RequireAdmin()).Delete("/networks/devices/{id}", func(w http.ResponseWriter, r *http.Request) {
+			if deviceService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "device service not configured")
+				return
+			}
+
+			actor, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid device id")
+				return
+			}
+
+			if err := deviceService.Delete(r.Context(), actor, id); err != nil {
+				handleDeviceError(w, err)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
 	})
 
 	return router
@@ -281,6 +420,11 @@ func decodeInt64PathParam(r *http.Request, key string) (int64, error) {
 	return strconv.ParseInt(raw, 10, 64)
 }
 
+func decodeUUIDPathParam(r *http.Request, key string) (uuid.UUID, error) {
+	raw := chi.URLParam(r, key)
+	return uuid.Parse(raw)
+}
+
 func handleVLANError(w http.ResponseWriter, err error) {
 	var validationErr vlans.ValidationError
 	switch {
@@ -305,4 +449,44 @@ func toAPIVlan(value db.Vlan) api.Vlan {
 		CreatedAt:   value.CreatedAt.Time,
 		UpdatedAt:   value.UpdatedAt.Time,
 	}
+}
+
+func handleDeviceError(w http.ResponseWriter, err error) {
+	var validationErr devices.ValidationError
+	switch {
+	case errors.As(err, &validationErr):
+		writeAPIError(w, http.StatusBadRequest, "bad_request", validationErr.Error())
+	case errors.Is(err, devices.ErrNotFound):
+		writeAPIError(w, http.StatusNotFound, "not_found", "device not found")
+	case errors.Is(err, devices.ErrConflict):
+		writeAPIError(w, http.StatusConflict, "conflict", "device conflicts with an existing record")
+	default:
+		writeAPIError(w, http.StatusInternalServerError, "internal_error", "device operation failed")
+	}
+}
+
+func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
+	result := api.NetworkDevice{
+		Id:          openapi_types.UUID(record.Device.ID.Bytes),
+		MacAddress:  record.Device.MacAddress,
+		DisplayName: record.Device.DisplayName,
+		Vlan: api.VlanRef{
+			Id:     record.VLAN.ID,
+			Name:   record.VLAN.Name,
+			VlanId: record.VLAN.VlanID,
+		},
+		CreatedAt: record.Device.CreatedAt.Time,
+		UpdatedAt: record.Device.UpdatedAt.Time,
+	}
+
+	if record.Device.CreatedByUserID.Valid {
+		value := openapi_types.UUID(record.Device.CreatedByUserID.Bytes)
+		result.CreatedByUserId = &value
+	}
+	if record.Device.UpdatedByUserID.Valid {
+		value := openapi_types.UUID(record.Device.UpdatedByUserID.Bytes)
+		result.UpdatedByUserId = &value
+	}
+
+	return result
 }
