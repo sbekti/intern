@@ -11,7 +11,7 @@ info:
     Authentication modes:
 
     - browser traffic arrives behind trusted forward-auth and is normalized by the API
-    - CLI traffic authenticates with bearer JWT access tokens minted by the device-code flow
+    - public clients authenticate with bearer JWT access tokens minted by the device code flow
 
     Authorization is enforced server-side. Admin-only operations require membership in the configured admin group set, which defaults to `Super-Users`.
 servers:
@@ -26,8 +26,8 @@ tags:
     description: Dashboard summary data for the authenticated user.
   - name: Networks
     description: VLAN and network device management operations.
-  - name: CLI Auth
-    description: Device-code login and token lifecycle endpoints for internctl.
+  - name: Auth
+    description: Device code login and token lifecycle endpoints for public clients.
   - name: Admin
     description: Administrator-only auth session inspection and revocation.
 paths:
@@ -401,32 +401,32 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /api/v1/cli/auth/device-authorizations:
+  /api/v1/auth/device_codes:
     post:
-      operationId: createDeviceAuthorization
-      tags: [CLI Auth]
-      summary: Create a new CLI device authorization request.
+      operationId: createDeviceCode
+      tags: [Auth]
+      summary: Create a new device code request for a public client.
       security: []
       requestBody:
         required: false
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceAuthorizationCreateRequest'
+              $ref: '#/components/schemas/DeviceCodeCreateRequest'
       responses:
         '201':
-          description: Device authorization created.
+          description: Device code request created.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DeviceAuthorization'
+                $ref: '#/components/schemas/DeviceCode'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /api/v1/cli/auth/device-authorizations/{user_code}/approve:
+  /api/v1/auth/device_codes/{user_code}/approve:
     post:
-      operationId: approveDeviceAuthorization
-      tags: [CLI Auth]
-      summary: Approve a pending CLI device authorization for the current authenticated user.
+      operationId: approveDeviceCode
+      tags: [Auth]
+      summary: Approve a pending device code request for the current authenticated user.
       security:
         - bearerAuth: []
       parameters:
@@ -442,10 +442,10 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
-  /api/v1/cli/auth/token:
+  /api/v1/auth/tokens:
     post:
-      operationId: exchangeDeviceAuthorization
-      tags: [CLI Auth]
+      operationId: exchangeDeviceCode
+      tags: [Auth]
       summary: Exchange an approved device code for access and refresh tokens.
       security: []
       requestBody:
@@ -453,7 +453,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DeviceTokenRequest'
+              $ref: '#/components/schemas/DeviceCodeTokenRequest'
       responses:
         '200':
           description: Tokens issued.
@@ -462,23 +462,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
         '400':
-          description: Invalid, denied, or expired authorization request.
+          description: Invalid, denied, or expired device code request.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CLIAuthError'
+                $ref: '#/components/schemas/ClientAuthError'
         '428':
-          description: Authorization request still pending approval.
+          description: Device code request still pending approval.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CLIAuthError'
+                $ref: '#/components/schemas/ClientAuthError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /api/v1/cli/auth/refresh:
+  /api/v1/auth/tokens/refresh:
     post:
       operationId: refreshAccessToken
-      tags: [CLI Auth]
+      tags: [Auth]
       summary: Rotate the refresh token and mint a new access token.
       security: []
       requestBody:
@@ -500,10 +500,10 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-  /api/v1/cli/auth/logout:
+  /api/v1/auth/logout:
     post:
-      operationId: logoutCLI
-      tags: [CLI Auth]
+      operationId: logoutSession
+      tags: [Auth]
       summary: Revoke the presented refresh session.
       security: []
       requestBody:
@@ -863,13 +863,13 @@ components:
           type: integer
           format: int64
           minimum: 1
-    DeviceAuthorizationCreateRequest:
+    DeviceCodeCreateRequest:
       type: object
       properties:
         client_name:
           type: string
           default: internctl
-    DeviceAuthorization:
+    DeviceCode:
       type: object
       required:
         - device_code
@@ -891,7 +891,7 @@ components:
         poll_interval_seconds:
           type: integer
           format: int32
-    DeviceTokenRequest:
+    DeviceCodeTokenRequest:
       type: object
       required: [device_code]
       properties:
@@ -923,7 +923,7 @@ components:
           format: int32
         refresh_token:
           type: string
-    CLIAuthError:
+    ClientAuthError:
       type: object
       required: [error, error_description]
       properties:

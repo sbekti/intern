@@ -27,17 +27,17 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
-// Defines values for CLIAuthErrorError.
+// Defines values for ClientAuthErrorError.
 const (
-	AccessDenied         CLIAuthErrorError = "access_denied"
-	AuthorizationPending CLIAuthErrorError = "authorization_pending"
-	ExpiredToken         CLIAuthErrorError = "expired_token"
-	InvalidRequest       CLIAuthErrorError = "invalid_request"
-	SlowDown             CLIAuthErrorError = "slow_down"
+	AccessDenied         ClientAuthErrorError = "access_denied"
+	AuthorizationPending ClientAuthErrorError = "authorization_pending"
+	ExpiredToken         ClientAuthErrorError = "expired_token"
+	InvalidRequest       ClientAuthErrorError = "invalid_request"
+	SlowDown             ClientAuthErrorError = "slow_down"
 )
 
-// Valid indicates whether the value is a known member of the CLIAuthErrorError enum.
-func (e CLIAuthErrorError) Valid() bool {
+// Valid indicates whether the value is a known member of the ClientAuthErrorError enum.
+func (e ClientAuthErrorError) Valid() bool {
 	switch e {
 	case AccessDenied:
 		return true
@@ -71,14 +71,14 @@ type AuthSessionList struct {
 	Items []AuthSession `json:"items"`
 }
 
-// CLIAuthError defines model for CLIAuthError.
-type CLIAuthError struct {
-	Error            CLIAuthErrorError `json:"error"`
-	ErrorDescription string            `json:"error_description"`
+// ClientAuthError defines model for ClientAuthError.
+type ClientAuthError struct {
+	Error            ClientAuthErrorError `json:"error"`
+	ErrorDescription string               `json:"error_description"`
 }
 
-// CLIAuthErrorError defines model for CLIAuthError.Error.
-type CLIAuthErrorError string
+// ClientAuthErrorError defines model for ClientAuthError.Error.
+type ClientAuthErrorError string
 
 // Dashboard defines model for Dashboard.
 type Dashboard struct {
@@ -88,8 +88,8 @@ type Dashboard struct {
 	WelcomeMessage string          `json:"welcome_message"`
 }
 
-// DeviceAuthorization defines model for DeviceAuthorization.
-type DeviceAuthorization struct {
+// DeviceCode defines model for DeviceCode.
+type DeviceCode struct {
 	DeviceCode          string `json:"device_code"`
 	ExpiresInSeconds    int32  `json:"expires_in_seconds"`
 	PollIntervalSeconds int32  `json:"poll_interval_seconds"`
@@ -97,13 +97,13 @@ type DeviceAuthorization struct {
 	VerificationUrl     string `json:"verification_url"`
 }
 
-// DeviceAuthorizationCreateRequest defines model for DeviceAuthorizationCreateRequest.
-type DeviceAuthorizationCreateRequest struct {
+// DeviceCodeCreateRequest defines model for DeviceCodeCreateRequest.
+type DeviceCodeCreateRequest struct {
 	ClientName *string `json:"client_name,omitempty"`
 }
 
-// DeviceTokenRequest defines model for DeviceTokenRequest.
-type DeviceTokenRequest struct {
+// DeviceCodeTokenRequest defines model for DeviceCodeTokenRequest.
+type DeviceCodeTokenRequest struct {
 	DeviceCode string `json:"device_code"`
 }
 
@@ -271,17 +271,17 @@ type TooManyRequests = ErrorResponse
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
-// CreateDeviceAuthorizationJSONRequestBody defines body for CreateDeviceAuthorization for application/json ContentType.
-type CreateDeviceAuthorizationJSONRequestBody = DeviceAuthorizationCreateRequest
+// CreateDeviceCodeJSONRequestBody defines body for CreateDeviceCode for application/json ContentType.
+type CreateDeviceCodeJSONRequestBody = DeviceCodeCreateRequest
 
-// LogoutCLIJSONRequestBody defines body for LogoutCLI for application/json ContentType.
-type LogoutCLIJSONRequestBody = LogoutRequest
+// LogoutSessionJSONRequestBody defines body for LogoutSession for application/json ContentType.
+type LogoutSessionJSONRequestBody = LogoutRequest
+
+// ExchangeDeviceCodeJSONRequestBody defines body for ExchangeDeviceCode for application/json ContentType.
+type ExchangeDeviceCodeJSONRequestBody = DeviceCodeTokenRequest
 
 // RefreshAccessTokenJSONRequestBody defines body for RefreshAccessToken for application/json ContentType.
 type RefreshAccessTokenJSONRequestBody = RefreshTokenRequest
-
-// ExchangeDeviceAuthorizationJSONRequestBody defines body for ExchangeDeviceAuthorization for application/json ContentType.
-type ExchangeDeviceAuthorizationJSONRequestBody = DeviceTokenRequest
 
 // CreateNetworkDeviceJSONRequestBody defines body for CreateNetworkDevice for application/json ContentType.
 type CreateNetworkDeviceJSONRequestBody = NetworkDeviceWrite
@@ -377,28 +377,28 @@ type ClientInterface interface {
 	// RevokeAdminAuthSession request
 	RevokeAdminAuthSession(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateDeviceAuthorizationWithBody request with any body
-	CreateDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// CreateDeviceCodeWithBody request with any body
+	CreateDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	CreateDeviceAuthorization(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	CreateDeviceCode(ctx context.Context, body CreateDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ApproveDeviceAuthorization request
-	ApproveDeviceAuthorization(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ApproveDeviceCode request
+	ApproveDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// LogoutCLIWithBody request with any body
-	LogoutCLIWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// LogoutSessionWithBody request with any body
+	LogoutSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	LogoutCLI(ctx context.Context, body LogoutCLIJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	LogoutSession(ctx context.Context, body LogoutSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExchangeDeviceCodeWithBody request with any body
+	ExchangeDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ExchangeDeviceCode(ctx context.Context, body ExchangeDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RefreshAccessTokenWithBody request with any body
 	RefreshAccessTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	RefreshAccessToken(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ExchangeDeviceAuthorizationWithBody request with any body
-	ExchangeDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ExchangeDeviceAuthorization(ctx context.Context, body ExchangeDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetDashboard request
 	GetDashboard(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -483,8 +483,8 @@ func (c *Client) RevokeAdminAuthSession(ctx context.Context, id SessionId, reqEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDeviceAuthorizationRequestWithBody(c.Server, contentType, body)
+func (c *Client) CreateDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceCodeRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -495,8 +495,8 @@ func (c *Client) CreateDeviceAuthorizationWithBody(ctx context.Context, contentT
 	return c.Client.Do(req)
 }
 
-func (c *Client) CreateDeviceAuthorization(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDeviceAuthorizationRequest(c.Server, body)
+func (c *Client) CreateDeviceCode(ctx context.Context, body CreateDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDeviceCodeRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -507,8 +507,8 @@ func (c *Client) CreateDeviceAuthorization(ctx context.Context, body CreateDevic
 	return c.Client.Do(req)
 }
 
-func (c *Client) ApproveDeviceAuthorization(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewApproveDeviceAuthorizationRequest(c.Server, userCode)
+func (c *Client) ApproveDeviceCode(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApproveDeviceCodeRequest(c.Server, userCode)
 	if err != nil {
 		return nil, err
 	}
@@ -519,8 +519,8 @@ func (c *Client) ApproveDeviceAuthorization(ctx context.Context, userCode UserCo
 	return c.Client.Do(req)
 }
 
-func (c *Client) LogoutCLIWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewLogoutCLIRequestWithBody(c.Server, contentType, body)
+func (c *Client) LogoutSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLogoutSessionRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -531,8 +531,32 @@ func (c *Client) LogoutCLIWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) LogoutCLI(ctx context.Context, body LogoutCLIJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewLogoutCLIRequest(c.Server, body)
+func (c *Client) LogoutSession(ctx context.Context, body LogoutSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewLogoutSessionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExchangeDeviceCodeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeDeviceCodeRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ExchangeDeviceCode(ctx context.Context, body ExchangeDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExchangeDeviceCodeRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -557,30 +581,6 @@ func (c *Client) RefreshAccessTokenWithBody(ctx context.Context, contentType str
 
 func (c *Client) RefreshAccessToken(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRefreshAccessTokenRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeDeviceAuthorizationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeDeviceAuthorizationRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeDeviceAuthorization(ctx context.Context, body ExchangeDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeDeviceAuthorizationRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -904,19 +904,19 @@ func NewRevokeAdminAuthSessionRequest(server string, id SessionId) (*http.Reques
 	return req, nil
 }
 
-// NewCreateDeviceAuthorizationRequest calls the generic CreateDeviceAuthorization builder with application/json body
-func NewCreateDeviceAuthorizationRequest(server string, body CreateDeviceAuthorizationJSONRequestBody) (*http.Request, error) {
+// NewCreateDeviceCodeRequest calls the generic CreateDeviceCode builder with application/json body
+func NewCreateDeviceCodeRequest(server string, body CreateDeviceCodeJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewCreateDeviceAuthorizationRequestWithBody(server, "application/json", bodyReader)
+	return NewCreateDeviceCodeRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewCreateDeviceAuthorizationRequestWithBody generates requests for CreateDeviceAuthorization with any type of body
-func NewCreateDeviceAuthorizationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewCreateDeviceCodeRequestWithBody generates requests for CreateDeviceCode with any type of body
+func NewCreateDeviceCodeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -924,7 +924,7 @@ func NewCreateDeviceAuthorizationRequestWithBody(server string, contentType stri
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/cli/auth/device-authorizations")
+	operationPath := fmt.Sprintf("/api/v1/auth/device_codes")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -944,8 +944,8 @@ func NewCreateDeviceAuthorizationRequestWithBody(server string, contentType stri
 	return req, nil
 }
 
-// NewApproveDeviceAuthorizationRequest generates requests for ApproveDeviceAuthorization
-func NewApproveDeviceAuthorizationRequest(server string, userCode UserCode) (*http.Request, error) {
+// NewApproveDeviceCodeRequest generates requests for ApproveDeviceCode
+func NewApproveDeviceCodeRequest(server string, userCode UserCode) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -960,7 +960,7 @@ func NewApproveDeviceAuthorizationRequest(server string, userCode UserCode) (*ht
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/cli/auth/device-authorizations/%s/approve", pathParam0)
+	operationPath := fmt.Sprintf("/api/v1/auth/device_codes/%s/approve", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -978,19 +978,19 @@ func NewApproveDeviceAuthorizationRequest(server string, userCode UserCode) (*ht
 	return req, nil
 }
 
-// NewLogoutCLIRequest calls the generic LogoutCLI builder with application/json body
-func NewLogoutCLIRequest(server string, body LogoutCLIJSONRequestBody) (*http.Request, error) {
+// NewLogoutSessionRequest calls the generic LogoutSession builder with application/json body
+func NewLogoutSessionRequest(server string, body LogoutSessionJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewLogoutCLIRequestWithBody(server, "application/json", bodyReader)
+	return NewLogoutSessionRequestWithBody(server, "application/json", bodyReader)
 }
 
-// NewLogoutCLIRequestWithBody generates requests for LogoutCLI with any type of body
-func NewLogoutCLIRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+// NewLogoutSessionRequestWithBody generates requests for LogoutSession with any type of body
+func NewLogoutSessionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -998,7 +998,47 @@ func NewLogoutCLIRequestWithBody(server string, contentType string, body io.Read
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/cli/auth/logout")
+	operationPath := fmt.Sprintf("/api/v1/auth/logout")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewExchangeDeviceCodeRequest calls the generic ExchangeDeviceCode builder with application/json body
+func NewExchangeDeviceCodeRequest(server string, body ExchangeDeviceCodeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewExchangeDeviceCodeRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewExchangeDeviceCodeRequestWithBody generates requests for ExchangeDeviceCode with any type of body
+func NewExchangeDeviceCodeRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/auth/tokens")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1038,47 +1078,7 @@ func NewRefreshAccessTokenRequestWithBody(server string, contentType string, bod
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/v1/cli/auth/refresh")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewExchangeDeviceAuthorizationRequest calls the generic ExchangeDeviceAuthorization builder with application/json body
-func NewExchangeDeviceAuthorizationRequest(server string, body ExchangeDeviceAuthorizationJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewExchangeDeviceAuthorizationRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewExchangeDeviceAuthorizationRequestWithBody generates requests for ExchangeDeviceAuthorization with any type of body
-func NewExchangeDeviceAuthorizationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/v1/cli/auth/token")
+	operationPath := fmt.Sprintf("/api/v1/auth/tokens/refresh")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1693,28 +1693,28 @@ type ClientWithResponsesInterface interface {
 	// RevokeAdminAuthSessionWithResponse request
 	RevokeAdminAuthSessionWithResponse(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*RevokeAdminAuthSessionResponse, error)
 
-	// CreateDeviceAuthorizationWithBodyWithResponse request with any body
-	CreateDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error)
+	// CreateDeviceCodeWithBodyWithResponse request with any body
+	CreateDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceCodeResponse, error)
 
-	CreateDeviceAuthorizationWithResponse(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error)
+	CreateDeviceCodeWithResponse(ctx context.Context, body CreateDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceCodeResponse, error)
 
-	// ApproveDeviceAuthorizationWithResponse request
-	ApproveDeviceAuthorizationWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*ApproveDeviceAuthorizationResponse, error)
+	// ApproveDeviceCodeWithResponse request
+	ApproveDeviceCodeWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*ApproveDeviceCodeResponse, error)
 
-	// LogoutCLIWithBodyWithResponse request with any body
-	LogoutCLIWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutCLIResponse, error)
+	// LogoutSessionWithBodyWithResponse request with any body
+	LogoutSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error)
 
-	LogoutCLIWithResponse(ctx context.Context, body LogoutCLIJSONRequestBody, reqEditors ...RequestEditorFn) (*LogoutCLIResponse, error)
+	LogoutSessionWithResponse(ctx context.Context, body LogoutSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error)
+
+	// ExchangeDeviceCodeWithBodyWithResponse request with any body
+	ExchangeDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeDeviceCodeResponse, error)
+
+	ExchangeDeviceCodeWithResponse(ctx context.Context, body ExchangeDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeDeviceCodeResponse, error)
 
 	// RefreshAccessTokenWithBodyWithResponse request with any body
 	RefreshAccessTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RefreshAccessTokenResponse, error)
 
 	RefreshAccessTokenWithResponse(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RefreshAccessTokenResponse, error)
-
-	// ExchangeDeviceAuthorizationWithBodyWithResponse request with any body
-	ExchangeDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeDeviceAuthorizationResponse, error)
-
-	ExchangeDeviceAuthorizationWithResponse(ctx context.Context, body ExchangeDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeDeviceAuthorizationResponse, error)
 
 	// GetDashboardWithResponse request
 	GetDashboardWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetDashboardResponse, error)
@@ -1823,15 +1823,15 @@ func (r RevokeAdminAuthSessionResponse) StatusCode() int {
 	return 0
 }
 
-type CreateDeviceAuthorizationResponse struct {
+type CreateDeviceCodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON201      *DeviceAuthorization
+	JSON201      *DeviceCode
 	JSON429      *TooManyRequests
 }
 
 // Status returns HTTPResponse.Status
-func (r CreateDeviceAuthorizationResponse) Status() string {
+func (r CreateDeviceCodeResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1839,14 +1839,14 @@ func (r CreateDeviceAuthorizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r CreateDeviceAuthorizationResponse) StatusCode() int {
+func (r CreateDeviceCodeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type ApproveDeviceAuthorizationResponse struct {
+type ApproveDeviceCodeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
@@ -1856,7 +1856,7 @@ type ApproveDeviceAuthorizationResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ApproveDeviceAuthorizationResponse) Status() string {
+func (r ApproveDeviceCodeResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1864,21 +1864,21 @@ func (r ApproveDeviceAuthorizationResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ApproveDeviceAuthorizationResponse) StatusCode() int {
+func (r ApproveDeviceCodeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-type LogoutCLIResponse struct {
+type LogoutSessionResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
-func (r LogoutCLIResponse) Status() string {
+func (r LogoutSessionResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -1886,7 +1886,32 @@ func (r LogoutCLIResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r LogoutCLIResponse) StatusCode() int {
+func (r LogoutSessionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ExchangeDeviceCodeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TokenResponse
+	JSON400      *ClientAuthError
+	JSON428      *ClientAuthError
+	JSON429      *TooManyRequests
+}
+
+// Status returns HTTPResponse.Status
+func (r ExchangeDeviceCodeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExchangeDeviceCodeResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1912,31 +1937,6 @@ func (r RefreshAccessTokenResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r RefreshAccessTokenResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ExchangeDeviceAuthorizationResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TokenResponse
-	JSON400      *CLIAuthError
-	JSON428      *CLIAuthError
-	JSON429      *TooManyRequests
-}
-
-// Status returns HTTPResponse.Status
-func (r ExchangeDeviceAuthorizationResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ExchangeDeviceAuthorizationResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1971,6 +1971,7 @@ type ListNetworkDevicesResponse struct {
 	HTTPResponse *http.Response
 	JSON200      *NetworkDeviceList
 	JSON401      *Unauthorized
+	JSON403      *Forbidden
 }
 
 // Status returns HTTPResponse.Status
@@ -2045,6 +2046,7 @@ type GetNetworkDeviceResponse struct {
 	JSON200      *NetworkDevice
 	JSON400      *BadRequest
 	JSON401      *Unauthorized
+	JSON403      *Forbidden
 	JSON404      *NotFound
 }
 
@@ -2350,47 +2352,64 @@ func (c *ClientWithResponses) RevokeAdminAuthSessionWithResponse(ctx context.Con
 	return ParseRevokeAdminAuthSessionResponse(rsp)
 }
 
-// CreateDeviceAuthorizationWithBodyWithResponse request with arbitrary body returning *CreateDeviceAuthorizationResponse
-func (c *ClientWithResponses) CreateDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error) {
-	rsp, err := c.CreateDeviceAuthorizationWithBody(ctx, contentType, body, reqEditors...)
+// CreateDeviceCodeWithBodyWithResponse request with arbitrary body returning *CreateDeviceCodeResponse
+func (c *ClientWithResponses) CreateDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDeviceCodeResponse, error) {
+	rsp, err := c.CreateDeviceCodeWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDeviceAuthorizationResponse(rsp)
+	return ParseCreateDeviceCodeResponse(rsp)
 }
 
-func (c *ClientWithResponses) CreateDeviceAuthorizationWithResponse(ctx context.Context, body CreateDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceAuthorizationResponse, error) {
-	rsp, err := c.CreateDeviceAuthorization(ctx, body, reqEditors...)
+func (c *ClientWithResponses) CreateDeviceCodeWithResponse(ctx context.Context, body CreateDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDeviceCodeResponse, error) {
+	rsp, err := c.CreateDeviceCode(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseCreateDeviceAuthorizationResponse(rsp)
+	return ParseCreateDeviceCodeResponse(rsp)
 }
 
-// ApproveDeviceAuthorizationWithResponse request returning *ApproveDeviceAuthorizationResponse
-func (c *ClientWithResponses) ApproveDeviceAuthorizationWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*ApproveDeviceAuthorizationResponse, error) {
-	rsp, err := c.ApproveDeviceAuthorization(ctx, userCode, reqEditors...)
+// ApproveDeviceCodeWithResponse request returning *ApproveDeviceCodeResponse
+func (c *ClientWithResponses) ApproveDeviceCodeWithResponse(ctx context.Context, userCode UserCode, reqEditors ...RequestEditorFn) (*ApproveDeviceCodeResponse, error) {
+	rsp, err := c.ApproveDeviceCode(ctx, userCode, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseApproveDeviceAuthorizationResponse(rsp)
+	return ParseApproveDeviceCodeResponse(rsp)
 }
 
-// LogoutCLIWithBodyWithResponse request with arbitrary body returning *LogoutCLIResponse
-func (c *ClientWithResponses) LogoutCLIWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutCLIResponse, error) {
-	rsp, err := c.LogoutCLIWithBody(ctx, contentType, body, reqEditors...)
+// LogoutSessionWithBodyWithResponse request with arbitrary body returning *LogoutSessionResponse
+func (c *ClientWithResponses) LogoutSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error) {
+	rsp, err := c.LogoutSessionWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseLogoutCLIResponse(rsp)
+	return ParseLogoutSessionResponse(rsp)
 }
 
-func (c *ClientWithResponses) LogoutCLIWithResponse(ctx context.Context, body LogoutCLIJSONRequestBody, reqEditors ...RequestEditorFn) (*LogoutCLIResponse, error) {
-	rsp, err := c.LogoutCLI(ctx, body, reqEditors...)
+func (c *ClientWithResponses) LogoutSessionWithResponse(ctx context.Context, body LogoutSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*LogoutSessionResponse, error) {
+	rsp, err := c.LogoutSession(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseLogoutCLIResponse(rsp)
+	return ParseLogoutSessionResponse(rsp)
+}
+
+// ExchangeDeviceCodeWithBodyWithResponse request with arbitrary body returning *ExchangeDeviceCodeResponse
+func (c *ClientWithResponses) ExchangeDeviceCodeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeDeviceCodeResponse, error) {
+	rsp, err := c.ExchangeDeviceCodeWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExchangeDeviceCodeResponse(rsp)
+}
+
+func (c *ClientWithResponses) ExchangeDeviceCodeWithResponse(ctx context.Context, body ExchangeDeviceCodeJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeDeviceCodeResponse, error) {
+	rsp, err := c.ExchangeDeviceCode(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExchangeDeviceCodeResponse(rsp)
 }
 
 // RefreshAccessTokenWithBodyWithResponse request with arbitrary body returning *RefreshAccessTokenResponse
@@ -2408,23 +2427,6 @@ func (c *ClientWithResponses) RefreshAccessTokenWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseRefreshAccessTokenResponse(rsp)
-}
-
-// ExchangeDeviceAuthorizationWithBodyWithResponse request with arbitrary body returning *ExchangeDeviceAuthorizationResponse
-func (c *ClientWithResponses) ExchangeDeviceAuthorizationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeDeviceAuthorizationResponse, error) {
-	rsp, err := c.ExchangeDeviceAuthorizationWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeDeviceAuthorizationResponse(rsp)
-}
-
-func (c *ClientWithResponses) ExchangeDeviceAuthorizationWithResponse(ctx context.Context, body ExchangeDeviceAuthorizationJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeDeviceAuthorizationResponse, error) {
-	rsp, err := c.ExchangeDeviceAuthorization(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeDeviceAuthorizationResponse(rsp)
 }
 
 // GetDashboardWithResponse request returning *GetDashboardResponse
@@ -2691,22 +2693,22 @@ func ParseRevokeAdminAuthSessionResponse(rsp *http.Response) (*RevokeAdminAuthSe
 	return response, nil
 }
 
-// ParseCreateDeviceAuthorizationResponse parses an HTTP response from a CreateDeviceAuthorizationWithResponse call
-func ParseCreateDeviceAuthorizationResponse(rsp *http.Response) (*CreateDeviceAuthorizationResponse, error) {
+// ParseCreateDeviceCodeResponse parses an HTTP response from a CreateDeviceCodeWithResponse call
+func ParseCreateDeviceCodeResponse(rsp *http.Response) (*CreateDeviceCodeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &CreateDeviceAuthorizationResponse{
+	response := &CreateDeviceCodeResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest DeviceAuthorization
+		var dest DeviceCode
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2724,15 +2726,15 @@ func ParseCreateDeviceAuthorizationResponse(rsp *http.Response) (*CreateDeviceAu
 	return response, nil
 }
 
-// ParseApproveDeviceAuthorizationResponse parses an HTTP response from a ApproveDeviceAuthorizationWithResponse call
-func ParseApproveDeviceAuthorizationResponse(rsp *http.Response) (*ApproveDeviceAuthorizationResponse, error) {
+// ParseApproveDeviceCodeResponse parses an HTTP response from a ApproveDeviceCodeWithResponse call
+func ParseApproveDeviceCodeResponse(rsp *http.Response) (*ApproveDeviceCodeResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ApproveDeviceAuthorizationResponse{
+	response := &ApproveDeviceCodeResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -2771,15 +2773,15 @@ func ParseApproveDeviceAuthorizationResponse(rsp *http.Response) (*ApproveDevice
 	return response, nil
 }
 
-// ParseLogoutCLIResponse parses an HTTP response from a LogoutCLIWithResponse call
-func ParseLogoutCLIResponse(rsp *http.Response) (*LogoutCLIResponse, error) {
+// ParseLogoutSessionResponse parses an HTTP response from a LogoutSessionWithResponse call
+func ParseLogoutSessionResponse(rsp *http.Response) (*LogoutSessionResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &LogoutCLIResponse{
+	response := &LogoutSessionResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -2791,6 +2793,53 @@ func ParseLogoutCLIResponse(rsp *http.Response) (*LogoutCLIResponse, error) {
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExchangeDeviceCodeResponse parses an HTTP response from a ExchangeDeviceCodeWithResponse call
+func ParseExchangeDeviceCodeResponse(rsp *http.Response) (*ExchangeDeviceCodeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExchangeDeviceCodeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TokenResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ClientAuthError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
+		var dest ClientAuthError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON428 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 
@@ -2831,53 +2880,6 @@ func ParseRefreshAccessTokenResponse(rsp *http.Response) (*RefreshAccessTokenRes
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest TooManyRequests
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseExchangeDeviceAuthorizationResponse parses an HTTP response from a ExchangeDeviceAuthorizationWithResponse call
-func ParseExchangeDeviceAuthorizationResponse(rsp *http.Response) (*ExchangeDeviceAuthorizationResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ExchangeDeviceAuthorizationResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest CLIAuthError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 428:
-		var dest CLIAuthError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON428 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests
@@ -2951,6 +2953,13 @@ func ParseListNetworkDevicesResponse(rsp *http.Response) (*ListNetworkDevicesRes
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 
@@ -3085,6 +3094,13 @@ func ParseGetNetworkDeviceResponse(rsp *http.Response) (*GetNetworkDeviceRespons
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest NotFound
@@ -3574,21 +3590,21 @@ type ServerInterface interface {
 	// Revoke a session as an administrator.
 	// (POST /api/v1/admin/auth/sessions/{id}/revoke)
 	RevokeAdminAuthSession(w http.ResponseWriter, r *http.Request, id SessionId)
-	// Create a new CLI device authorization request.
-	// (POST /api/v1/cli/auth/device-authorizations)
-	CreateDeviceAuthorization(w http.ResponseWriter, r *http.Request)
-	// Approve a pending CLI device authorization for the current authenticated user.
-	// (POST /api/v1/cli/auth/device-authorizations/{user_code}/approve)
-	ApproveDeviceAuthorization(w http.ResponseWriter, r *http.Request, userCode UserCode)
+	// Create a new device code request for a public client.
+	// (POST /api/v1/auth/device_codes)
+	CreateDeviceCode(w http.ResponseWriter, r *http.Request)
+	// Approve a pending device code request for the current authenticated user.
+	// (POST /api/v1/auth/device_codes/{user_code}/approve)
+	ApproveDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode)
 	// Revoke the presented refresh session.
-	// (POST /api/v1/cli/auth/logout)
-	LogoutCLI(w http.ResponseWriter, r *http.Request)
-	// Rotate the refresh token and mint a new access token.
-	// (POST /api/v1/cli/auth/refresh)
-	RefreshAccessToken(w http.ResponseWriter, r *http.Request)
+	// (POST /api/v1/auth/logout)
+	LogoutSession(w http.ResponseWriter, r *http.Request)
 	// Exchange an approved device code for access and refresh tokens.
-	// (POST /api/v1/cli/auth/token)
-	ExchangeDeviceAuthorization(w http.ResponseWriter, r *http.Request)
+	// (POST /api/v1/auth/tokens)
+	ExchangeDeviceCode(w http.ResponseWriter, r *http.Request)
+	// Rotate the refresh token and mint a new access token.
+	// (POST /api/v1/auth/tokens/refresh)
+	RefreshAccessToken(w http.ResponseWriter, r *http.Request)
 	// Get dashboard summary data.
 	// (GET /api/v1/dashboard)
 	GetDashboard(w http.ResponseWriter, r *http.Request)
@@ -3655,33 +3671,33 @@ func (_ Unimplemented) RevokeAdminAuthSession(w http.ResponseWriter, r *http.Req
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Create a new CLI device authorization request.
-// (POST /api/v1/cli/auth/device-authorizations)
-func (_ Unimplemented) CreateDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
+// Create a new device code request for a public client.
+// (POST /api/v1/auth/device_codes)
+func (_ Unimplemented) CreateDeviceCode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Approve a pending CLI device authorization for the current authenticated user.
-// (POST /api/v1/cli/auth/device-authorizations/{user_code}/approve)
-func (_ Unimplemented) ApproveDeviceAuthorization(w http.ResponseWriter, r *http.Request, userCode UserCode) {
+// Approve a pending device code request for the current authenticated user.
+// (POST /api/v1/auth/device_codes/{user_code}/approve)
+func (_ Unimplemented) ApproveDeviceCode(w http.ResponseWriter, r *http.Request, userCode UserCode) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Revoke the presented refresh session.
-// (POST /api/v1/cli/auth/logout)
-func (_ Unimplemented) LogoutCLI(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// Rotate the refresh token and mint a new access token.
-// (POST /api/v1/cli/auth/refresh)
-func (_ Unimplemented) RefreshAccessToken(w http.ResponseWriter, r *http.Request) {
+// (POST /api/v1/auth/logout)
+func (_ Unimplemented) LogoutSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Exchange an approved device code for access and refresh tokens.
-// (POST /api/v1/cli/auth/token)
-func (_ Unimplemented) ExchangeDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
+// (POST /api/v1/auth/tokens)
+func (_ Unimplemented) ExchangeDeviceCode(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Rotate the refresh token and mint a new access token.
+// (POST /api/v1/auth/tokens/refresh)
+func (_ Unimplemented) RefreshAccessToken(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3841,11 +3857,11 @@ func (siw *ServerInterfaceWrapper) RevokeAdminAuthSession(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
-// CreateDeviceAuthorization operation middleware
-func (siw *ServerInterfaceWrapper) CreateDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
+// CreateDeviceCode operation middleware
+func (siw *ServerInterfaceWrapper) CreateDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateDeviceAuthorization(w, r)
+		siw.Handler.CreateDeviceCode(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3855,8 +3871,8 @@ func (siw *ServerInterfaceWrapper) CreateDeviceAuthorization(w http.ResponseWrit
 	handler.ServeHTTP(w, r)
 }
 
-// ApproveDeviceAuthorization operation middleware
-func (siw *ServerInterfaceWrapper) ApproveDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
+// ApproveDeviceCode operation middleware
+func (siw *ServerInterfaceWrapper) ApproveDeviceCode(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -3876,7 +3892,7 @@ func (siw *ServerInterfaceWrapper) ApproveDeviceAuthorization(w http.ResponseWri
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ApproveDeviceAuthorization(w, r, userCode)
+		siw.Handler.ApproveDeviceCode(w, r, userCode)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3886,11 +3902,25 @@ func (siw *ServerInterfaceWrapper) ApproveDeviceAuthorization(w http.ResponseWri
 	handler.ServeHTTP(w, r)
 }
 
-// LogoutCLI operation middleware
-func (siw *ServerInterfaceWrapper) LogoutCLI(w http.ResponseWriter, r *http.Request) {
+// LogoutSession operation middleware
+func (siw *ServerInterfaceWrapper) LogoutSession(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.LogoutCLI(w, r)
+		siw.Handler.LogoutSession(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExchangeDeviceCode operation middleware
+func (siw *ServerInterfaceWrapper) ExchangeDeviceCode(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExchangeDeviceCode(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3905,20 +3935,6 @@ func (siw *ServerInterfaceWrapper) RefreshAccessToken(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RefreshAccessToken(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ExchangeDeviceAuthorization operation middleware
-func (siw *ServerInterfaceWrapper) ExchangeDeviceAuthorization(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ExchangeDeviceAuthorization(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4445,19 +4461,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/admin/auth/sessions/{id}/revoke", wrapper.RevokeAdminAuthSession)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/cli/auth/device-authorizations", wrapper.CreateDeviceAuthorization)
+		r.Post(options.BaseURL+"/api/v1/auth/device_codes", wrapper.CreateDeviceCode)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/cli/auth/device-authorizations/{user_code}/approve", wrapper.ApproveDeviceAuthorization)
+		r.Post(options.BaseURL+"/api/v1/auth/device_codes/{user_code}/approve", wrapper.ApproveDeviceCode)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/cli/auth/logout", wrapper.LogoutCLI)
+		r.Post(options.BaseURL+"/api/v1/auth/logout", wrapper.LogoutSession)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/cli/auth/refresh", wrapper.RefreshAccessToken)
+		r.Post(options.BaseURL+"/api/v1/auth/tokens", wrapper.ExchangeDeviceCode)
 	})
 	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/api/v1/cli/auth/token", wrapper.ExchangeDeviceAuthorization)
+		r.Post(options.BaseURL+"/api/v1/auth/tokens/refresh", wrapper.RefreshAccessToken)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/dashboard", wrapper.GetDashboard)
@@ -4514,59 +4530,59 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"JI3lfZfw5sPmvwEAAP//SBEeASdPAAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

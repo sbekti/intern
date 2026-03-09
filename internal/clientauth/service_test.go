@@ -1,4 +1,4 @@
-package cliauth
+package clientauth
 
 import (
 	"context"
@@ -64,7 +64,7 @@ func (f fakeTransactor) InTx(ctx context.Context, fn func(q Querier) error) erro
 	return fn(f.q)
 }
 
-func TestCreateDeviceAuthorization(t *testing.T) {
+func TestCreateDeviceCode(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -86,7 +86,7 @@ func TestCreateDeviceAuthorization(t *testing.T) {
 		},
 	})
 
-	result, err := service.CreateDeviceAuthorization(context.Background(), nil)
+	result, err := service.CreateDeviceCode(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -98,7 +98,7 @@ func TestCreateDeviceAuthorization(t *testing.T) {
 	}
 }
 
-func TestApproveDeviceAuthorization(t *testing.T) {
+func TestApproveDeviceCode(t *testing.T) {
 	t.Parallel()
 
 	updated := false
@@ -120,7 +120,7 @@ func TestApproveDeviceAuthorization(t *testing.T) {
 		},
 	})
 
-	err := service.ApproveDeviceAuthorization(context.Background(), "ABCD-EFGH", db.User{
+	err := service.ApproveDeviceCode(context.Background(), "ABCD-EFGH", db.User{
 		ID:       pgUUID(uuid.MustParse("22222222-2222-2222-2222-222222222222")),
 		Username: "alice",
 	})
@@ -132,7 +132,7 @@ func TestApproveDeviceAuthorization(t *testing.T) {
 	}
 }
 
-func TestExchangeDeviceAuthorizationPending(t *testing.T) {
+func TestExchangeDeviceCodePending(t *testing.T) {
 	t.Parallel()
 
 	service := testService(fakeQuerier{
@@ -149,13 +149,13 @@ func TestExchangeDeviceAuthorizationPending(t *testing.T) {
 		},
 	})
 
-	_, err := service.ExchangeDeviceAuthorization(context.Background(), api.DeviceTokenRequest{DeviceCode: "code"}, "internctl")
+	_, err := service.ExchangeDeviceCode(context.Background(), api.DeviceCodeTokenRequest{DeviceCode: "code"}, "internctl")
 	if !errors.Is(err, ErrAuthorizationPending) {
 		t.Fatalf("expected ErrAuthorizationPending, got %v", err)
 	}
 }
 
-func TestExchangeDeviceAuthorizationApproved(t *testing.T) {
+func TestExchangeDeviceCodeApproved(t *testing.T) {
 	t.Parallel()
 
 	userID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
@@ -197,7 +197,7 @@ func TestExchangeDeviceAuthorizationApproved(t *testing.T) {
 		},
 	}, strings.NewReader(strings.Repeat("a", 64)))
 
-	response, err := service.ExchangeDeviceAuthorization(context.Background(), api.DeviceTokenRequest{DeviceCode: "code"}, "internctl")
+	response, err := service.ExchangeDeviceCode(context.Background(), api.DeviceCodeTokenRequest{DeviceCode: "code"}, "internctl")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

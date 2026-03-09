@@ -1,4 +1,4 @@
-package cliauth
+package clientauth
 
 import (
 	"context"
@@ -100,7 +100,7 @@ func (t *PGXTransactor) InTx(ctx context.Context, fn func(q Querier) error) erro
 	return tx.Commit(ctx)
 }
 
-func (s *Service) CreateDeviceAuthorization(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error) {
+func (s *Service) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error) {
 	clientName := "internctl"
 	if request != nil && request.ClientName != nil && strings.TrimSpace(*request.ClientName) != "" {
 		clientName = strings.TrimSpace(*request.ClientName)
@@ -127,7 +127,7 @@ func (s *Service) CreateDeviceAuthorization(ctx context.Context, request *api.De
 			Status:          "pending",
 		})
 		if err == nil {
-			return &api.DeviceAuthorization{
+			return &api.DeviceCode{
 				DeviceCode:          deviceCode,
 				UserCode:            userCode,
 				VerificationUrl:     s.cfg.VerificationURL,
@@ -143,7 +143,7 @@ func (s *Service) CreateDeviceAuthorization(ctx context.Context, request *api.De
 	return nil, ErrTooManyRequests
 }
 
-func (s *Service) ApproveDeviceAuthorization(ctx context.Context, userCode string, user db.User) error {
+func (s *Service) ApproveDeviceCode(ctx context.Context, userCode string, user db.User) error {
 	if strings.TrimSpace(userCode) == "" {
 		return ValidationError{Message: "user_code must not be empty"}
 	}
@@ -175,7 +175,7 @@ func (s *Service) ApproveDeviceAuthorization(ctx context.Context, userCode strin
 	return err
 }
 
-func (s *Service) ExchangeDeviceAuthorization(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error) {
+func (s *Service) ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
 	deviceCode := strings.TrimSpace(request.DeviceCode)
 	if deviceCode == "" {
 		return nil, ValidationError{Message: "device_code must not be empty"}

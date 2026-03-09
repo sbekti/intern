@@ -17,7 +17,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/cliauth"
+	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
@@ -494,9 +494,9 @@ func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		CLIAuthService: fakeCLIAuthService{
-			createFn: func(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error) {
-				return &api.DeviceAuthorization{
+		ClientAuthService: fakeClientAuthService{
+			createFn: func(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error) {
+				return &api.DeviceCode{
 					DeviceCode:          "device-code",
 					UserCode:            "ABCD-EFGH",
 					VerificationUrl:     "https://intern.corp.example.com/auth/device",
@@ -507,7 +507,7 @@ func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/device-authorizations", strings.NewReader(`{"client_name":"internctl"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes", strings.NewReader(`{"client_name":"internctl"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -521,10 +521,10 @@ func TestApproveDeviceAuthorizationRequiresAuth(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		CLIAuthService: fakeCLIAuthService{},
+		ClientAuthService: fakeClientAuthService{},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/device-authorizations/ABCD-EFGH/approve", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/ABCD-EFGH/approve", nil)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -537,14 +537,14 @@ func TestExchangeDeviceAuthorizationPendingReturns428(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		CLIAuthService: fakeCLIAuthService{
-			exchangeFn: func(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error) {
-				return nil, cliauth.ErrAuthorizationPending
+		ClientAuthService: fakeClientAuthService{
+			exchangeFn: func(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				return nil, clientauth.ErrAuthorizationPending
 			},
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/token", strings.NewReader(`{"device_code":"device-code"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"device_code":"device-code"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -558,14 +558,14 @@ func TestRefreshAccessTokenUnauthorized(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		CLIAuthService: fakeCLIAuthService{
+		ClientAuthService: fakeClientAuthService{
 			refreshFn: func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
-				return nil, cliauth.ErrUnauthorized
+				return nil, clientauth.ErrUnauthorized
 			},
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/refresh", strings.NewReader(`{"refresh_token":"bad"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/refresh", strings.NewReader(`{"refresh_token":"bad"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -675,43 +675,43 @@ func (f fakeDeviceService) Delete(ctx context.Context, actor db.User, id uuid.UU
 	return f.deleteFn(ctx, actor, id)
 }
 
-type fakeCLIAuthService struct {
-	createFn   func(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error)
+type fakeClientAuthService struct {
+	createFn   func(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error)
 	approveFn  func(ctx context.Context, userCode string, user db.User) error
-	exchangeFn func(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error)
+	exchangeFn func(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error)
 	refreshFn  func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
 	logoutFn   func(ctx context.Context, request api.LogoutRequest) error
 }
 
-func (f fakeCLIAuthService) CreateDeviceAuthorization(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error) {
+func (f fakeClientAuthService) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error) {
 	if f.createFn == nil {
 		return nil, nil
 	}
 	return f.createFn(ctx, request)
 }
 
-func (f fakeCLIAuthService) ApproveDeviceAuthorization(ctx context.Context, userCode string, user db.User) error {
+func (f fakeClientAuthService) ApproveDeviceCode(ctx context.Context, userCode string, user db.User) error {
 	if f.approveFn == nil {
 		return nil
 	}
 	return f.approveFn(ctx, userCode, user)
 }
 
-func (f fakeCLIAuthService) ExchangeDeviceAuthorization(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error) {
+func (f fakeClientAuthService) ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
 	if f.exchangeFn == nil {
 		return nil, nil
 	}
 	return f.exchangeFn(ctx, request, userAgent)
 }
 
-func (f fakeCLIAuthService) RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
+func (f fakeClientAuthService) RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
 	if f.refreshFn == nil {
 		return nil, nil
 	}
 	return f.refreshFn(ctx, request, userAgent)
 }
 
-func (f fakeCLIAuthService) Logout(ctx context.Context, request api.LogoutRequest) error {
+func (f fakeClientAuthService) Logout(ctx context.Context, request api.LogoutRequest) error {
 	if f.logoutFn == nil {
 		return nil
 	}
