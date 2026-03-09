@@ -34,6 +34,7 @@ Bootstrap service only. Current scope:
 
 ```bash
 go generate ./internal/api
+go generate ./internal/db
 go test ./...
 go run ./cmd/intern-api
 ```
@@ -45,5 +46,7 @@ Pinned migration tool:
 - `github.com/pressly/goose/v3 v3.27.0`
 
 Migration files live under [`db/migrations`](./db/migrations).
+
+Tooling for `oapi-codegen`, `sqlc`, and `goose` is isolated in [`tools/go.mod`](./tools/go.mod) so the main module keeps only runtime dependencies.
 
 This repo is public-safe by design. Do not commit secrets.

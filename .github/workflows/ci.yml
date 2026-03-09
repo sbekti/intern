@@ -37,6 +37,11 @@ jobs:
           go generate ./internal/api
           git diff --exit-code -- internal/api/api.gen.go
 
+      - name: SQLC check
+        run: |
+          go generate ./internal/db
+          git diff --exit-code -- internal/db
+
       - name: Test
         run: go test ./...
 
