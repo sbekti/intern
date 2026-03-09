@@ -300,6 +300,8 @@ paths:
                 $ref: '#/components/schemas/NetworkDeviceList'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       operationId: createNetworkDevice
       tags: [Networks]
@@ -347,6 +349,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
