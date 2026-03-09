@@ -15,6 +15,7 @@ import (
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/httpserver"
+	"github.com/sbekti/intern-api/internal/vlans"
 	"github.com/sbekti/intern-api/internal/weather"
 )
 
@@ -69,6 +70,7 @@ func main() {
 	logger.Info("connected to redis")
 
 	queries := db.New(pool)
+	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
 	server := &http.Server{
 		Addr: cfg.Server.Addr,
@@ -76,6 +78,7 @@ func main() {
 			UserStore:      queries,
 			DashboardStore: queries,
 			WeatherService: weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
+			VLANService:    vlanService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

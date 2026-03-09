@@ -12,6 +12,7 @@ Bootstrap service only. Current scope:
 - health endpoints
 - authenticated profile endpoint
 - authenticated dashboard endpoint with Redis-backed weather caching
+- VLAN listing and admin-managed VLAN CRUD endpoints
 
 ## Endpoints
 
@@ -20,6 +21,11 @@ Bootstrap service only. Current scope:
 - `GET /api/v1/system/ping`
 - `GET /api/v1/profile`
 - `GET /api/v1/dashboard`
+- `GET /api/v1/networks/vlans`
+- `GET /api/v1/networks/vlans/{id}`
+- `POST /api/v1/networks/vlans`
+- `PATCH /api/v1/networks/vlans/{id}`
+- `DELETE /api/v1/networks/vlans/{id}`
 
 Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
 

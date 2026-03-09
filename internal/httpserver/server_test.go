@@ -8,14 +8,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/vlans"
 )
 
 func TestBootstrapRoutes(t *testing.T) {
@@ -222,6 +225,159 @@ func TestGetDashboardReturnsSummary(t *testing.T) {
 	}
 }
 
+func TestListVlansRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestListVlansReturnsItems(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			listFn: func(ctx context.Context) ([]db.Vlan, error) {
+				return []db.Vlan{{
+					ID:          1,
+					Name:        "guest",
+					VlanID:      10,
+					Description: "Guest devices",
+					IsActive:    true,
+					CreatedAt:   testTimestamp(),
+					UpdatedAt:   testTimestamp(),
+				}}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestCreateVlanRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			createFn: func(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error) {
+				t.Fatal("expected create not to be called")
+				return db.Vlan{}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", strings.NewReader(`{"name":"guest","vlan_id":10}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestCreateVlanReturnsCreated(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			createFn: func(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error) {
+				return db.Vlan{
+					ID:          1,
+					Name:        input.Name,
+					VlanID:      input.VlanId,
+					Description: "",
+					IsActive:    true,
+					CreatedAt:   testTimestamp(),
+					UpdatedAt:   testTimestamp(),
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", strings.NewReader(`{"name":"guest","vlan_id":10}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestGetVlanReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			getFn: func(ctx context.Context, id int64) (db.Vlan, error) {
+				return db.Vlan{}, vlans.ErrNotFound
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans/999", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -257,6 +413,41 @@ func (f fakeDashboardWeatherService) GetSummary(ctx context.Context) (*api.Weath
 			WeatherCode:  1,
 		},
 	}, nil
+}
+
+type fakeVLANService struct {
+	listFn   func(ctx context.Context) ([]db.Vlan, error)
+	getFn    func(ctx context.Context, id int64) (db.Vlan, error)
+	createFn func(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error)
+	updateFn func(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error)
+	deleteFn func(ctx context.Context, actor db.User, id int64) error
+}
+
+func (f fakeVLANService) List(ctx context.Context) ([]db.Vlan, error) {
+	return f.listFn(ctx)
+}
+
+func (f fakeVLANService) Get(ctx context.Context, id int64) (db.Vlan, error) {
+	return f.getFn(ctx, id)
+}
+
+func (f fakeVLANService) Create(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error) {
+	return f.createFn(ctx, actor, input)
+}
+
+func (f fakeVLANService) Update(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error) {
+	return f.updateFn(ctx, actor, id, patch)
+}
+
+func (f fakeVLANService) Delete(ctx context.Context, actor db.User, id int64) error {
+	return f.deleteFn(ctx, actor, id)
+}
+
+func testTimestamp() pgtype.Timestamptz {
+	return pgtype.Timestamptz{
+		Time:  time.Date(2026, 3, 9, 12, 0, 0, 0, time.UTC),
+		Valid: true,
+	}
 }
 
 func mustTestConfig(t *testing.T) config.Config {
