@@ -16,6 +16,7 @@ Bootstrap service only. Current scope:
 - `GET /healthz`
 - `GET /readyz`
 - `GET /api/v1/system/ping`
+- `GET /api/v1/profile`
 
 Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
 
@@ -28,6 +29,9 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
 - `INTERN_API_ADDR`
   - listen address
   - default: `:8080`
+- `INTERN_API_DATABASE_URL`
+  - PostgreSQL connection string for persisted application state
+  - default: empty; persisted identity-backed endpoints run in degraded mode without it
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`
   - default: `info`

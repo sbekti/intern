@@ -17,6 +17,7 @@ func TestValidate(t *testing.T) {
 			name: "valid defaults",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -36,6 +37,7 @@ func TestValidate(t *testing.T) {
 			name: "empty addr",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ""},
+				Database: DatabaseConfig{},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -56,6 +58,7 @@ func TestValidate(t *testing.T) {
 			name: "invalid log level",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{},
 				LogLevel: LogLevel("trace"),
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -76,6 +79,7 @@ func TestValidate(t *testing.T) {
 			name: "missing jwt secret",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:   "intern.corp.example.com",
@@ -95,6 +99,7 @@ func TestValidate(t *testing.T) {
 			name: "missing trusted proxy",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",

@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	Server        ServerConfig
+	Database      DatabaseConfig
 	LogLevel      LogLevel
 	Auth          AuthConfig
 	TrustedProxy  TrustedProxyConfig
@@ -18,6 +19,10 @@ type Config struct {
 
 type ServerConfig struct {
 	Addr string
+}
+
+type DatabaseConfig struct {
+	URL string
 }
 
 type AuthConfig struct {
@@ -56,6 +61,9 @@ func Load() (Config, error) {
 	cfg := Config{
 		Server: ServerConfig{
 			Addr: envOrDefault("INTERN_API_ADDR", ":8080"),
+		},
+		Database: DatabaseConfig{
+			URL: envOrDefault("INTERN_API_DATABASE_URL", ""),
 		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{

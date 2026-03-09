@@ -7,8 +7,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern-api/internal/identity"
 )
 
 type response struct {
@@ -17,12 +20,18 @@ type response struct {
 	User    string `json:"user,omitempty"`
 }
 
-func NewHandler(logger *slog.Logger, cfg config.Config) http.Handler {
+type Dependencies struct {
+	UserStore identity.UserStore
+}
+
+func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	authenticator := auth.NewAuthenticator(cfg)
+	authorizer := auth.NewAuthorizer(cfg)
+	userSyncer := identity.NewSyncer(deps.UserStore)
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -30,6 +39,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config) http.Handler {
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
 	router.Use(authenticator.OptionalPrincipalMiddleware())
+	router.Use(userSyncer.Middleware())
 
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, response{Status: "ok"})
@@ -50,6 +60,34 @@ func NewHandler(logger *slog.Logger, cfg config.Config) http.Handler {
 				Status:  "ok",
 				Service: "intern-api",
 				User:    username,
+			})
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Get("/profile", func(w http.ResponseWriter, r *http.Request) {
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				principal, principalOK := auth.FromContext(r.Context())
+				if !principalOK {
+					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+					return
+				}
+
+				writeJSON(w, http.StatusOK, api.Profile{
+					Username: principal.Username,
+					Name:     principal.Name,
+					Email:    openapi_types.Email(principal.Email),
+					Groups:   append([]string(nil), principal.Groups...),
+					IsAdmin:  authorizer.IsAdmin(principal),
+				})
+				return
+			}
+
+			writeJSON(w, http.StatusOK, api.Profile{
+				Username: user.Username,
+				Name:     user.Name,
+				Email:    openapi_types.Email(user.Email),
+				Groups:   append([]string(nil), user.Groups...),
+				IsAdmin:  authorizer.IsAdmin(&auth.Principal{Groups: user.Groups}),
 			})
 		})
 	})
