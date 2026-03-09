@@ -9,6 +9,18 @@ import (
 	"context"
 )
 
+const countVlans = `-- name: CountVlans :one
+SELECT COUNT(*)
+FROM vlans
+`
+
+func (q *Queries) CountVlans(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countVlans)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createVlan = `-- name: CreateVlan :one
 INSERT INTO vlans (
   name,

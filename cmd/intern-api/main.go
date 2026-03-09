@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/httpserver"
+	"github.com/sbekti/intern-api/internal/weather"
 )
 
 func main() {
@@ -50,10 +52,30 @@ func main() {
 
 	logger.Info("connected to database")
 
+	redisOptions, err := redis.ParseURL(cfg.Redis.URL)
+	if err != nil {
+		logger.Error("failed to parse redis url", "error", err)
+		os.Exit(1)
+	}
+
+	redisClient := redis.NewClient(redisOptions)
+	defer redisClient.Close()
+
+	if err := redisClient.Ping(connectCtx).Err(); err != nil {
+		logger.Error("failed to reach redis", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("connected to redis")
+
+	queries := db.New(pool)
+
 	server := &http.Server{
 		Addr: cfg.Server.Addr,
 		Handler: httpserver.NewHandler(logger, cfg, httpserver.Dependencies{
-			UserStore: db.New(pool),
+			UserStore:      queries,
+			DashboardStore: queries,
+			WeatherService: weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

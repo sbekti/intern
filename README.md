@@ -10,6 +10,8 @@ Bootstrap service only. Current scope:
 - environment-based config loading
 - structured JSON logging via `log/slog`
 - health endpoints
+- authenticated profile endpoint
+- authenticated dashboard endpoint with Redis-backed weather caching
 
 ## Endpoints
 
@@ -17,6 +19,7 @@ Bootstrap service only. Current scope:
 - `GET /readyz`
 - `GET /api/v1/system/ping`
 - `GET /api/v1/profile`
+- `GET /api/v1/dashboard`
 
 Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
 
@@ -31,6 +34,9 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
   - default: `:8080`
 - `INTERN_API_DATABASE_URL`
   - PostgreSQL connection string for persisted application state
+  - required
+- `INTERN_API_REDIS_URL`
+  - Redis connection string for caching and future auth/session features
   - required
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`
@@ -47,6 +53,18 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
 - `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_HMAC_SECRET`
   - JWT validation settings for CLI bearer tokens
   - defaults: `intern.corp.example.com`, `internctl`, `dev-insecure-jwt-secret`
+- `WEATHER_BASE_URL`
+  - Open-Meteo forecast API base URL
+  - default: `https://api.open-meteo.com/v1/forecast`
+- `WEATHER_LOCATION_NAME`
+  - display name returned in the dashboard weather payload
+  - default: `Configured Location`
+- `WEATHER_LATITUDE`, `WEATHER_LONGITUDE`
+  - coordinates used for the weather query
+  - default: `0`, `0`
+- `WEATHER_CACHE_TTL`
+  - Redis cache TTL for weather responses
+  - default: `15m`
 
 ## Local development
 

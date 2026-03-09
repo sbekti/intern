@@ -3,6 +3,7 @@ package config
 import (
 	"net/netip"
 	"testing"
+	"time"
 )
 
 func TestValidate(t *testing.T) {
@@ -18,6 +19,8 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -38,6 +41,8 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ""},
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -59,6 +64,8 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevel("trace"),
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -80,6 +87,8 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:   "intern.corp.example.com",
@@ -100,6 +109,8 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -117,6 +128,30 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing redis url",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",

@@ -11,6 +11,7 @@ import (
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern-api/internal/dashboard"
 	"github.com/sbekti/intern-api/internal/identity"
 )
 
@@ -21,7 +22,9 @@ type response struct {
 }
 
 type Dependencies struct {
-	UserStore identity.UserStore
+	UserStore      identity.UserStore
+	DashboardStore dashboard.Querier
+	WeatherService dashboard.WeatherService
 }
 
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
@@ -32,6 +35,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	authenticator := auth.NewAuthenticator(cfg)
 	authorizer := auth.NewAuthorizer(cfg)
 	userSyncer := identity.NewSyncer(deps.UserStore)
+	dashboardService := dashboard.NewService(deps.DashboardStore, deps.WeatherService)
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -61,6 +65,23 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				Service: "intern-api",
 				User:    username,
 			})
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Get("/dashboard", func(w http.ResponseWriter, r *http.Request) {
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			principal, _ := auth.FromContext(r.Context())
+			payload, err := dashboardService.Build(r.Context(), user, principal, authorizer.IsAdmin(principal))
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, payload)
 		})
 
 		r.With(authorizer.RequireAuthenticated()).Get("/profile", func(w http.ResponseWriter, r *http.Request) {

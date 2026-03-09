@@ -9,6 +9,8 @@ import (
 )
 
 type Querier interface {
+	CountNetworkDevices(ctx context.Context) (int64, error)
+	CountVlans(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
 	CreateAuthDeviceAuthorization(ctx context.Context, arg CreateAuthDeviceAuthorizationParams) (AuthDeviceAuthorization, error)
 	CreateAuthSession(ctx context.Context, arg CreateAuthSessionParams) (AuthSession, error)

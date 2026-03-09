@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"testing"
+	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
+	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 )
@@ -142,6 +144,84 @@ func TestGetProfileSyncsAndReturnsProfile(t *testing.T) {
 	}
 }
 
+func TestGetDashboardRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestGetDashboardReturnsSummary(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{
+					Username: arg.Username,
+					Name:     arg.Name,
+					Email:    arg.Email,
+					Groups:   arg.Groups,
+				}, nil
+			},
+		},
+		DashboardStore: fakeDashboardStore{
+			deviceCount: 7,
+			vlanCount:   3,
+		},
+		WeatherService: fakeDashboardWeatherService{
+			locationName: "Example Home",
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var payload struct {
+		WelcomeMessage string `json:"welcome_message"`
+		NetworkSummary struct {
+			DeviceCount int64 `json:"device_count"`
+			VlanCount   int64 `json:"vlan_count"`
+		} `json:"network_summary"`
+		Weather *struct {
+			LocationName string `json:"location_name"`
+		} `json:"weather"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode dashboard response: %v", err)
+	}
+
+	if payload.WelcomeMessage != "Welcome, Alice Example" {
+		t.Fatalf("unexpected welcome message %q", payload.WelcomeMessage)
+	}
+	if payload.NetworkSummary.DeviceCount != 7 {
+		t.Fatalf("expected 7 devices, got %d", payload.NetworkSummary.DeviceCount)
+	}
+	if payload.NetworkSummary.VlanCount != 3 {
+		t.Fatalf("expected 3 vlans, got %d", payload.NetworkSummary.VlanCount)
+	}
+	if payload.Weather == nil || payload.Weather.LocationName != "Example Home" {
+		t.Fatal("expected weather payload")
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -150,12 +230,43 @@ func (f fakeProfileUserStore) UpsertUserByUsername(ctx context.Context, arg db.U
 	return f.upsertFn(ctx, arg)
 }
 
+type fakeDashboardStore struct {
+	deviceCount int64
+	vlanCount   int64
+}
+
+func (f fakeDashboardStore) CountNetworkDevices(ctx context.Context) (int64, error) {
+	return f.deviceCount, nil
+}
+
+func (f fakeDashboardStore) CountVlans(ctx context.Context) (int64, error) {
+	return f.vlanCount, nil
+}
+
+type fakeDashboardWeatherService struct {
+	locationName string
+}
+
+func (f fakeDashboardWeatherService) GetSummary(ctx context.Context) (*api.WeatherSummary, error) {
+	return &api.WeatherSummary{
+		LocationName: f.locationName,
+		Timezone:     "America/New_York",
+		Current: api.WeatherCurrent{
+			TemperatureC: 20,
+			WindSpeedKph: 10,
+			WeatherCode:  1,
+		},
+	}, nil
+}
+
 func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	cfg := config.Config{
 		Server:   config.ServerConfig{Addr: ":8080"},
 		Database: config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+		Redis:    config.RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
 			JWTIssuer:     "intern.corp.example.com",

@@ -3,6 +3,10 @@ SELECT *
 FROM network_devices
 ORDER BY display_name, id;
 
+-- name: CountNetworkDevices :one
+SELECT COUNT(*)
+FROM network_devices;
+
 -- name: GetNetworkDeviceByID :one
 SELECT *
 FROM network_devices

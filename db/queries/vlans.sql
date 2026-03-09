@@ -3,6 +3,10 @@ SELECT *
 FROM vlans
 ORDER BY vlan_id, id;
 
+-- name: CountVlans :one
+SELECT COUNT(*)
+FROM vlans;
+
 -- name: GetVlanByID :one
 SELECT *
 FROM vlans

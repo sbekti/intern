@@ -5,12 +5,16 @@ import (
 	"log/slog"
 	"net/netip"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
 	Server        ServerConfig
 	Database      DatabaseConfig
+	Redis         RedisConfig
+	Weather       WeatherConfig
 	LogLevel      LogLevel
 	Auth          AuthConfig
 	TrustedProxy  TrustedProxyConfig
@@ -23,6 +27,18 @@ type ServerConfig struct {
 
 type DatabaseConfig struct {
 	URL string
+}
+
+type RedisConfig struct {
+	URL string
+}
+
+type WeatherConfig struct {
+	BaseURL      string
+	LocationName string
+	Latitude     float64
+	Longitude    float64
+	CacheTTL     time.Duration
 }
 
 type AuthConfig struct {
@@ -58,12 +74,35 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	weatherLatitude, err := envFloatOrDefault("WEATHER_LATITUDE", 0)
+	if err != nil {
+		return Config{}, err
+	}
+	weatherLongitude, err := envFloatOrDefault("WEATHER_LONGITUDE", 0)
+	if err != nil {
+		return Config{}, err
+	}
+	weatherCacheTTL, err := envDurationOrDefault("WEATHER_CACHE_TTL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Server: ServerConfig{
 			Addr: envOrDefault("INTERN_API_ADDR", ":8080"),
 		},
 		Database: DatabaseConfig{
 			URL: envOrDefault("INTERN_API_DATABASE_URL", ""),
+		},
+		Redis: RedisConfig{
+			URL: envOrDefault("INTERN_API_REDIS_URL", ""),
+		},
+		Weather: WeatherConfig{
+			BaseURL:      envOrDefault("WEATHER_BASE_URL", "https://api.open-meteo.com/v1/forecast"),
+			LocationName: envOrDefault("WEATHER_LOCATION_NAME", "Configured Location"),
+			Latitude:     weatherLatitude,
+			Longitude:    weatherLongitude,
+			CacheTTL:     weatherCacheTTL,
 		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
@@ -96,6 +135,18 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Database.URL) == "" {
 		return fmt.Errorf("INTERN_API_DATABASE_URL must not be empty")
+	}
+	if strings.TrimSpace(c.Redis.URL) == "" {
+		return fmt.Errorf("INTERN_API_REDIS_URL must not be empty")
+	}
+	if strings.TrimSpace(c.Weather.BaseURL) == "" {
+		return fmt.Errorf("WEATHER_BASE_URL must not be empty")
+	}
+	if strings.TrimSpace(c.Weather.LocationName) == "" {
+		return fmt.Errorf("WEATHER_LOCATION_NAME must not be empty")
+	}
+	if c.Weather.CacheTTL <= 0 {
+		return fmt.Errorf("WEATHER_CACHE_TTL must be greater than zero")
 	}
 
 	switch c.LogLevel {
@@ -196,4 +247,30 @@ func envPrefixesOrDefault(key string, fallback []string) ([]netip.Prefix, error)
 	}
 
 	return prefixes, nil
+}
+
+func envFloatOrDefault(key string, fallback float64) (float64, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %w", key, err)
+	}
+	return parsed, nil
 }

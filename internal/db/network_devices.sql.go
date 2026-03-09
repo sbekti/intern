@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countNetworkDevices = `-- name: CountNetworkDevices :one
+SELECT COUNT(*)
+FROM network_devices
+`
+
+func (q *Queries) CountNetworkDevices(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countNetworkDevices)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createNetworkDevice = `-- name: CreateNetworkDevice :one
 INSERT INTO network_devices (
   mac_address,
