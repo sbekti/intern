@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -152,9 +153,28 @@ func (f fakeProfileUserStore) UpsertUserByUsername(ctx context.Context, arg db.U
 func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("failed to load test config: %v", err)
+	cfg := config.Config{
+		Server:   config.ServerConfig{Addr: ":8080"},
+		Database: config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+		LogLevel: config.LogLevelInfo,
+		Auth: config.AuthConfig{
+			JWTIssuer:     "intern.corp.example.com",
+			JWTAudience:   "internctl",
+			JWTHMACSecret: "test-secret",
+		},
+		TrustedProxy: config.TrustedProxyConfig{
+			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+			UserHeader:   "Remote-User",
+			NameHeader:   "Remote-Name",
+			EmailHeader:  "Remote-Email",
+			GroupsHeader: "Remote-Groups",
+		},
+		Authorization: config.AuthorizationConfig{
+			AdminGroups: []string{"Super-Users"},
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("failed to validate test config: %v", err)
 	}
 	return cfg
 }

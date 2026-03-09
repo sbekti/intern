@@ -66,19 +66,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 		r.With(authorizer.RequireAuthenticated()).Get("/profile", func(w http.ResponseWriter, r *http.Request) {
 			user, ok := identity.FromContext(r.Context())
 			if !ok {
-				principal, principalOK := auth.FromContext(r.Context())
-				if !principalOK {
-					http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-					return
-				}
-
-				writeJSON(w, http.StatusOK, api.Profile{
-					Username: principal.Username,
-					Name:     principal.Name,
-					Email:    openapi_types.Email(principal.Email),
-					Groups:   append([]string(nil), principal.Groups...),
-					IsAdmin:  authorizer.IsAdmin(principal),
-				})
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 				return
 			}
 

@@ -27,48 +27,34 @@ func main() {
 		Level: cfg.LogLevel.Leveler(),
 	}))
 
-	var (
-		pool    *pgxpool.Pool
-		handler http.Handler
-	)
+	connectCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	if cfg.Database.URL != "" {
-		connectCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		pgxConfig, err := pgxpool.ParseConfig(cfg.Database.URL)
-		if err != nil {
-			logger.Error("failed to parse database url", "error", err)
-			os.Exit(1)
-		}
-
-		pool, err = pgxpool.NewWithConfig(connectCtx, pgxConfig)
-		if err != nil {
-			logger.Error("failed to create database pool", "error", err)
-			os.Exit(1)
-		}
-
-		if err := pool.Ping(connectCtx); err != nil {
-			pool.Close()
-			logger.Error("failed to reach database", "error", err)
-			os.Exit(1)
-		}
-
-		logger.Info("connected to database")
-		handler = httpserver.NewHandler(logger, cfg, httpserver.Dependencies{
-			UserStore: db.New(pool),
-		})
-	} else {
-		logger.Warn("database URL not configured; persisted identity-backed endpoints are running in degraded mode")
-		handler = httpserver.NewHandler(logger, cfg, httpserver.Dependencies{})
+	pgxConfig, err := pgxpool.ParseConfig(cfg.Database.URL)
+	if err != nil {
+		logger.Error("failed to parse database url", "error", err)
+		os.Exit(1)
 	}
-	if pool != nil {
-		defer pool.Close()
+
+	pool, err := pgxpool.NewWithConfig(connectCtx, pgxConfig)
+	if err != nil {
+		logger.Error("failed to create database pool", "error", err)
+		os.Exit(1)
 	}
+	defer pool.Close()
+
+	if err := pool.Ping(connectCtx); err != nil {
+		logger.Error("failed to reach database", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("connected to database")
 
 	server := &http.Server{
-		Addr:              cfg.Server.Addr,
-		Handler:           handler,
+		Addr: cfg.Server.Addr,
+		Handler: httpserver.NewHandler(logger, cfg, httpserver.Dependencies{
+			UserStore: db.New(pool),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

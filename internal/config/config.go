@@ -94,6 +94,9 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Server.Addr) == "" {
 		return fmt.Errorf("INTERN_API_ADDR must not be empty")
 	}
+	if strings.TrimSpace(c.Database.URL) == "" {
+		return fmt.Errorf("INTERN_API_DATABASE_URL must not be empty")
+	}
 
 	switch c.LogLevel {
 	case LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError:

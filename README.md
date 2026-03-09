@@ -31,7 +31,7 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
   - default: `:8080`
 - `INTERN_API_DATABASE_URL`
   - PostgreSQL connection string for persisted application state
-  - default: empty; persisted identity-backed endpoints run in degraded mode without it
+  - required
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`
   - default: `info`

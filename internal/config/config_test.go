@@ -17,7 +17,7 @@ func TestValidate(t *testing.T) {
 			name: "valid defaults",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -37,7 +37,7 @@ func TestValidate(t *testing.T) {
 			name: "empty addr",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ""},
-				Database: DatabaseConfig{},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -58,7 +58,7 @@ func TestValidate(t *testing.T) {
 			name: "invalid log level",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				LogLevel: LogLevel("trace"),
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
@@ -79,7 +79,7 @@ func TestValidate(t *testing.T) {
 			name: "missing jwt secret",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:   "intern.corp.example.com",
@@ -99,12 +99,33 @@ func TestValidate(t *testing.T) {
 			name: "missing trusted proxy",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing database url",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
 				Database: DatabaseConfig{},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					JWTIssuer:     "intern.corp.example.com",
 					JWTAudience:   "internctl",
 					JWTHMACSecret: "test-secret",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
 				},
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
