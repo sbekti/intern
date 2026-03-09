@@ -247,7 +247,7 @@ func (s *Service) ExchangeDeviceCode(ctx context.Context, request api.DeviceCode
 
 			_, err = q.UpdateAuthDeviceAuthorizationStatus(ctx, db.UpdateAuthDeviceAuthorizationStatusParams{
 				ID:               record.ID,
-				Status:           "consumed",
+				Status:           "exchanged",
 				ApprovedByUserID: record.ApprovedByUserID,
 				ApprovedAt:       record.ApprovedAt,
 				LastPolledAt:     timestamptz(now),

@@ -108,8 +108,11 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
 go generate ./internal/api
 go generate ./internal/db
 go test ./...
+go test -tags=integration ./internal/vlans ./internal/devices ./internal/clientauth ./internal/weather
 go run ./cmd/intern-api
 ```
+
+The tagged integration tests start ephemeral Postgres and Redis containers with `testcontainers-go`. If Docker is not accessible, they skip cleanly.
 
 ## Database migrations
 
