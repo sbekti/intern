@@ -1,0 +1,112 @@
+services:
+  postgres:
+    image: postgres:18-alpine3.22
+    environment:
+      POSTGRES_DB: intern_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d intern_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:8.4-alpine3.22
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.11
+
+  migrate:
+    image: postgres:18-alpine3.22
+    working_dir: /workspace
+    command:
+      - /bin/sh
+      - -lc
+      - awk '$$0 == "-- +goose Up" { inup=1; next } $$0 == "-- +goose Down" { exit } $$0 ~ /^-- \\+goose/ { next } inup { print }' db/migrations/202603080001_initial_schema.sql | psql -v ON_ERROR_STOP=1 "$$INTERN_API_DATABASE_URL"
+    environment:
+      INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.12
+    volumes:
+      - .:/workspace:ro
+
+  intern-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERN_API_ADDR: :8080
+      INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
+      INTERN_API_REDIS_URL: redis://redis:6379/0
+      INTERN_API_LOG_LEVEL: info
+      WEATHER_BASE_URL: https://api.open-meteo.com/v1/forecast
+      WEATHER_LOCATION_NAME: Example Home
+      WEATHER_LATITUDE: "40.7128"
+      WEATHER_LONGITUDE: "-74.0060"
+      WEATHER_CACHE_TTL: 15m
+      AUTH_JWT_ISSUER: intern.corp.example.com
+      AUTH_JWT_AUDIENCE: internctl
+      AUTH_JWT_HMAC_SECRET: dev-compose-jwt-secret
+      AUTH_ACCESS_TOKEN_TTL: 15m
+      AUTH_REFRESH_IDLE_TTL: 720h
+      AUTH_REFRESH_ABSOLUTE_TTL: 2160h
+      AUTH_DEVICE_CODE_TTL: 10m
+      AUTH_DEVICE_POLL_INTERVAL: 5s
+      AUTH_DEVICE_VERIFICATION_URL: http://localhost:18080/auth/device
+      TRUSTED_PROXY_CIDRS: 10.89.0.0/24
+      AUTH_REMOTE_USER_HEADER: Remote-User
+      AUTH_REMOTE_NAME_HEADER: Remote-Name
+      AUTH_REMOTE_EMAIL_HEADER: Remote-Email
+      AUTH_REMOTE_GROUPS_HEADER: Remote-Groups
+      AUTH_ADMIN_GROUPS: Super-Users
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.20
+    expose:
+      - "8080"
+
+  dev-auth-proxy:
+    image: nginx:1.28-alpine3.23
+    depends_on:
+      - intern-api
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.30
+    ports:
+      - "18080:18080"
+      - "18081:18081"
+    volumes:
+      - ./docker/dev-auth-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+
+networks:
+  devnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
+
+volumes:
+  postgres-data:

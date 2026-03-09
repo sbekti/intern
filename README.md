@@ -35,6 +35,7 @@ Bootstrap service only. Current scope:
 - `DELETE /api/v1/networks/devices/{id}`
 - `POST /api/v1/auth/device_codes`
 - `POST /api/v1/auth/device_codes/{user_code}/approve`
+- `POST /api/v1/auth/device_codes/{user_code}/deny`
 - `POST /api/v1/auth/tokens`
 - `POST /api/v1/auth/tokens/refresh`
 - `POST /api/v1/auth/logout`
@@ -113,6 +114,54 @@ go run ./cmd/intern-api
 ```
 
 The tagged integration tests start ephemeral Postgres and Redis containers with `testcontainers-go`. If Docker is not accessible, they skip cleanly.
+
+## Local Compose E2E
+
+Run the local API stack with a dev auth proxy:
+
+```bash
+docker compose -p intern-api-dev up --build -d
+docker compose -p intern-api-dev logs -f intern-api dev-auth-proxy
+```
+
+Proxy entrypoints:
+
+- `http://localhost:18080`
+  - fixed normal user: `alice`
+  - groups: `Users`
+- `http://localhost:18081`
+  - fixed admin user: `bob`
+  - groups: `Users,Super-Users`
+
+The proxy overwrites inbound `Remote-*` headers before forwarding to the API, so client-supplied spoofed values do not win.
+
+Useful smoke checks:
+
+```bash
+curl http://localhost:18080/api/v1/profile
+curl http://localhost:18080/api/v1/networks/devices
+curl -X POST http://localhost:18081/api/v1/networks/vlans \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"lab","vlan_id":30}'
+```
+
+Device-code auth flow through the proxy:
+
+```bash
+curl -X POST http://localhost:18080/api/v1/auth/device_codes
+curl -X POST http://localhost:18080/api/v1/auth/device_codes/ABCD-EFGH/approve
+curl -X POST http://localhost:18080/api/v1/auth/tokens \
+  -H 'Content-Type: application/json' \
+  -d '{"device_code":"..."}'
+```
+
+In Compose, `verification_url` points at a simple placeholder page on `/auth/device`. The real browser approval UI will live in `intern-www` later; for now, approve with the API endpoint above.
+
+Shut the stack down with:
+
+```bash
+docker compose -p intern-api-dev down -v
+```
 
 ## Database migrations
 
