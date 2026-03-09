@@ -1,6 +1,6 @@
 # intern-api
 
-Clean-room backend for `intern.corp.bekti.com`.
+Clean-room backend for an internal site such as `intern.corp.example.com`.
 
 ## Status
 
@@ -29,6 +29,18 @@ Bootstrap service only. Current scope:
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`
   - default: `info`
+- `TRUSTED_PROXY_CIDRS`
+  - comma-separated CIDRs allowed to supply `Remote-*` headers
+  - default: `127.0.0.1/32,::1/128`
+- `AUTH_REMOTE_USER_HEADER`, `AUTH_REMOTE_NAME_HEADER`, `AUTH_REMOTE_EMAIL_HEADER`, `AUTH_REMOTE_GROUPS_HEADER`
+  - forwarded identity header names
+  - defaults: `Remote-User`, `Remote-Name`, `Remote-Email`, `Remote-Groups`
+- `AUTH_ADMIN_GROUPS`
+  - comma-separated admin group names
+  - default: `Super-Users`
+- `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_HMAC_SECRET`
+  - JWT validation settings for CLI bearer tokens
+  - defaults: `intern.corp.example.com`, `internctl`, `dev-insecure-jwt-secret`
 
 ## Local development
 

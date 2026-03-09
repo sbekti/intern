@@ -27,7 +27,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.Server.Addr,
-		Handler:           httpserver.NewHandler(logger),
+		Handler:           httpserver.NewHandler(logger, cfg),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

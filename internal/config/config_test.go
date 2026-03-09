@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"net/netip"
+	"testing"
+)
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
@@ -15,6 +18,18 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
 			},
 		},
 		{
@@ -22,6 +37,18 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ""},
 				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
 			},
 			wantErr: true,
 		},
@@ -30,6 +57,53 @@ func TestValidate(t *testing.T) {
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
 				LogLevel: LogLevel("trace"),
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing jwt secret",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:   "intern.corp.example.com",
+					JWTAudience: "internctl",
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing trusted proxy",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					JWTIssuer:     "intern.corp.example.com",
+					JWTAudience:   "internctl",
+					JWTHMACSecret: "test-secret",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
 			},
 			wantErr: true,
 		},
@@ -47,5 +121,17 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 		})
+	}
+}
+
+func TestEnvPrefixesOrDefault(t *testing.T) {
+	t.Parallel()
+
+	prefixes, err := envPrefixesOrDefault("TEST_PREFIXES_DOES_NOT_EXIST", []string{"127.0.0.1/32", "::1/128"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(prefixes) != 2 {
+		t.Fatalf("expected 2 prefixes, got %d", len(prefixes))
 	}
 }

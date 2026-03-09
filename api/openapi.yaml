@@ -6,7 +6,7 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   description: |
-    V1 API contract for `intern.corp.bekti.com`.
+    V1 API contract for an internal site such as `intern.corp.example.com`.
 
     Authentication modes:
 
@@ -15,9 +15,9 @@ info:
 
     Authorization is enforced server-side. Admin-only operations require membership in the configured admin group set, which defaults to `Super-Users`.
 servers:
-  - url: https://intern.corp.bekti.com
+  - url: https://intern.corp.invalid
     description: Production
-  - url: http://intern.corp.bekti.test
+  - url: http://intern.corp.test
     description: Local development through the dev auth proxy
 tags:
   - name: Profile
