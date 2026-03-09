@@ -62,6 +62,15 @@ WHERE user_id = sqlc.arg(user_id)
   AND revoked_at IS NULL
   AND id <> sqlc.arg(id);
 
+-- name: RevokeAuthSessionFamily :execrows
+UPDATE auth_sessions
+SET
+  revoked_at = NOW(),
+  revoke_reason = sqlc.arg(revoke_reason),
+  updated_at = NOW()
+WHERE refresh_token_family_id = sqlc.arg(refresh_token_family_id)
+  AND revoked_at IS NULL;
+
 -- name: TouchAuthSession :one
 UPDATE auth_sessions
 SET

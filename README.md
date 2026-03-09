@@ -14,6 +14,7 @@ Bootstrap service only. Current scope:
 - authenticated dashboard endpoint with Redis-backed weather caching
 - VLAN listing and admin-managed VLAN CRUD endpoints
 - admin-managed network device CRUD with RADIUS synchronization
+- CLI device authorization flow with short-lived access tokens and rotating refresh tokens
 
 ## Endpoints
 
@@ -32,6 +33,11 @@ Bootstrap service only. Current scope:
 - `POST /api/v1/networks/devices`
 - `PATCH /api/v1/networks/devices/{id}`
 - `DELETE /api/v1/networks/devices/{id}`
+- `POST /api/v1/cli/auth/device-authorizations`
+- `POST /api/v1/cli/auth/device-authorizations/{user_code}/approve`
+- `POST /api/v1/cli/auth/token`
+- `POST /api/v1/cli/auth/refresh`
+- `POST /api/v1/cli/auth/logout`
 
 Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
 
@@ -65,6 +71,24 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
 - `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_HMAC_SECRET`
   - JWT validation settings for CLI bearer tokens
   - defaults: `intern.corp.example.com`, `internctl`, `dev-insecure-jwt-secret`
+- `AUTH_ACCESS_TOKEN_TTL`
+  - access token lifetime
+  - default: `15m`
+- `AUTH_REFRESH_IDLE_TTL`
+  - refresh session idle lifetime
+  - default: `720h`
+- `AUTH_REFRESH_ABSOLUTE_TTL`
+  - refresh session absolute lifetime
+  - default: `2160h`
+- `AUTH_DEVICE_CODE_TTL`
+  - device authorization lifetime
+  - default: `10m`
+- `AUTH_DEVICE_POLL_INTERVAL`
+  - minimum polling interval for device token exchange
+  - default: `5s`
+- `AUTH_DEVICE_VERIFICATION_URL`
+  - browser URL shown to CLI users during device login
+  - default: `https://intern.corp.example.com/auth/device`
 - `WEATHER_BASE_URL`
   - Open-Meteo forecast API base URL
   - default: `https://api.open-meteo.com/v1/forecast`

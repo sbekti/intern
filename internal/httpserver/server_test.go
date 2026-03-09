@@ -17,6 +17,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
+	"github.com/sbekti/intern-api/internal/cliauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
@@ -489,6 +490,91 @@ func TestGetDeviceReturnsNotFound(t *testing.T) {
 	}
 }
 
+func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		CLIAuthService: fakeCLIAuthService{
+			createFn: func(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error) {
+				return &api.DeviceAuthorization{
+					DeviceCode:          "device-code",
+					UserCode:            "ABCD-EFGH",
+					VerificationUrl:     "https://intern.corp.example.com/auth/device",
+					ExpiresInSeconds:    600,
+					PollIntervalSeconds: 5,
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/device-authorizations", strings.NewReader(`{"client_name":"internctl"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+}
+
+func TestApproveDeviceAuthorizationRequiresAuth(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		CLIAuthService: fakeCLIAuthService{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/device-authorizations/ABCD-EFGH/approve", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestExchangeDeviceAuthorizationPendingReturns428(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		CLIAuthService: fakeCLIAuthService{
+			exchangeFn: func(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				return nil, cliauth.ErrAuthorizationPending
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/token", strings.NewReader(`{"device_code":"device-code"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusPreconditionRequired {
+		t.Fatalf("expected status %d, got %d", http.StatusPreconditionRequired, rec.Code)
+	}
+}
+
+func TestRefreshAccessTokenUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		CLIAuthService: fakeCLIAuthService{
+			refreshFn: func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				return nil, cliauth.ErrUnauthorized
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cli/auth/refresh", strings.NewReader(`{"refresh_token":"bad"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -589,6 +675,49 @@ func (f fakeDeviceService) Delete(ctx context.Context, actor db.User, id uuid.UU
 	return f.deleteFn(ctx, actor, id)
 }
 
+type fakeCLIAuthService struct {
+	createFn   func(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error)
+	approveFn  func(ctx context.Context, userCode string, user db.User) error
+	exchangeFn func(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error)
+	refreshFn  func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
+	logoutFn   func(ctx context.Context, request api.LogoutRequest) error
+}
+
+func (f fakeCLIAuthService) CreateDeviceAuthorization(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error) {
+	if f.createFn == nil {
+		return nil, nil
+	}
+	return f.createFn(ctx, request)
+}
+
+func (f fakeCLIAuthService) ApproveDeviceAuthorization(ctx context.Context, userCode string, user db.User) error {
+	if f.approveFn == nil {
+		return nil
+	}
+	return f.approveFn(ctx, userCode, user)
+}
+
+func (f fakeCLIAuthService) ExchangeDeviceAuthorization(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error) {
+	if f.exchangeFn == nil {
+		return nil, nil
+	}
+	return f.exchangeFn(ctx, request, userAgent)
+}
+
+func (f fakeCLIAuthService) RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
+	if f.refreshFn == nil {
+		return nil, nil
+	}
+	return f.refreshFn(ctx, request, userAgent)
+}
+
+func (f fakeCLIAuthService) Logout(ctx context.Context, request api.LogoutRequest) error {
+	if f.logoutFn == nil {
+		return nil
+	}
+	return f.logoutFn(ctx, request)
+}
+
 func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
@@ -599,9 +728,15 @@ func mustTestConfig(t *testing.T) config.Config {
 		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
-			JWTIssuer:     "intern.corp.example.com",
-			JWTAudience:   "internctl",
-			JWTHMACSecret: "test-secret",
+			JWTIssuer:          "intern.corp.example.com",
+			JWTAudience:        "internctl",
+			JWTHMACSecret:      "test-secret",
+			AccessTokenTTL:     15 * time.Minute,
+			RefreshIdleTTL:     30 * 24 * time.Hour,
+			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
+			DeviceCodeTTL:      10 * time.Minute,
+			DevicePollInterval: 5 * time.Second,
+			VerificationURL:    "https://intern.corp.example.com/auth/device",
 		},
 		TrustedProxy: config.TrustedProxyConfig{
 			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},

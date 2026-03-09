@@ -260,6 +260,29 @@ func (q *Queries) RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionPa
 	return i, err
 }
 
+const revokeAuthSessionFamily = `-- name: RevokeAuthSessionFamily :execrows
+UPDATE auth_sessions
+SET
+  revoked_at = NOW(),
+  revoke_reason = $1,
+  updated_at = NOW()
+WHERE refresh_token_family_id = $2
+  AND revoked_at IS NULL
+`
+
+type RevokeAuthSessionFamilyParams struct {
+	RevokeReason         string      `db:"revoke_reason" json:"revoke_reason"`
+	RefreshTokenFamilyID pgtype.UUID `db:"refresh_token_family_id" json:"refresh_token_family_id"`
+}
+
+func (q *Queries) RevokeAuthSessionFamily(ctx context.Context, arg RevokeAuthSessionFamilyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAuthSessionFamily, arg.RevokeReason, arg.RefreshTokenFamilyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeOtherAuthSessionsForUser = `-- name: RevokeOtherAuthSessionsForUser :execrows
 UPDATE auth_sessions
 SET

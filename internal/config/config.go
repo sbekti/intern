@@ -42,9 +42,15 @@ type WeatherConfig struct {
 }
 
 type AuthConfig struct {
-	JWTIssuer     string
-	JWTAudience   string
-	JWTHMACSecret string
+	JWTIssuer          string
+	JWTAudience        string
+	JWTHMACSecret      string
+	AccessTokenTTL     time.Duration
+	RefreshIdleTTL     time.Duration
+	RefreshAbsoluteTTL time.Duration
+	DeviceCodeTTL      time.Duration
+	DevicePollInterval time.Duration
+	VerificationURL    string
 }
 
 type TrustedProxyConfig struct {
@@ -86,6 +92,26 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	accessTokenTTL, err := envDurationOrDefault("AUTH_ACCESS_TOKEN_TTL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	refreshIdleTTL, err := envDurationOrDefault("AUTH_REFRESH_IDLE_TTL", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	refreshAbsoluteTTL, err := envDurationOrDefault("AUTH_REFRESH_ABSOLUTE_TTL", 90*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceCodeTTL, err := envDurationOrDefault("AUTH_DEVICE_CODE_TTL", 10*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	devicePollInterval, err := envDurationOrDefault("AUTH_DEVICE_POLL_INTERVAL", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Server: ServerConfig{
@@ -106,9 +132,15 @@ func Load() (Config, error) {
 		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
-			JWTIssuer:     envOrDefault("AUTH_JWT_ISSUER", "intern.corp.example.com"),
-			JWTAudience:   envOrDefault("AUTH_JWT_AUDIENCE", "internctl"),
-			JWTHMACSecret: envOrDefault("AUTH_JWT_HMAC_SECRET", "dev-insecure-jwt-secret"),
+			JWTIssuer:          envOrDefault("AUTH_JWT_ISSUER", "intern.corp.example.com"),
+			JWTAudience:        envOrDefault("AUTH_JWT_AUDIENCE", "internctl"),
+			JWTHMACSecret:      envOrDefault("AUTH_JWT_HMAC_SECRET", "dev-insecure-jwt-secret"),
+			AccessTokenTTL:     accessTokenTTL,
+			RefreshIdleTTL:     refreshIdleTTL,
+			RefreshAbsoluteTTL: refreshAbsoluteTTL,
+			DeviceCodeTTL:      deviceCodeTTL,
+			DevicePollInterval: devicePollInterval,
+			VerificationURL:    envOrDefault("AUTH_DEVICE_VERIFICATION_URL", "https://intern.corp.example.com/auth/device"),
 		},
 		TrustedProxy: TrustedProxyConfig{
 			CIDRs:        trustedProxyCIDRs,
@@ -163,6 +195,24 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.Auth.JWTHMACSecret) == "" {
 		return fmt.Errorf("AUTH_JWT_HMAC_SECRET must not be empty")
+	}
+	if c.Auth.AccessTokenTTL <= 0 {
+		return fmt.Errorf("AUTH_ACCESS_TOKEN_TTL must be greater than zero")
+	}
+	if c.Auth.RefreshIdleTTL <= 0 {
+		return fmt.Errorf("AUTH_REFRESH_IDLE_TTL must be greater than zero")
+	}
+	if c.Auth.RefreshAbsoluteTTL <= 0 {
+		return fmt.Errorf("AUTH_REFRESH_ABSOLUTE_TTL must be greater than zero")
+	}
+	if c.Auth.DeviceCodeTTL <= 0 {
+		return fmt.Errorf("AUTH_DEVICE_CODE_TTL must be greater than zero")
+	}
+	if c.Auth.DevicePollInterval <= 0 {
+		return fmt.Errorf("AUTH_DEVICE_POLL_INTERVAL must be greater than zero")
+	}
+	if strings.TrimSpace(c.Auth.VerificationURL) == "" {
+		return fmt.Errorf("AUTH_DEVICE_VERIFICATION_URL must not be empty")
 	}
 	if len(c.TrustedProxy.CIDRs) == 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS must contain at least one CIDR")

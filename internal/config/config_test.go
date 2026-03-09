@@ -22,11 +22,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -44,11 +40,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -67,11 +59,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevel("trace"),
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -90,10 +78,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:   "intern.corp.example.com",
-					JWTAudience: "internctl",
-				},
+				Auth:     testAuthConfig(""),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -112,11 +97,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -131,11 +112,7 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -153,11 +130,7 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
-				Auth: AuthConfig{
-					JWTIssuer:     "intern.corp.example.com",
-					JWTAudience:   "internctl",
-					JWTHMACSecret: "test-secret",
-				},
+				Auth:     testAuthConfig("test-secret"),
 				TrustedProxy: TrustedProxyConfig{
 					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
 					UserHeader: "Remote-User",
@@ -194,5 +167,19 @@ func TestEnvPrefixesOrDefault(t *testing.T) {
 	}
 	if len(prefixes) != 2 {
 		t.Fatalf("expected 2 prefixes, got %d", len(prefixes))
+	}
+}
+
+func testAuthConfig(secret string) AuthConfig {
+	return AuthConfig{
+		JWTIssuer:          "intern.corp.example.com",
+		JWTAudience:        "internctl",
+		JWTHMACSecret:      secret,
+		AccessTokenTTL:     15 * time.Minute,
+		RefreshIdleTTL:     30 * 24 * time.Hour,
+		RefreshAbsoluteTTL: 90 * 24 * time.Hour,
+		DeviceCodeTTL:      10 * time.Minute,
+		DevicePollInterval: 5 * time.Second,
+		VerificationURL:    "https://intern.corp.example.com/auth/device",
 	}
 }

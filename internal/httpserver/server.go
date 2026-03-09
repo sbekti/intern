@@ -14,6 +14,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern-api/internal/cliauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/dashboard"
 	"github.com/sbekti/intern-api/internal/db"
@@ -34,6 +35,7 @@ type Dependencies struct {
 	WeatherService dashboard.WeatherService
 	VLANService    VLANService
 	DeviceService  DeviceService
+	CLIAuthService CLIAuthService
 }
 
 type VLANService interface {
@@ -52,6 +54,14 @@ type DeviceService interface {
 	Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 }
 
+type CLIAuthService interface {
+	CreateDeviceAuthorization(ctx context.Context, request *api.DeviceAuthorizationCreateRequest) (*api.DeviceAuthorization, error)
+	ApproveDeviceAuthorization(ctx context.Context, userCode string, user db.User) error
+	ExchangeDeviceAuthorization(ctx context.Context, request api.DeviceTokenRequest, userAgent string) (*api.TokenResponse, error)
+	RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
+	Logout(ctx context.Context, request api.LogoutRequest) error
+}
+
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -63,6 +73,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	dashboardService := dashboard.NewService(deps.DashboardStore, deps.WeatherService)
 	vlanService := deps.VLANService
 	deviceService := deps.DeviceService
+	cliAuthService := deps.CLIAuthService
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -384,6 +395,111 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 
 			w.WriteHeader(http.StatusNoContent)
 		})
+
+		r.Post("/cli/auth/device-authorizations", func(w http.ResponseWriter, r *http.Request) {
+			if cliAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth service not configured")
+				return
+			}
+
+			var body api.DeviceAuthorizationCreateRequest
+			if r.ContentLength > 0 {
+				if err := decodeJSON(r, &body); err != nil {
+					writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+					return
+				}
+			}
+
+			result, err := cliAuthService.CreateDeviceAuthorization(r.Context(), &body)
+			if err != nil {
+				handleCLIAuthError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusCreated, result)
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Post("/cli/auth/device-authorizations/{user_code}/approve", func(w http.ResponseWriter, r *http.Request) {
+			if cliAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth service not configured")
+				return
+			}
+
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			if err := cliAuthService.ApproveDeviceAuthorization(r.Context(), chi.URLParam(r, "user_code"), user); err != nil {
+				handleCLIAuthError(w, err)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.Post("/cli/auth/token", func(w http.ResponseWriter, r *http.Request) {
+			if cliAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth service not configured")
+				return
+			}
+
+			var body api.DeviceTokenRequest
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			result, err := cliAuthService.ExchangeDeviceAuthorization(r.Context(), body, r.UserAgent())
+			if err != nil {
+				handleCLIAuthError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, result)
+		})
+
+		r.Post("/cli/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
+			if cliAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth service not configured")
+				return
+			}
+
+			var body api.RefreshTokenRequest
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			result, err := cliAuthService.RefreshAccessToken(r.Context(), body, r.UserAgent())
+			if err != nil {
+				handleCLIAuthError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, result)
+		})
+
+		r.Post("/cli/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			if cliAuthService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth service not configured")
+				return
+			}
+
+			var body api.LogoutRequest
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			if err := cliAuthService.Logout(r.Context(), body); err != nil {
+				handleCLIAuthError(w, err)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
 	})
 
 	return router
@@ -489,4 +605,42 @@ func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 	}
 
 	return result
+}
+
+func handleCLIAuthError(w http.ResponseWriter, err error) {
+	var validationErr cliauth.ValidationError
+	switch {
+	case errors.As(err, &validationErr):
+		writeAPIError(w, http.StatusBadRequest, "bad_request", validationErr.Error())
+	case errors.Is(err, cliauth.ErrNotFound):
+		writeAPIError(w, http.StatusNotFound, "not_found", "authorization request not found")
+	case errors.Is(err, cliauth.ErrConflict):
+		writeAPIError(w, http.StatusConflict, "conflict", "authorization request conflicts with current state")
+	case errors.Is(err, cliauth.ErrAuthorizationPending):
+		writeJSON(w, http.StatusPreconditionRequired, api.CLIAuthError{
+			Error:            api.AuthorizationPending,
+			ErrorDescription: "authorization request is still pending approval",
+		})
+	case errors.Is(err, cliauth.ErrExpiredToken):
+		writeJSON(w, http.StatusBadRequest, api.CLIAuthError{
+			Error:            api.ExpiredToken,
+			ErrorDescription: "device authorization has expired",
+		})
+	case errors.Is(err, cliauth.ErrAccessDenied):
+		writeJSON(w, http.StatusBadRequest, api.CLIAuthError{
+			Error:            api.AccessDenied,
+			ErrorDescription: "device authorization was denied",
+		})
+	case errors.Is(err, cliauth.ErrInvalidRequest):
+		writeJSON(w, http.StatusBadRequest, api.CLIAuthError{
+			Error:            api.InvalidRequest,
+			ErrorDescription: "device authorization request is invalid",
+		})
+	case errors.Is(err, cliauth.ErrUnauthorized):
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "refresh token is invalid")
+	case errors.Is(err, cliauth.ErrTooManyRequests):
+		writeAPIError(w, http.StatusTooManyRequests, "too_many_requests", "too many requests")
+	default:
+		writeAPIError(w, http.StatusInternalServerError, "internal_error", "cli auth operation failed")
+	}
 }

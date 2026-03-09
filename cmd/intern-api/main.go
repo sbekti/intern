@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	"github.com/sbekti/intern-api/internal/cliauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
@@ -71,6 +72,7 @@ func main() {
 	logger.Info("connected to redis")
 
 	queries := db.New(pool)
+	cliAuthService := cliauth.NewService(cfg, queries, cliauth.NewPGXTransactor(pool))
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
@@ -82,6 +84,7 @@ func main() {
 			WeatherService: weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
 			VLANService:    vlanService,
 			DeviceService:  deviceService,
+			CLIAuthService: cliAuthService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

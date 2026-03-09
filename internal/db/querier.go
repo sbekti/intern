@@ -36,6 +36,7 @@ type Querier interface {
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
 	ListVlans(ctx context.Context) ([]Vlan, error)
 	RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionParams) (AuthSession, error)
+	RevokeAuthSessionFamily(ctx context.Context, arg RevokeAuthSessionFamilyParams) (int64, error)
 	RevokeOtherAuthSessionsForUser(ctx context.Context, arg RevokeOtherAuthSessionsForUserParams) (int64, error)
 	TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) (AuthSession, error)
 	UpdateAuthDeviceAuthorizationStatus(ctx context.Context, arg UpdateAuthDeviceAuthorizationStatusParams) (AuthDeviceAuthorization, error)
