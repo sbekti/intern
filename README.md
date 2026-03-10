@@ -124,6 +124,14 @@ docker compose -p intern-api-dev up --build -d
 docker compose -p intern-api-dev logs -f intern-api dev-auth-proxy
 ```
 
+Shortcuts:
+
+```bash
+./scripts/dev-up.sh
+./scripts/dev-logs.sh
+./scripts/dev-down.sh
+```
+
 Proxy entrypoints:
 
 - `http://localhost:18080`
