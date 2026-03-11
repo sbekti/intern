@@ -29,12 +29,12 @@ services:
         ipv4_address: 10.89.0.11
 
   migrate:
-    image: postgres:18-alpine3.22
+    image: golang:1.26-alpine3.23
     working_dir: /workspace
     command:
       - /bin/sh
       - -lc
-      - awk '$$0 == "-- +goose Up" { inup=1; next } $$0 == "-- +goose Down" { exit } $$0 ~ /^-- \\+goose/ { next } inup { print }' db/migrations/202603080001_initial_schema.sql | psql -v ON_ERROR_STOP=1 "$$INTERN_API_DATABASE_URL"
+      - /usr/local/go/bin/go tool -modfile=tools/go.mod github.com/pressly/goose/v3/cmd/goose -dir db/migrations postgres "$$INTERN_API_DATABASE_URL" up
     environment:
       INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
     depends_on:

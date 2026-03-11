@@ -124,6 +124,14 @@ docker compose -p intern-api-dev up --build -d
 docker compose -p intern-api-dev logs -f intern-api dev-auth-proxy
 ```
 
+The one-shot `migrate` service runs `goose up`, so repeated `docker compose up` runs are safe against an already-initialized dev database.
+
+If you have an older local volume that was bootstrapped before Compose switched to `goose`, reset it once with:
+
+```bash
+docker compose -p intern-api-dev down -v
+```
+
 Shortcuts:
 
 ```bash
