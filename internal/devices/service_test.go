@@ -102,6 +102,7 @@ func TestMergePatch(t *testing.T) {
 	t.Parallel()
 
 	current := db.NetworkDevice{
+		MacAddress:  "aa:bb:cc:dd:ee:ff",
 		DisplayName: "Living Room TV",
 		VlanID:      2,
 	}
@@ -114,14 +115,16 @@ func TestMergePatch(t *testing.T) {
 
 	name := "  Updated TV  "
 	vlanID := int64(3)
+	macAddress := "AA-BB-CC-00-11-22"
 	params, err := mergePatch(current, api.NetworkDevicePatch{
+		MacAddress:  &macAddress,
 		DisplayName: &name,
 		VlanId:      &vlanID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if params.DisplayName != "Updated TV" || params.VlanID != 3 {
+	if params.MacAddress != "aa:bb:cc:00:11:22" || params.DisplayName != "Updated TV" || params.VlanID != 3 {
 		t.Fatalf("unexpected patch params %+v", params)
 	}
 }

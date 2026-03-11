@@ -255,6 +255,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 
 		device, err := q.UpdateNetworkDevice(ctx, db.UpdateNetworkDeviceParams{
 			ID:              params.ID,
+			MacAddress:      params.MacAddress,
 			DisplayName:     params.DisplayName,
 			VlanID:          params.VlanID,
 			UpdatedByUserID: nullablePgUUID(actor.ID),
@@ -263,27 +264,41 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 			return classifyDBError(err)
 		}
 
-		radiusUsername := colonMACToBare(device.MacAddress)
+		oldRadiusUsername := colonMACToBare(current.MacAddress)
+		newRadiusUsername := colonMACToBare(device.MacAddress)
+		if oldRadiusUsername != newRadiusUsername {
+			if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
+				Username: oldRadiusUsername,
+			}); err != nil {
+				return classifyDBError(err)
+			}
+			if err := q.DeleteRadcheckCleartextPasswordByUsername(ctx, db.DeleteRadcheckCleartextPasswordByUsernameParams{
+				Username: oldRadiusUsername,
+			}); err != nil {
+				return classifyDBError(err)
+			}
+		}
+
 		if err := q.UpsertRadcheckCleartextPassword(ctx, db.UpsertRadcheckCleartextPasswordParams{
-			Username: radiusUsername,
-			Value:    radiusUsername,
+			Username: newRadiusUsername,
+			Value:    newRadiusUsername,
 		}); err != nil {
 			return classifyDBError(err)
 		}
 		if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-			Username: radiusUsername,
+			Username: newRadiusUsername,
 		}); err != nil {
 			return classifyDBError(err)
 		}
 		if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
-			Username:  radiusUsername,
+			Username:  newRadiusUsername,
 			Groupname: vlan.Name,
 			Priority:  0,
 		}); err != nil {
 			return classifyDBError(err)
 		}
 
-		metadata, err := json.Marshal(map[string]any{
+		metadataBody := map[string]any{
 			"before": map[string]any{
 				"id":           deviceIDString(current.ID),
 				"mac_address":  current.MacAddress,
@@ -297,7 +312,13 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 				"vlan_id":      device.VlanID,
 				"radius_group": vlan.Name,
 			},
-		})
+		}
+		if current.MacAddress != device.MacAddress {
+			metadataBody["old_mac_address"] = current.MacAddress
+			metadataBody["new_mac_address"] = device.MacAddress
+		}
+
+		metadata, err := json.Marshal(metadataBody)
 		if err != nil {
 			return err
 		}
@@ -408,8 +429,17 @@ func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
 }
 
 func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.UpdateNetworkDeviceParams, error) {
-	if patch.DisplayName == nil && patch.VlanId == nil {
+	if patch.DisplayName == nil && patch.VlanId == nil && patch.MacAddress == nil {
 		return db.UpdateNetworkDeviceParams{}, ValidationError{Message: "patch must include at least one field"}
+	}
+
+	macAddress := current.MacAddress
+	if patch.MacAddress != nil {
+		_, normalizedMAC, err := normalizeMAC(*patch.MacAddress)
+		if err != nil {
+			return db.UpdateNetworkDeviceParams{}, err
+		}
+		macAddress = normalizedMAC
 	}
 
 	displayName := current.DisplayName
@@ -429,6 +459,7 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 	}
 
 	return db.UpdateNetworkDeviceParams{
+		MacAddress:  macAddress,
 		DisplayName: displayName,
 		VlanID:      vlanID,
 	}, nil

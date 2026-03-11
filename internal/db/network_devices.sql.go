@@ -176,15 +176,17 @@ func (q *Queries) ListNetworkDevices(ctx context.Context) ([]NetworkDevice, erro
 const updateNetworkDevice = `-- name: UpdateNetworkDevice :one
 UPDATE network_devices
 SET
-  display_name = $1,
-  vlan_id = $2,
-  updated_by_user_id = $3,
+  mac_address = $1,
+  display_name = $2,
+  vlan_id = $3,
+  updated_by_user_id = $4,
   updated_at = NOW()
-WHERE id = $4
+WHERE id = $5
 RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
 `
 
 type UpdateNetworkDeviceParams struct {
+	MacAddress      string      `db:"mac_address" json:"mac_address"`
 	DisplayName     string      `db:"display_name" json:"display_name"`
 	VlanID          int64       `db:"vlan_id" json:"vlan_id"`
 	UpdatedByUserID pgtype.UUID `db:"updated_by_user_id" json:"updated_by_user_id"`
@@ -193,6 +195,7 @@ type UpdateNetworkDeviceParams struct {
 
 func (q *Queries) UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error) {
 	row := q.db.QueryRow(ctx, updateNetworkDevice,
+		arg.MacAddress,
 		arg.DisplayName,
 		arg.VlanID,
 		arg.UpdatedByUserID,

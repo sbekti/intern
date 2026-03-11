@@ -38,6 +38,7 @@ RETURNING *;
 -- name: UpdateNetworkDevice :one
 UPDATE network_devices
 SET
+  mac_address = sqlc.arg(mac_address),
   display_name = sqlc.arg(display_name),
   vlan_id = sqlc.arg(vlan_id),
   updated_by_user_id = sqlc.narg(updated_by_user_id),

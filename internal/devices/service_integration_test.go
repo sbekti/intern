@@ -51,6 +51,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 	assertRadiusState(t, ctx, pg.Pool, "aabbccddeeff", "iot")
 
 	updated, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
+		MacAddress:  stringPtr("AA-BB-CC-DD-EE-99"),
 		DisplayName: stringPtr("Porch Camera"),
 		VlanId:      int64Ptr(guestID),
 	})
@@ -62,7 +63,8 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("unexpected updated record %#v", updated)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddeeff", "guest")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee99", "guest")
+	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddeeff")
 
 	if err := service.Delete(ctx, actor, deviceID(created.Device)); err != nil {
 		t.Fatalf("expected delete to succeed, got %v", err)
@@ -72,10 +74,10 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM network_devices`).Scan(&deviceCount); err != nil {
 		t.Fatalf("failed to count devices: %v", err)
 	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = 'aabbccddeeff'`).Scan(&radcheckCount); err != nil {
+	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = 'aabbccddee99'`).Scan(&radcheckCount); err != nil {
 		t.Fatalf("failed to count radcheck rows: %v", err)
 	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = 'aabbccddeeff'`).Scan(&groupCount); err != nil {
+	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = 'aabbccddee99'`).Scan(&groupCount); err != nil {
 		t.Fatalf("failed to count radusergroup rows: %v", err)
 	}
 
@@ -101,16 +103,18 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		},
 		"after": map[string]any{
 			"id":           deviceID(created.Device).String(),
-			"mac_address":  "aa:bb:cc:dd:ee:ff",
+			"mac_address":  "aa:bb:cc:dd:ee:99",
 			"display_name": "Porch Camera",
 			"vlan_id":      float64(guestID),
 			"radius_group": "guest",
 		},
+		"old_mac_address": "aa:bb:cc:dd:ee:ff",
+		"new_mac_address": "aa:bb:cc:dd:ee:99",
 	})
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.delete", map[string]any{
 		"before": map[string]any{
 			"id":           deviceID(created.Device).String(),
-			"mac_address":  "aa:bb:cc:dd:ee:ff",
+			"mac_address":  "aa:bb:cc:dd:ee:99",
 			"display_name": "Porch Camera",
 			"vlan_id":      float64(guestID),
 		},
@@ -197,6 +201,62 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T
 	}
 	if auditCount != 0 {
 		t.Fatalf("expected no device.update audit log on failed update, got %d", auditCount)
+	}
+}
+
+func TestServiceUpdateRejectsDuplicateNormalizedMACWithoutPartialChanges(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	queries := db.New(pg.Pool)
+	actor := createActor(t, ctx, queries)
+	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
+	guestID := vlanIDByName(t, ctx, pg.Pool, "guest")
+
+	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	_, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
+		MacAddress:  "AA-BB-CC-DD-EE-31",
+		DisplayName: "Sensor",
+		VlanId:      iotID,
+	})
+	if err != nil {
+		t.Fatalf("failed to create first device: %v", err)
+	}
+
+	second, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
+		MacAddress:  "AA-BB-CC-DD-EE-32",
+		DisplayName: "Tablet",
+		VlanId:      guestID,
+	})
+	if err != nil {
+		t.Fatalf("failed to create second device: %v", err)
+	}
+
+	_, err = service.Update(ctx, actor, deviceID(second.Device), api.NetworkDevicePatch{
+		MacAddress: stringPtr("aabb.ccdd.ee31"),
+	})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("expected ErrConflict for duplicate normalized MAC, got %v", err)
+	}
+
+	record, err := service.Get(ctx, deviceID(second.Device))
+	if err != nil {
+		t.Fatalf("failed to reload second device: %v", err)
+	}
+	if record.Device.MacAddress != "aa:bb:cc:dd:ee:32" || record.VLAN.Name != "guest" {
+		t.Fatalf("expected second device to remain unchanged, got %#v", record)
+	}
+
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee31", "iot")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee32", "guest")
+
+	var auditCount int
+	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'device.update' AND resource_id = $1`, deviceID(second.Device).String()).Scan(&auditCount); err != nil {
+		t.Fatalf("failed to count device.update audit logs: %v", err)
+	}
+	if auditCount != 0 {
+		t.Fatalf("expected no device.update audit log on failed MAC update, got %d", auditCount)
 	}
 }
 
@@ -289,6 +349,22 @@ func assertRadiusState(t *testing.T, ctx context.Context, pool db.DBTX, username
 	}
 	if actualGroup != groupName {
 		t.Fatalf("expected radusergroup %q, got %q", groupName, actualGroup)
+	}
+}
+
+func assertRadiusRowsAbsent(t *testing.T, ctx context.Context, pool db.DBTX, username string) {
+	t.Helper()
+
+	var radcheckCount, groupCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = $1`, username).Scan(&radcheckCount); err != nil {
+		t.Fatalf("failed to count radcheck rows for %q: %v", username, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = $1`, username).Scan(&groupCount); err != nil {
+		t.Fatalf("failed to count radusergroup rows for %q: %v", username, err)
+	}
+
+	if radcheckCount != 0 || groupCount != 0 {
+		t.Fatalf("expected no radius rows for %q, got radcheck=%d radusergroup=%d", username, radcheckCount, groupCount)
 	}
 }
 

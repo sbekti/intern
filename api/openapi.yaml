@@ -877,6 +877,9 @@ components:
     NetworkDevicePatch:
       type: object
       properties:
+        mac_address:
+          type: string
+          example: aa:bb:cc:dd:ee:ff
         display_name:
           type: string
         vlan_id:
