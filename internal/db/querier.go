@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountNetworkDevices(ctx context.Context) (int64, error)
 	CountVlans(ctx context.Context) (int64, error)
 	CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error)
@@ -31,6 +32,7 @@ type Querier interface {
 	GetVlanByID(ctx context.Context, arg GetVlanByIDParams) (Vlan, error)
 	GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error)
 	InsertRadusergroup(ctx context.Context, arg InsertRadusergroupParams) error
+	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error)
 	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)

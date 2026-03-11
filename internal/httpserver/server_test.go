@@ -17,6 +17,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
+	"github.com/sbekti/intern-api/internal/auditlogs"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
@@ -727,6 +728,112 @@ func TestListAdminSessionsReturnsItems(t *testing.T) {
 	}
 }
 
+func TestListAdminAuditLogsRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		AuditLogService: fakeAuditLogService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestListAdminAuditLogsRejectsBadLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		AuditLogService: fakeAuditLogService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?limit=999", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestListAdminAuditLogsReturnsPage(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		AuditLogService: fakeAuditLogService{
+			listFn: func(ctx context.Context, filter auditlogs.Filter) (*auditlogs.Page, error) {
+				if filter.Limit != 25 {
+					t.Fatalf("expected limit 25, got %d", filter.Limit)
+				}
+				if filter.Offset != 50 {
+					t.Fatalf("expected offset 50, got %d", filter.Offset)
+				}
+				if filter.Action != "device.update" {
+					t.Fatalf("expected action filter to be passed through, got %q", filter.Action)
+				}
+				return &auditlogs.Page{
+					Items: []api.AuditLogEntry{{
+						Id:            openapi_types.UUID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
+						ActorUsername: "bob",
+						Action:        "device.update",
+						ResourceType:  "device",
+						ResourceId:    "11111111-1111-1111-1111-111111111111",
+						Metadata: map[string]interface{}{
+							"field": "mac_address",
+						},
+						CreatedAt: testTimestamp().Time,
+					}},
+					Limit:      25,
+					Offset:     50,
+					TotalCount: 101,
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?action=device.update&limit=25&offset=50", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -919,6 +1026,17 @@ func (f fakeSessionService) RevokeAdminSession(ctx context.Context, sessionID uu
 		return nil
 	}
 	return f.revokeAdminFn(ctx, sessionID)
+}
+
+type fakeAuditLogService struct {
+	listFn func(ctx context.Context, filter auditlogs.Filter) (*auditlogs.Page, error)
+}
+
+func (f fakeAuditLogService) List(ctx context.Context, filter auditlogs.Filter) (*auditlogs.Page, error) {
+	if f.listFn == nil {
+		return &auditlogs.Page{}, nil
+	}
+	return f.listFn(ctx, filter)
 }
 
 func mustTestConfig(t *testing.T) config.Config {

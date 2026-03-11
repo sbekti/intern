@@ -153,6 +153,64 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/audit_logs:
+    get:
+      operationId: listAdminAuditLogs
+      tags: [Admin]
+      summary: List audit logs across the platform.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resource_type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resource_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: actor_username
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Audit log page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/dashboard:
     get:
       operationId: getDashboard
@@ -690,6 +748,57 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AuthSession'
+    AuditLogEntry:
+      type: object
+      required:
+        - id
+        - actor_username
+        - action
+        - resource_type
+        - resource_id
+        - metadata
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor_username:
+          type: string
+        action:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+    AuditLogPagination:
+      type: object
+      required: [limit, offset, total]
+      properties:
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int64
+    AuditLogList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLogEntry'
+        pagination:
+          $ref: '#/components/schemas/AuditLogPagination'
     Dashboard:
       type: object
       required: [welcome_message, profile, network_summary]

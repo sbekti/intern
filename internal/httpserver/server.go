@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
+	"github.com/sbekti/intern-api/internal/auditlogs"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
@@ -37,6 +39,7 @@ type Dependencies struct {
 	DeviceService     DeviceService
 	ClientAuthService ClientAuthService
 	SessionService    SessionService
+	AuditLogService   AuditLogService
 }
 
 type VLANService interface {
@@ -72,6 +75,10 @@ type SessionService interface {
 	RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error
 }
 
+type AuditLogService interface {
+	List(ctx context.Context, filter auditlogs.Filter) (*auditlogs.Page, error)
+}
+
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -85,6 +92,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	deviceService := deps.DeviceService
 	clientAuthService := deps.ClientAuthService
 	sessionService := deps.SessionService
+	auditLogService := deps.AuditLogService
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -252,6 +260,41 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			}
 
 			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.With(authorizer.RequireAdmin()).Get("/admin/audit_logs", func(w http.ResponseWriter, r *http.Request) {
+			if auditLogService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "audit log service not configured")
+				return
+			}
+
+			params, err := decodeAdminAuditLogParams(r)
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", err.Error())
+				return
+			}
+
+			page, err := auditLogService.List(r.Context(), auditlogs.Filter{
+				Action:        trimmedString(params.Action),
+				ResourceType:  trimmedString(params.ResourceType),
+				ResourceID:    trimmedString(params.ResourceId),
+				ActorUsername: trimmedString(params.ActorUsername),
+				Limit:         int32Value(params.Limit, auditlogs.DefaultLimit),
+				Offset:        int32Value(params.Offset, 0),
+			})
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list audit logs")
+				return
+			}
+
+			writeJSON(w, http.StatusOK, api.AuditLogList{
+				Items: page.Items,
+				Pagination: api.AuditLogPagination{
+					Limit:  page.Limit,
+					Offset: page.Offset,
+					Total:  page.TotalCount,
+				},
+			})
 		})
 
 		r.With(authorizer.RequireAuthenticated()).Get("/networks/vlans", func(w http.ResponseWriter, r *http.Request) {
@@ -677,11 +720,61 @@ func decodeUUIDPathParam(r *http.Request, key string) (uuid.UUID, error) {
 	return uuid.Parse(raw)
 }
 
+func decodeAdminAuditLogParams(r *http.Request) (api.ListAdminAuditLogsParams, error) {
+	query := r.URL.Query()
+	params := api.ListAdminAuditLogsParams{}
+
+	if value := strings.TrimSpace(query.Get("action")); value != "" {
+		params.Action = &value
+	}
+	if value := strings.TrimSpace(query.Get("resource_type")); value != "" {
+		params.ResourceType = &value
+	}
+	if value := strings.TrimSpace(query.Get("resource_id")); value != "" {
+		params.ResourceId = &value
+	}
+	if value := strings.TrimSpace(query.Get("actor_username")); value != "" {
+		params.ActorUsername = &value
+	}
+	if value := strings.TrimSpace(query.Get("limit")); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || parsed < 1 || parsed > int64(auditlogs.MaxLimit) {
+			return api.ListAdminAuditLogsParams{}, errors.New("invalid limit")
+		}
+		cast := int32(parsed)
+		params.Limit = &cast
+	}
+	if value := strings.TrimSpace(query.Get("offset")); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || parsed < 0 {
+			return api.ListAdminAuditLogsParams{}, errors.New("invalid offset")
+		}
+		cast := int32(parsed)
+		params.Offset = &cast
+	}
+
+	return params, nil
+}
+
 func currentSessionID(principal *auth.Principal) string {
 	if principal == nil {
 		return ""
 	}
 	return principal.SessionID
+}
+
+func trimmedString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func int32Value(value *int32, fallback int32) int32 {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 func handleVLANError(w http.ResponseWriter, err error) {

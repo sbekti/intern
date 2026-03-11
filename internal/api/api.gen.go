@@ -54,6 +54,30 @@ func (e ClientAuthErrorError) Valid() bool {
 	}
 }
 
+// AuditLogEntry defines model for AuditLogEntry.
+type AuditLogEntry struct {
+	Action        string                 `json:"action"`
+	ActorUsername string                 `json:"actor_username"`
+	CreatedAt     time.Time              `json:"created_at"`
+	Id            openapi_types.UUID     `json:"id"`
+	Metadata      map[string]interface{} `json:"metadata"`
+	ResourceId    string                 `json:"resource_id"`
+	ResourceType  string                 `json:"resource_type"`
+}
+
+// AuditLogList defines model for AuditLogList.
+type AuditLogList struct {
+	Items      []AuditLogEntry    `json:"items"`
+	Pagination AuditLogPagination `json:"pagination"`
+}
+
+// AuditLogPagination defines model for AuditLogPagination.
+type AuditLogPagination struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+	Total  int64 `json:"total"`
+}
+
 // AuthSession defines model for AuthSession.
 type AuthSession struct {
 	ClientName    string             `json:"client_name"`
@@ -272,6 +296,16 @@ type TooManyRequests = ErrorResponse
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = ErrorResponse
 
+// ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
+type ListAdminAuditLogsParams struct {
+	Action        *string `form:"action,omitempty" json:"action,omitempty"`
+	ResourceType  *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+	ResourceId    *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
+	ActorUsername *string `form:"actor_username,omitempty" json:"actor_username,omitempty"`
+	Limit         *int32  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset        *int32  `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CreateDeviceCodeJSONRequestBody defines body for CreateDeviceCode for application/json ContentType.
 type CreateDeviceCodeJSONRequestBody = DeviceCodeCreateRequest
 
@@ -372,6 +406,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ListAdminAuditLogs request
+	ListAdminAuditLogs(ctx context.Context, params *ListAdminAuditLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListAdminAuthSessions request
 	ListAdminAuthSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -461,6 +498,18 @@ type ClientInterface interface {
 
 	// RevokeProfileSession request
 	RevokeProfileSession(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListAdminAuditLogs(ctx context.Context, params *ListAdminAuditLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAdminAuditLogsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) ListAdminAuthSessions(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -857,6 +906,135 @@ func (c *Client) RevokeProfileSession(ctx context.Context, id SessionId, reqEdit
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListAdminAuditLogsRequest generates requests for ListAdminAuditLogs
+func NewListAdminAuditLogsRequest(server string, params *ListAdminAuditLogsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/admin/audit_logs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Action != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "action", *params.Action, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ResourceType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "resource_type", *params.ResourceType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ResourceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "resource_id", *params.ResourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ActorUsername != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "actor_username", *params.ActorUsername, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewListAdminAuthSessionsRequest generates requests for ListAdminAuthSessions
@@ -1737,6 +1915,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ListAdminAuditLogsWithResponse request
+	ListAdminAuditLogsWithResponse(ctx context.Context, params *ListAdminAuditLogsParams, reqEditors ...RequestEditorFn) (*ListAdminAuditLogsResponse, error)
+
 	// ListAdminAuthSessionsWithResponse request
 	ListAdminAuthSessionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAdminAuthSessionsResponse, error)
 
@@ -1826,6 +2007,31 @@ type ClientWithResponsesInterface interface {
 
 	// RevokeProfileSessionWithResponse request
 	RevokeProfileSessionWithResponse(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*RevokeProfileSessionResponse, error)
+}
+
+type ListAdminAuditLogsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AuditLogList
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+}
+
+// Status returns HTTPResponse.Status
+func (r ListAdminAuditLogsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListAdminAuditLogsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type ListAdminAuthSessionsResponse struct {
@@ -2412,6 +2618,15 @@ func (r RevokeProfileSessionResponse) StatusCode() int {
 	return 0
 }
 
+// ListAdminAuditLogsWithResponse request returning *ListAdminAuditLogsResponse
+func (c *ClientWithResponses) ListAdminAuditLogsWithResponse(ctx context.Context, params *ListAdminAuditLogsParams, reqEditors ...RequestEditorFn) (*ListAdminAuditLogsResponse, error) {
+	rsp, err := c.ListAdminAuditLogs(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAdminAuditLogsResponse(rsp)
+}
+
 // ListAdminAuthSessionsWithResponse request returning *ListAdminAuthSessionsResponse
 func (c *ClientWithResponses) ListAdminAuthSessionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListAdminAuthSessionsResponse, error) {
 	rsp, err := c.ListAdminAuthSessions(ctx, reqEditors...)
@@ -2698,6 +2913,53 @@ func (c *ClientWithResponses) RevokeProfileSessionWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseRevokeProfileSessionResponse(rsp)
+}
+
+// ParseListAdminAuditLogsResponse parses an HTTP response from a ListAdminAuditLogsWithResponse call
+func ParseListAdminAuditLogsResponse(rsp *http.Response) (*ListAdminAuditLogsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListAdminAuditLogsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditLogList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseListAdminAuthSessionsResponse parses an HTTP response from a ListAdminAuthSessionsWithResponse call
@@ -3718,6 +3980,9 @@ func ParseRevokeProfileSessionResponse(rsp *http.Response) (*RevokeProfileSessio
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// List audit logs across the platform.
+	// (GET /api/v1/admin/audit_logs)
+	ListAdminAuditLogs(w http.ResponseWriter, r *http.Request, params ListAdminAuditLogsParams)
 	// List active auth sessions across users.
 	// (GET /api/v1/admin/auth/sessions)
 	ListAdminAuthSessions(w http.ResponseWriter, r *http.Request)
@@ -3795,6 +4060,12 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// List audit logs across the platform.
+// (GET /api/v1/admin/audit_logs)
+func (_ Unimplemented) ListAdminAuditLogs(w http.ResponseWriter, r *http.Request, params ListAdminAuditLogsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // List active auth sessions across users.
 // (GET /api/v1/admin/auth/sessions)
@@ -3948,6 +4219,79 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListAdminAuditLogs operation middleware
+func (siw *ServerInterfaceWrapper) ListAdminAuditLogs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListAdminAuditLogsParams
+
+	// ------------- Optional query parameter "action" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "action", r.URL.Query(), &params.Action, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "action", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resource_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resource_type", r.URL.Query(), &params.ResourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resource_type", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "resource_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "resource_id", r.URL.Query(), &params.ResourceId, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "resource_id", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "actor_username" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "actor_username", r.URL.Query(), &params.ActorUsername, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "actor_username", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAdminAuditLogs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListAdminAuthSessions operation middleware
 func (siw *ServerInterfaceWrapper) ListAdminAuthSessions(w http.ResponseWriter, r *http.Request) {
@@ -4629,6 +4973,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	}
 
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/admin/audit_logs", wrapper.ListAdminAuditLogs)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/admin/auth/sessions", wrapper.ListAdminAuthSessions)
 	})
 	r.Group(func(r chi.Router) {
@@ -4707,59 +5054,64 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"tFgAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

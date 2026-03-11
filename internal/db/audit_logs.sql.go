@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAuditLogs = `-- name: CountAuditLogs :one
+SELECT COUNT(*)
+FROM audit_logs
+WHERE ($1 = '' OR action = $1)
+  AND ($2 = '' OR resource_type = $2)
+  AND ($3 = '' OR resource_id = $3)
+  AND ($4 = '' OR actor_username = $4)
+`
+
+type CountAuditLogsParams struct {
+	Action        interface{} `db:"action" json:"action"`
+	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
+	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
+	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
+}
+
+func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAuditLogs,
+		arg.Action,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ActorUsername,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuditLog = `-- name: CreateAuditLog :one
 INSERT INTO audit_logs (
   actor_user_id,
@@ -60,4 +88,61 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAuditLogs = `-- name: ListAuditLogs :many
+SELECT id, actor_user_id, actor_username, action, resource_type, resource_id, metadata, created_at
+FROM audit_logs
+WHERE ($1 = '' OR action = $1)
+  AND ($2 = '' OR resource_type = $2)
+  AND ($3 = '' OR resource_id = $3)
+  AND ($4 = '' OR actor_username = $4)
+ORDER BY created_at DESC, id DESC
+LIMIT $6
+OFFSET $5
+`
+
+type ListAuditLogsParams struct {
+	Action        interface{} `db:"action" json:"action"`
+	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
+	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
+	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
+	OffsetCount   int32       `db:"offset_count" json:"offset_count"`
+	LimitCount    int32       `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditLogs,
+		arg.Action,
+		arg.ResourceType,
+		arg.ResourceID,
+		arg.ActorUsername,
+		arg.OffsetCount,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorUserID,
+			&i.ActorUsername,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
