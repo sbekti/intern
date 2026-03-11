@@ -575,6 +575,158 @@ func TestRefreshAccessTokenUnauthorized(t *testing.T) {
 	}
 }
 
+func TestListProfileSessionsReturnsItems(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{
+					ID:       pgtype.UUID{Bytes: [16]byte(sessionID), Valid: true},
+					Username: arg.Username,
+					Name:     arg.Name,
+					Email:    arg.Email,
+					Groups:   arg.Groups,
+				}, nil
+			},
+		},
+		SessionService: fakeSessionService{
+			listProfileFn: func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
+				called = true
+				return []api.AuthSession{{
+					Id:            openapi_types.UUID(sessionID),
+					Username:      user.Username,
+					ClientName:    "internctl",
+					CreatedAt:     testTimestamp().Time,
+					ExpiresAt:     testTimestamp().Time.Add(time.Hour),
+					IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
+				}}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if !called {
+		t.Fatal("expected session service to be called")
+	}
+}
+
+func TestRevokeProfileSessionReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{
+			revokeProfileFn: func(ctx context.Context, user db.User, id uuid.UUID) error {
+				called = true
+				if id != sessionID {
+					t.Fatalf("expected session id %s, got %s", sessionID, id)
+				}
+				return nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/profile/sessions/"+sessionID.String()+"/revoke", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+	}
+	if !called {
+		t.Fatal("expected revoke profile session to be called")
+	}
+}
+
+func TestListAdminSessionsRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestListAdminSessionsReturnsItems(t *testing.T) {
+	t.Parallel()
+
+	sessionID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{
+			listAdminFn: func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error) {
+				return []api.AuthSession{{
+					Id:            openapi_types.UUID(sessionID),
+					Username:      "alice",
+					ClientName:    "internctl",
+					CreatedAt:     testTimestamp().Time,
+					ExpiresAt:     testTimestamp().Time.Add(time.Hour),
+					IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
+				}}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
 type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
@@ -724,6 +876,49 @@ func (f fakeClientAuthService) Logout(ctx context.Context, request api.LogoutReq
 		return nil
 	}
 	return f.logoutFn(ctx, request)
+}
+
+type fakeSessionService struct {
+	listProfileFn   func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
+	revokeProfileFn func(ctx context.Context, user db.User, sessionID uuid.UUID) error
+	revokeOthersFn  func(ctx context.Context, user db.User, currentSessionID string) error
+	listAdminFn     func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
+	revokeAdminFn   func(ctx context.Context, sessionID uuid.UUID) error
+}
+
+func (f fakeSessionService) ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
+	if f.listProfileFn == nil {
+		return nil, nil
+	}
+	return f.listProfileFn(ctx, user, currentSessionID)
+}
+
+func (f fakeSessionService) RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error {
+	if f.revokeProfileFn == nil {
+		return nil
+	}
+	return f.revokeProfileFn(ctx, user, sessionID)
+}
+
+func (f fakeSessionService) RevokeOtherProfileSessions(ctx context.Context, user db.User, currentSessionID string) error {
+	if f.revokeOthersFn == nil {
+		return nil
+	}
+	return f.revokeOthersFn(ctx, user, currentSessionID)
+}
+
+func (f fakeSessionService) ListAdminSessions(ctx context.Context, currentSessionID string) ([]api.AuthSession, error) {
+	if f.listAdminFn == nil {
+		return nil, nil
+	}
+	return f.listAdminFn(ctx, currentSessionID)
+}
+
+func (f fakeSessionService) RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error {
+	if f.revokeAdminFn == nil {
+		return nil
+	}
+	return f.revokeAdminFn(ctx, sessionID)
 }
 
 func mustTestConfig(t *testing.T) config.Config {

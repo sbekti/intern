@@ -17,6 +17,7 @@ import (
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/httpserver"
+	"github.com/sbekti/intern-api/internal/sessions"
 	"github.com/sbekti/intern-api/internal/vlans"
 	"github.com/sbekti/intern-api/internal/weather"
 )
@@ -74,6 +75,7 @@ func main() {
 	queries := db.New(pool)
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pool))
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
+	sessionService := sessions.NewService(queries)
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
 	server := &http.Server{
@@ -85,6 +87,7 @@ func main() {
 			VLANService:       vlanService,
 			DeviceService:     deviceService,
 			ClientAuthService: clientAuthService,
+			SessionService:    sessionService,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

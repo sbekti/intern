@@ -36,6 +36,7 @@ type Dependencies struct {
 	VLANService       VLANService
 	DeviceService     DeviceService
 	ClientAuthService ClientAuthService
+	SessionService    SessionService
 }
 
 type VLANService interface {
@@ -63,6 +64,14 @@ type ClientAuthService interface {
 	Logout(ctx context.Context, request api.LogoutRequest) error
 }
 
+type SessionService interface {
+	ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
+	RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error
+	RevokeOtherProfileSessions(ctx context.Context, user db.User, currentSessionID string) error
+	ListAdminSessions(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
+	RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error
+}
+
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -75,6 +84,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	vlanService := deps.VLANService
 	deviceService := deps.DeviceService
 	clientAuthService := deps.ClientAuthService
+	sessionService := deps.SessionService
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -137,6 +147,111 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				Groups:   append([]string(nil), user.Groups...),
 				IsAdmin:  authorizer.IsAdmin(&auth.Principal{Groups: user.Groups}),
 			})
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Get("/profile/sessions", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+			principal, _ := auth.FromContext(r.Context())
+
+			items, err := sessionService.ListProfileSessions(r.Context(), user, currentSessionID(principal))
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list sessions")
+				return
+			}
+
+			writeJSON(w, http.StatusOK, api.AuthSessionList{Items: items})
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Post("/profile/sessions/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid session id")
+				return
+			}
+
+			if err := sessionService.RevokeProfileSession(r.Context(), user, id); err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to revoke session")
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.With(authorizer.RequireAuthenticated()).Post("/profile/sessions/revoke_others", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			user, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+			principal, _ := auth.FromContext(r.Context())
+
+			if err := sessionService.RevokeOtherProfileSessions(r.Context(), user, currentSessionID(principal)); err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to revoke sessions")
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.With(authorizer.RequireAdmin()).Get("/admin/auth/sessions", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			principal, _ := auth.FromContext(r.Context())
+			items, err := sessionService.ListAdminSessions(r.Context(), currentSessionID(principal))
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list admin sessions")
+				return
+			}
+
+			writeJSON(w, http.StatusOK, api.AuthSessionList{Items: items})
+		})
+
+		r.With(authorizer.RequireAdmin()).Post("/admin/auth/sessions/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid session id")
+				return
+			}
+
+			if err := sessionService.RevokeAdminSession(r.Context(), id); err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to revoke admin session")
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
 		})
 
 		r.With(authorizer.RequireAuthenticated()).Get("/networks/vlans", func(w http.ResponseWriter, r *http.Request) {
@@ -560,6 +675,13 @@ func decodeInt64PathParam(r *http.Request, key string) (int64, error) {
 func decodeUUIDPathParam(r *http.Request, key string) (uuid.UUID, error) {
 	raw := chi.URLParam(r, key)
 	return uuid.Parse(raw)
+}
+
+func currentSessionID(principal *auth.Principal) string {
+	if principal == nil {
+		return ""
+	}
+	return principal.SessionID
 }
 
 func handleVLANError(w http.ResponseWriter, err error) {
