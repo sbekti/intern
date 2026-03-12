@@ -15,6 +15,7 @@ Bootstrap service only. Current scope:
 - VLAN listing and admin-managed VLAN CRUD endpoints
 - admin-managed network device CRUD with RADIUS synchronization
 - client auth device-code flow with short-lived access tokens and rotating refresh tokens
+- bearer-token requests are validated against active auth sessions on every request
 
 ## Endpoints
 
@@ -40,7 +41,7 @@ Bootstrap service only. Current scope:
 - `POST /api/v1/auth/tokens/refresh`
 - `POST /api/v1/auth/logout`
 
-Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers should wrap authenticated routes with `RequireAuthenticated()` and admin-only routes with `RequireAdmin()`.
+Route authorization is provided by `internal/auth.Authorizer`. Bearer-token session validity is enforced separately in the auth middleware before request handlers run.
 
 ## API contract
 
@@ -55,7 +56,7 @@ Admin-only route enforcement is provided by `internal/auth.Authorizer`. Handlers
   - PostgreSQL connection string for persisted application state
   - required
 - `INTERN_API_REDIS_URL`
-  - Redis connection string for caching and future auth/session features
+  - Redis connection string for weather caching
   - required
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`

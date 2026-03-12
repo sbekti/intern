@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,12 +13,14 @@ import (
 	"testing"
 	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auditlogs"
+	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
@@ -92,6 +95,29 @@ func TestGetProfileRequiresAuthentication(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestGetProfileBearerSessionValidationFailureReturnsServiceUnavailable(t *testing.T) {
+	t.Parallel()
+
+	cfg := mustTestConfig(t)
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
+		SessionService: fakeSessionService{
+			validateSessionFn: func(ctx context.Context, sessionID string) (bool, error) {
+				return false, errors.New("database unavailable")
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
+	req.Header.Set("Authorization", "Bearer "+mintBearerAccessTokenForTest(t, cfg, "alice", nil, "session-1"))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
 	}
 }
 
@@ -235,6 +261,33 @@ func TestListVlansRequiresAuthentication(t *testing.T) {
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
+	}
+}
+
+func TestListDevicesRejectsRevokedBearerAdminSession(t *testing.T) {
+	t.Parallel()
+
+	cfg := mustTestConfig(t)
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
+		SessionService: fakeSessionService{
+			validateSessionFn: func(ctx context.Context, sessionID string) (bool, error) {
+				if sessionID != "session-1" {
+					t.Fatalf("expected session-1, got %q", sessionID)
+				}
+				return false, nil
+			},
+		},
+		DeviceService: fakeDeviceService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
+	req.Header.Set("Authorization", "Bearer "+mintBearerAccessTokenForTest(t, cfg, "alice", []string{"Super-Users"}, "session-1"))
+
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -986,11 +1039,19 @@ func (f fakeClientAuthService) Logout(ctx context.Context, request api.LogoutReq
 }
 
 type fakeSessionService struct {
-	listProfileFn   func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
-	revokeProfileFn func(ctx context.Context, user db.User, sessionID uuid.UUID) error
-	revokeOthersFn  func(ctx context.Context, user db.User, currentSessionID string) error
-	listAdminFn     func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
-	revokeAdminFn   func(ctx context.Context, sessionID uuid.UUID) error
+	validateSessionFn func(ctx context.Context, sessionID string) (bool, error)
+	listProfileFn     func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
+	revokeProfileFn   func(ctx context.Context, user db.User, sessionID uuid.UUID) error
+	revokeOthersFn    func(ctx context.Context, user db.User, currentSessionID string) error
+	listAdminFn       func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
+	revokeAdminFn     func(ctx context.Context, sessionID uuid.UUID) error
+}
+
+func (f fakeSessionService) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
+	if f.validateSessionFn == nil {
+		return true, nil
+	}
+	return f.validateSessionFn(ctx, sessionID)
 }
 
 func (f fakeSessionService) ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
@@ -1074,4 +1135,34 @@ func mustTestConfig(t *testing.T) config.Config {
 		t.Fatalf("failed to validate test config: %v", err)
 	}
 	return cfg
+}
+
+func mintTestAccessToken(t *testing.T, cfg config.Config, claims auth.AccessTokenClaims) string {
+	t.Helper()
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedToken, err := token.SignedString([]byte(cfg.Auth.JWTHMACSecret))
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+
+	return signedToken
+}
+
+func mintBearerAccessTokenForTest(t *testing.T, cfg config.Config, username string, groups []string, sessionID string) string {
+	t.Helper()
+
+	now := time.Now()
+	return mintTestAccessToken(t, cfg, auth.AccessTokenClaims{
+		Username:  username,
+		Groups:    append([]string(nil), groups...),
+		SessionID: sessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   username,
+			Issuer:    cfg.Auth.JWTIssuer,
+			Audience:  jwt.ClaimStrings{cfg.Auth.JWTAudience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+	})
 }

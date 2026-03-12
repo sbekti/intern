@@ -16,13 +16,16 @@ import (
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
+	"github.com/sbekti/intern-api/internal/sessions"
 	"github.com/sbekti/intern-api/internal/testutil"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
@@ -235,20 +238,16 @@ func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
 	t.Parallel()
 
 	testEnv := newHandlerIntegrationEnv(t)
-
-	token := mintAccessToken(t, testEnv.cfg, auth.AccessTokenClaims{
-		Username: "carol",
-		Name:     "Carol Example",
-		Email:    "carol@example.com",
+	now := time.Now().UTC()
+	token, err := issueBearerTokenForIntegrationUser(t, testEnv, now, db.UpsertUserByUsernameParams{
+		Username: "charlie",
+		Name:     "Charlie Example",
+		Email:    "charlie@example.com",
 		Groups:   []string{"Users"},
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   "carol",
-			Issuer:    testEnv.cfg.Auth.JWTIssuer,
-			Audience:  jwt.ClaimStrings{testEnv.cfg.Auth.JWTAudience},
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
 	})
+	if err != nil {
+		t.Fatalf("failed to issue bearer token for charlie: %v", err)
+	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -262,8 +261,110 @@ func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
 
 	var profile api.Profile
 	decodeBody(t, rec.Body, &profile)
-	if profile.Username != "carol" || string(profile.Email) != "carol@example.com" {
+	if profile.Username != "charlie" || string(profile.Email) != "charlie@example.com" {
 		t.Fatalf("unexpected profile payload %#v", profile)
+	}
+}
+
+func TestHandlerIntegrationBearerTokenRevokedSessionRejected(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	now := time.Now().UTC()
+	user, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "dave",
+		Name:     "Dave Example",
+		Email:    "dave@example.com",
+		Groups:   []string{"Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert dave user: %v", err)
+	}
+
+	session := createActiveAuthSession(t, testEnv, now, user.ID)
+	sessionID := uuid.UUID(session.ID.Bytes).String()
+
+	if _, err := testEnv.queries.RevokeAuthSession(context.Background(), db.RevokeAuthSessionParams{
+		ID:           session.ID,
+		RevokeReason: "test_revoke",
+	}); err != nil {
+		t.Fatalf("failed to revoke session: %v", err)
+	}
+
+	token := mintAccessToken(t, testEnv.cfg, auth.AccessTokenClaims{
+		Username:  "dave",
+		Name:      "Dave Example",
+		Email:     "dave@example.com",
+		Groups:    []string{"Users"},
+		SessionID: sessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "dave",
+			Issuer:    testEnv.cfg.Auth.JWTIssuer,
+			Audience:  jwt.ClaimStrings{testEnv.cfg.Auth.JWTAudience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlerIntegrationRevokedBearerAdminSessionRejected(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	now := time.Now().UTC()
+	user, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "eve",
+		Name:     "Eve Example",
+		Email:    "eve@example.com",
+		Groups:   []string{"Super-Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert eve user: %v", err)
+	}
+
+	session := createActiveAuthSession(t, testEnv, now, user.ID)
+	sessionID := uuid.UUID(session.ID.Bytes).String()
+
+	if _, err := testEnv.queries.RevokeAuthSession(context.Background(), db.RevokeAuthSessionParams{
+		ID:           session.ID,
+		RevokeReason: "test_revoke",
+	}); err != nil {
+		t.Fatalf("failed to revoke session: %v", err)
+	}
+
+	token := mintAccessToken(t, testEnv.cfg, auth.AccessTokenClaims{
+		Username:  "eve",
+		Name:      "Eve Example",
+		Email:     "eve@example.com",
+		Groups:    []string{"Super-Users"},
+		SessionID: sessionID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   "eve",
+			Issuer:    testEnv.cfg.Auth.JWTIssuer,
+			Audience:  jwt.ClaimStrings{testEnv.cfg.Auth.JWTAudience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -272,6 +373,7 @@ type handlerIntegrationEnv struct {
 	handler           http.Handler
 	pg                *testutil.PostgresContainer
 	queries           *db.Queries
+	sessionService    *sessions.Service
 	clientAuthService *clientauth.Service
 }
 
@@ -283,12 +385,14 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	cfg := integrationHandlerConfig(pg.URL)
 
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pg.Pool))
+	sessionService := sessions.NewService(queries)
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
 		UserStore:         queries,
 		DashboardStore:    queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
 		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
+		SessionService:    sessionService,
 		ClientAuthService: clientAuthService,
 	})
 
@@ -297,6 +401,7 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 		handler:           handler,
 		pg:                pg,
 		queries:           queries,
+		sessionService:    sessionService,
 		clientAuthService: clientAuthService,
 	}
 }
@@ -349,6 +454,31 @@ func mintAccessToken(t *testing.T, cfg config.Config, claims auth.AccessTokenCla
 	return signed
 }
 
+func issueBearerTokenForIntegrationUser(t *testing.T, testEnv handlerIntegrationEnv, now time.Time, params db.UpsertUserByUsernameParams) (string, error) {
+	t.Helper()
+
+	user, err := testEnv.queries.UpsertUserByUsername(context.Background(), params)
+	if err != nil {
+		return "", err
+	}
+
+	session := createActiveAuthSession(t, testEnv, now, user.ID)
+	return mintAccessToken(t, testEnv.cfg, auth.AccessTokenClaims{
+		Username:  params.Username,
+		Name:      params.Name,
+		Email:     params.Email,
+		Groups:    append([]string(nil), params.Groups...),
+		SessionID: uuid.UUID(session.ID.Bytes).String(),
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   params.Username,
+			Issuer:    testEnv.cfg.Auth.JWTIssuer,
+			Audience:  jwt.ClaimStrings{testEnv.cfg.Auth.JWTAudience},
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+		},
+	}), nil
+}
+
 func decodeBody(t *testing.T, body *bytes.Buffer, target any) {
 	t.Helper()
 
@@ -359,4 +489,25 @@ func decodeBody(t *testing.T, body *bytes.Buffer, target any) {
 
 func stringPtr(value string) *string {
 	return &value
+}
+
+func createActiveAuthSession(t *testing.T, testEnv handlerIntegrationEnv, now time.Time, userID pgtype.UUID) db.AuthSession {
+	t.Helper()
+
+	familyID := uuid.New()
+	session, err := testEnv.queries.CreateAuthSession(context.Background(), db.CreateAuthSessionParams{
+		UserID:               userID,
+		ClientName:           "internctl",
+		UserAgent:            "integration-test",
+		RefreshTokenHash:     "integration-refresh-token",
+		RefreshTokenFamilyID: pgtype.UUID{Bytes: [16]byte(familyID), Valid: true},
+		LastUsedAt:           pgtype.Timestamptz{Time: now, Valid: true},
+		ExpiresAt:            pgtype.Timestamptz{Time: now.Add(15 * time.Minute), Valid: true},
+		IdleExpiresAt:        pgtype.Timestamptz{Time: now.Add(30 * time.Minute), Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("failed to create auth session: %v", err)
+	}
+
+	return session
 }

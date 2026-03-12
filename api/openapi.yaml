@@ -110,6 +110,7 @@ paths:
       operationId: revokeOtherProfileSessions
       tags: [Profile]
       summary: Revoke all other active sessions for the current user.
+      description: For bearer-authenticated callers, the current bearer session is kept and other active API sessions are revoked. For forward-auth browser callers, all active API sessions for the user are revoked.
       security:
         - bearerAuth: []
       responses:

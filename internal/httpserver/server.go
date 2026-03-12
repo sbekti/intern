@@ -68,6 +68,7 @@ type ClientAuthService interface {
 }
 
 type SessionService interface {
+	ValidateSession(ctx context.Context, sessionID string) (bool, error)
 	ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
 	RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error
 	RevokeOtherProfileSessions(ctx context.Context, user db.User, currentSessionID string) error
@@ -100,6 +101,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
 	router.Use(authenticator.OptionalPrincipalMiddleware())
+	router.Use(auth.RequireActiveBearerSession(deps.SessionService))
 	router.Use(userSyncer.Middleware())
 
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

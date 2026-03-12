@@ -132,6 +132,25 @@ func (s *Service) ListAdminSessions(ctx context.Context, currentSessionID string
 	return items, nil
 }
 
+func (s *Service) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
+	id, ok := parseUUID(sessionID)
+	if !ok {
+		return false, nil
+	}
+
+	record, err := s.queries.GetAuthSessionByID(ctx, db.GetAuthSessionByIDParams{
+		ID: pgUUID(id),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return s.isSessionActive(record, s.now()), nil
+}
+
 func (s *Service) RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error {
 	record, err := s.queries.GetAuthSessionByID(ctx, db.GetAuthSessionByIDParams{
 		ID: pgUUID(sessionID),
