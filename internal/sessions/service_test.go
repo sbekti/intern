@@ -14,12 +14,12 @@ import (
 )
 
 type fakeQuerier struct {
-	getAuthSessionByIDFn         func(ctx context.Context, arg db.GetAuthSessionByIDParams) (db.AuthSession, error)
-	getUserByIDFn                func(ctx context.Context, arg db.GetUserByIDParams) (db.User, error)
-	listAuthSessionsFn           func(ctx context.Context) ([]db.AuthSession, error)
-	listAuthSessionsByUserIDFn   func(ctx context.Context, arg db.ListAuthSessionsByUserIDParams) ([]db.AuthSession, error)
-	revokeAuthSessionFn          func(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error)
-	revokeOtherAuthSessionsFn    func(ctx context.Context, arg db.RevokeOtherAuthSessionsForUserParams) (int64, error)
+	getAuthSessionByIDFn       func(ctx context.Context, arg db.GetAuthSessionByIDParams) (db.AuthSession, error)
+	getUserByIDFn              func(ctx context.Context, arg db.GetUserByIDParams) (db.User, error)
+	listAuthSessionsFn         func(ctx context.Context) ([]db.AuthSession, error)
+	listAuthSessionsByUserIDFn func(ctx context.Context, arg db.ListAuthSessionsByUserIDParams) ([]db.AuthSession, error)
+	revokeAuthSessionFn        func(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error)
+	revokeOtherAuthSessionsFn  func(ctx context.Context, arg db.RevokeOtherAuthSessionsForUserParams) (int64, error)
 }
 
 func (f fakeQuerier) GetAuthSessionByID(ctx context.Context, arg db.GetAuthSessionByIDParams) (db.AuthSession, error) {
