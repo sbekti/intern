@@ -86,15 +86,12 @@ func TestCreateDeviceCode(t *testing.T) {
 		},
 	})
 
-	result, err := service.CreateDeviceCode(context.Background(), nil)
+	_, err := service.CreateDeviceCode(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if !called {
 		t.Fatal("expected create auth device authorization to be called")
-	}
-	if result.VerificationUrl != "https://intern.corp.example.com/auth/device" {
-		t.Fatalf("unexpected verification url %q", result.VerificationUrl)
 	}
 }
 
@@ -290,7 +287,6 @@ func testServiceWithTransactor(q Querier, random io.Reader) *Service {
 			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
-			VerificationURL:    "https://intern.corp.example.com/auth/device",
 		},
 	}, q, fakeTransactor{q: q})
 	service.now = func() time.Time {

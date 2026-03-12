@@ -88,9 +88,6 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
 - `AUTH_DEVICE_POLL_INTERVAL`
   - minimum polling interval for device token exchange
   - default: `5s`
-- `AUTH_DEVICE_VERIFICATION_URL`
-  - browser URL shown during device login approval
-  - default: `https://intern.corp.example.com/auth/device`
 - `WEATHER_BASE_URL`
   - Open-Meteo forecast API base URL
   - default: `https://api.open-meteo.com/v1/forecast`
@@ -172,7 +169,7 @@ curl -X POST http://localhost:18080/api/v1/auth/tokens \
   -d '{"device_code":"..."}'
 ```
 
-In Compose, `verification_url` points at a simple placeholder page on `/auth/device`. The real browser approval UI will live in `intern-www` later; for now, approve with the API endpoint above.
+During device login, clients should send the user to `/auth/device` on the same origin they first contacted for the API.
 
 Shut the stack down with:
 

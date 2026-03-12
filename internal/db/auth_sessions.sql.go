@@ -11,6 +11,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countActiveAuthSessions = `-- name: CountActiveAuthSessions :one
+SELECT COUNT(*)
+FROM auth_sessions
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+`
+
+func (q *Queries) CountActiveAuthSessions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveAuthSessions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countActiveAuthSessionsByUserID = `-- name: CountActiveAuthSessionsByUserID :one
+SELECT COUNT(*)
+FROM auth_sessions
+WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+`
+
+type CountActiveAuthSessionsByUserIDParams struct {
+	UserID pgtype.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *Queries) CountActiveAuthSessionsByUserID(ctx context.Context, arg CountActiveAuthSessionsByUserIDParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveAuthSessionsByUserID, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAuthSession = `-- name: CreateAuthSession :one
 INSERT INTO auth_sessions (
   user_id,
@@ -139,6 +174,108 @@ func (q *Queries) GetAuthSessionByRefreshTokenHash(ctx context.Context, arg GetA
 	return i, err
 }
 
+const listActiveAuthSessionsByUserPage = `-- name: ListActiveAuthSessionsByUserPage :many
+SELECT id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
+FROM auth_sessions
+WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListActiveAuthSessionsByUserPageParams struct {
+	UserID      pgtype.UUID `db:"user_id" json:"user_id"`
+	OffsetCount int32       `db:"offset_count" json:"offset_count"`
+	LimitCount  int32       `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) ListActiveAuthSessionsByUserPage(ctx context.Context, arg ListActiveAuthSessionsByUserPageParams) ([]AuthSession, error) {
+	rows, err := q.db.Query(ctx, listActiveAuthSessionsByUserPage, arg.UserID, arg.OffsetCount, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuthSession{}
+	for rows.Next() {
+		var i AuthSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ClientName,
+			&i.UserAgent,
+			&i.RefreshTokenHash,
+			&i.RefreshTokenFamilyID,
+			&i.LastUsedAt,
+			&i.ExpiresAt,
+			&i.IdleExpiresAt,
+			&i.RevokedAt,
+			&i.RevokeReason,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveAuthSessionsPage = `-- name: ListActiveAuthSessionsPage :many
+SELECT id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
+FROM auth_sessions
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+OFFSET $1
+`
+
+type ListActiveAuthSessionsPageParams struct {
+	OffsetCount int32 `db:"offset_count" json:"offset_count"`
+	LimitCount  int32 `db:"limit_count" json:"limit_count"`
+}
+
+func (q *Queries) ListActiveAuthSessionsPage(ctx context.Context, arg ListActiveAuthSessionsPageParams) ([]AuthSession, error) {
+	rows, err := q.db.Query(ctx, listActiveAuthSessionsPage, arg.OffsetCount, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuthSession{}
+	for rows.Next() {
+		var i AuthSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ClientName,
+			&i.UserAgent,
+			&i.RefreshTokenHash,
+			&i.RefreshTokenFamilyID,
+			&i.LastUsedAt,
+			&i.ExpiresAt,
+			&i.IdleExpiresAt,
+			&i.RevokedAt,
+			&i.RevokeReason,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuthSessions = `-- name: ListAuthSessions :many
 SELECT id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
 FROM auth_sessions
@@ -222,6 +359,29 @@ func (q *Queries) ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSess
 		return nil, err
 	}
 	return items, nil
+}
+
+const revokeAllActiveAuthSessions = `-- name: RevokeAllActiveAuthSessions :execrows
+UPDATE auth_sessions
+SET
+  revoked_at = NOW(),
+  revoke_reason = $1,
+  updated_at = NOW()
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+`
+
+type RevokeAllActiveAuthSessionsParams struct {
+	RevokeReason string `db:"revoke_reason" json:"revoke_reason"`
+}
+
+func (q *Queries) RevokeAllActiveAuthSessions(ctx context.Context, arg RevokeAllActiveAuthSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAllActiveAuthSessions, arg.RevokeReason)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const revokeAuthSession = `-- name: RevokeAuthSession :one

@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/clientauth"
@@ -93,6 +94,26 @@ func TestHandlerIntegrationAdminRouteForbiddenForNonAdmin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", bytes.NewBufferString(`{"name":"lab","vlan_id":30}`))
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandlerIntegrationAdminVlanListForbiddenForNonAdmin(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
+	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("Remote-User", "alice")
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
@@ -368,6 +389,170 @@ func TestHandlerIntegrationRevokedBearerAdminSessionRejected(t *testing.T) {
 	}
 }
 
+func TestHandlerIntegrationAdminSessionsPaginated(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	now := time.Now().UTC()
+
+	alice, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "alice",
+		Name:     "Alice Example",
+		Email:    "alice@example.com",
+		Groups:   []string{"Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert alice user: %v", err)
+	}
+	bob, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "bob",
+		Name:     "Bob Example",
+		Email:    "bob@example.com",
+		Groups:   []string{"Super-Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert bob user: %v", err)
+	}
+
+	_ = createActiveAuthSession(t, testEnv, now.Add(-2*time.Minute), alice.ID)
+	latest := createActiveAuthSession(t, testEnv, now.Add(-1*time.Minute), bob.ID)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions?limit=1&offset=0", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var page api.AuthSessionPage
+	decodeBody(t, rec.Body, &page)
+	if page.Pagination.Total != 2 {
+		t.Fatalf("expected total 2, got %d", page.Pagination.Total)
+	}
+	if page.Pagination.Limit != 1 || page.Pagination.Offset != 0 {
+		t.Fatalf("unexpected pagination %+v", page.Pagination)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(page.Items))
+	}
+	if page.Items[0].Username != "bob" {
+		t.Fatalf("expected first page username bob, got %q", page.Items[0].Username)
+	}
+	if page.Items[0].Id != openapi_types.UUID(uuid.UUID(latest.ID.Bytes)) {
+		t.Fatalf("expected latest session ID %s, got %s", uuid.UUID(latest.ID.Bytes), page.Items[0].Id)
+	}
+}
+
+func TestHandlerIntegrationProfileSessionsPaginated(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	now := time.Now().UTC()
+
+	eve, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "eve",
+		Name:     "Eve Example",
+		Email:    "eve@example.com",
+		Groups:   []string{"Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert eve user: %v", err)
+	}
+
+	_ = createActiveAuthSession(t, testEnv, now.Add(-2*time.Minute), eve.ID)
+	latest := createActiveAuthSession(t, testEnv, now.Add(-1*time.Minute), eve.ID)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions?limit=1&offset=0", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "eve")
+	req.Header.Set("Remote-Name", "Eve Example")
+	req.Header.Set("Remote-Email", "eve@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var page api.AuthSessionPage
+	decodeBody(t, rec.Body, &page)
+	if page.Pagination.Total != 2 {
+		t.Fatalf("expected total 2, got %d", page.Pagination.Total)
+	}
+	if page.Pagination.Limit != 1 || page.Pagination.Offset != 0 {
+		t.Fatalf("unexpected pagination %+v", page.Pagination)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(page.Items))
+	}
+	if page.Items[0].Username != "eve" {
+		t.Fatalf("expected first page username eve, got %q", page.Items[0].Username)
+	}
+	if page.Items[0].Id != openapi_types.UUID(uuid.UUID(latest.ID.Bytes)) {
+		t.Fatalf("expected latest session ID %s, got %s", uuid.UUID(latest.ID.Bytes), page.Items[0].Id)
+	}
+}
+
+func TestHandlerIntegrationAdminRevokeAllSessions(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	now := time.Now().UTC()
+
+	alice, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "alice",
+		Name:     "Alice Example",
+		Email:    "alice@example.com",
+		Groups:   []string{"Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert alice user: %v", err)
+	}
+	bob, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "bob",
+		Name:     "Bob Example",
+		Email:    "bob@example.com",
+		Groups:   []string{"Super-Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert bob user: %v", err)
+	}
+
+	_ = createActiveAuthSession(t, testEnv, now, alice.ID)
+	_ = createActiveAuthSession(t, testEnv, now.Add(-1*time.Minute), bob.ID)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	count, err := testEnv.queries.CountActiveAuthSessions(context.Background())
+	if err != nil {
+		t.Fatalf("failed to count active sessions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0 active sessions after revoke all, got %d", count)
+	}
+}
+
 type handlerIntegrationEnv struct {
 	cfg               config.Config
 	handler           http.Handler
@@ -422,7 +607,6 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
-			VerificationURL:    "https://intern.corp.example.com/auth/device",
 		},
 		TrustedProxy: config.TrustedProxyConfig{
 			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
@@ -495,11 +679,12 @@ func createActiveAuthSession(t *testing.T, testEnv handlerIntegrationEnv, now ti
 	t.Helper()
 
 	familyID := uuid.New()
+	refreshTokenHash := "integration-refresh-token-" + uuid.NewString()
 	session, err := testEnv.queries.CreateAuthSession(context.Background(), db.CreateAuthSessionParams{
 		UserID:               userID,
 		ClientName:           "internctl",
 		UserAgent:            "integration-test",
-		RefreshTokenHash:     "integration-refresh-token",
+		RefreshTokenHash:     refreshTokenHash,
 		RefreshTokenFamilyID: pgtype.UUID{Bytes: [16]byte(familyID), Valid: true},
 		LastUsedAt:           pgtype.Timestamptz{Time: now, Valid: true},
 		ExpiresAt:            pgtype.Timestamptz{Time: now.Add(15 * time.Minute), Valid: true},

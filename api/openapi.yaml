@@ -80,13 +80,31 @@ paths:
       summary: List active auth sessions for the current user.
       security:
         - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 25
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
       responses:
         '200':
           description: Active sessions.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthSessionList'
+                $ref: '#/components/schemas/AuthSessionPage'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/v1/profile/sessions/{id}/revoke:
@@ -125,13 +143,46 @@ paths:
       summary: List active auth sessions across users.
       security:
         - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 25
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
       responses:
         '200':
           description: Active sessions.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthSessionList'
+                $ref: '#/components/schemas/AuthSessionPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/auth/sessions/revoke_all:
+    post:
+      operationId: revokeAllAdminAuthSessions
+      tags: [Admin]
+      summary: Revoke all active auth sessions as an administrator.
+      description: Revokes all active API/client sessions across all users, including the administrator's own API/client sessions. Browser forward-auth sessions are not affected.
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: All active API/client sessions revoked.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -244,6 +295,8 @@ paths:
                 $ref: '#/components/schemas/VlanList'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     post:
       operationId: createVlan
       tags: [Networks]
@@ -291,6 +344,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
     patch:
@@ -741,14 +796,34 @@ components:
           format: date-time
         is_current:
           type: boolean
-    AuthSessionList:
+    AuthSessionPagination:
       type: object
-      required: [items]
+      required:
+        - limit
+        - offset
+        - total
+      properties:
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int64
+    AuthSessionPage:
+      type: object
+      required:
+        - items
+        - pagination
       properties:
         items:
           type: array
           items:
             $ref: '#/components/schemas/AuthSession'
+        pagination:
+          $ref: '#/components/schemas/AuthSessionPagination'
     AuditLogEntry:
       type: object
       required:
@@ -1007,7 +1082,6 @@ components:
       required:
         - device_code
         - user_code
-        - verification_url
         - expires_in_seconds
         - poll_interval_seconds
       properties:
@@ -1015,9 +1089,6 @@ components:
           type: string
         user_code:
           type: string
-        verification_url:
-          type: string
-          format: uri
         expires_in_seconds:
           type: integer
           format: int32

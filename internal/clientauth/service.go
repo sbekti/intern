@@ -130,7 +130,6 @@ func (s *Service) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeC
 			return &api.DeviceCode{
 				DeviceCode:          deviceCode,
 				UserCode:            userCode,
-				VerificationUrl:     s.cfg.VerificationURL,
 				ExpiresInSeconds:    int32(s.cfg.DeviceCodeTTL.Seconds()),
 				PollIntervalSeconds: int32(s.cfg.DevicePollInterval.Seconds()),
 			}, nil

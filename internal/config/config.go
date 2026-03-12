@@ -50,7 +50,6 @@ type AuthConfig struct {
 	RefreshAbsoluteTTL time.Duration
 	DeviceCodeTTL      time.Duration
 	DevicePollInterval time.Duration
-	VerificationURL    string
 }
 
 type TrustedProxyConfig struct {
@@ -140,7 +139,6 @@ func Load() (Config, error) {
 			RefreshAbsoluteTTL: refreshAbsoluteTTL,
 			DeviceCodeTTL:      deviceCodeTTL,
 			DevicePollInterval: devicePollInterval,
-			VerificationURL:    envOrDefault("AUTH_DEVICE_VERIFICATION_URL", "https://intern.corp.example.com/auth/device"),
 		},
 		TrustedProxy: TrustedProxyConfig{
 			CIDRs:        trustedProxyCIDRs,
@@ -210,9 +208,6 @@ func (c Config) Validate() error {
 	}
 	if c.Auth.DevicePollInterval <= 0 {
 		return fmt.Errorf("AUTH_DEVICE_POLL_INTERVAL must be greater than zero")
-	}
-	if strings.TrimSpace(c.Auth.VerificationURL) == "" {
-		return fmt.Errorf("AUTH_DEVICE_VERIFICATION_URL must not be empty")
 	}
 	if len(c.TrustedProxy.CIDRs) == 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS must contain at least one CIDR")

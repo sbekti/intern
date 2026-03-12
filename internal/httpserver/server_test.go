@@ -322,6 +322,37 @@ func TestListVlansReturnsItems(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestListVlansRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			listFn: func(ctx context.Context) ([]db.Vlan, error) {
+				t.Fatal("expected list not to be called")
+				return nil, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Remote-User", "alice")
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
@@ -329,8 +360,8 @@ func TestListVlansReturnsItems(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
 	}
 }
 
@@ -423,6 +454,37 @@ func TestGetVlanReturnsNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans/999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
+func TestGetVlanRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		VLANService: fakeVLANService{
+			getFn: func(ctx context.Context, id int64) (db.Vlan, error) {
+				t.Fatal("expected get not to be called")
+				return db.Vlan{}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans/999", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Remote-User", "alice")
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
@@ -430,8 +492,8 @@ func TestGetVlanReturnsNotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
 	}
 }
 
@@ -553,7 +615,6 @@ func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
 				return &api.DeviceCode{
 					DeviceCode:          "device-code",
 					UserCode:            "ABCD-EFGH",
-					VerificationUrl:     "https://intern.corp.example.com/auth/device",
 					ExpiresInSeconds:    600,
 					PollIntervalSeconds: 5,
 				}, nil
@@ -647,16 +708,29 @@ func TestListProfileSessionsReturnsItems(t *testing.T) {
 			},
 		},
 		SessionService: fakeSessionService{
-			listProfileFn: func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
+			listProfilePageFn: func(ctx context.Context, user db.User, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
 				called = true
-				return []api.AuthSession{{
-					Id:            openapi_types.UUID(sessionID),
-					Username:      user.Username,
-					ClientName:    "internctl",
-					CreatedAt:     testTimestamp().Time,
-					ExpiresAt:     testTimestamp().Time.Add(time.Hour),
-					IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
-				}}, nil
+				if limit != defaultAuthSessionLimit {
+					t.Fatalf("expected default limit %d, got %d", defaultAuthSessionLimit, limit)
+				}
+				if offset != 0 {
+					t.Fatalf("expected offset 0, got %d", offset)
+				}
+				return &api.AuthSessionPage{
+					Items: []api.AuthSession{{
+						Id:            openapi_types.UUID(sessionID),
+						Username:      user.Username,
+						ClientName:    "internctl",
+						CreatedAt:     testTimestamp().Time,
+						ExpiresAt:     testTimestamp().Time.Add(time.Hour),
+						IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
+					}},
+					Pagination: api.AuthSessionPagination{
+						Limit:  defaultAuthSessionLimit,
+						Offset: 0,
+						Total:  1,
+					},
+				}, nil
 			},
 		},
 	})
@@ -675,6 +749,32 @@ func TestListProfileSessionsReturnsItems(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("expected session service to be called")
+	}
+}
+
+func TestListProfileSessionsRejectsBadLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions?limit=999", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 }
 
@@ -754,15 +854,28 @@ func TestListAdminSessionsReturnsItems(t *testing.T) {
 			},
 		},
 		SessionService: fakeSessionService{
-			listAdminFn: func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error) {
-				return []api.AuthSession{{
-					Id:            openapi_types.UUID(sessionID),
-					Username:      "alice",
-					ClientName:    "internctl",
-					CreatedAt:     testTimestamp().Time,
-					ExpiresAt:     testTimestamp().Time.Add(time.Hour),
-					IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
-				}}, nil
+			listAdminPageFn: func(ctx context.Context, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
+				if limit != defaultAuthSessionLimit {
+					t.Fatalf("expected default limit %d, got %d", defaultAuthSessionLimit, limit)
+				}
+				if offset != 0 {
+					t.Fatalf("expected offset 0, got %d", offset)
+				}
+				return &api.AuthSessionPage{
+					Items: []api.AuthSession{{
+						Id:            openapi_types.UUID(sessionID),
+						Username:      "alice",
+						ClientName:    "internctl",
+						CreatedAt:     testTimestamp().Time,
+						ExpiresAt:     testTimestamp().Time.Add(time.Hour),
+						IdleExpiresAt: testTimestamp().Time.Add(30 * time.Minute),
+					}},
+					Pagination: api.AuthSessionPagination{
+						Limit:  defaultAuthSessionLimit,
+						Offset: 0,
+						Total:  1,
+					},
+				}, nil
 			},
 		},
 	})
@@ -778,6 +891,93 @@ func TestListAdminSessionsReturnsItems(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+}
+
+func TestListAdminSessionsRejectsBadLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions?limit=999", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+}
+
+func TestRevokeAllAdminSessionsRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Name", "Alice Example")
+	req.Header.Set("Remote-Email", "alice@example.com")
+	req.Header.Set("Remote-Groups", "Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, rec.Code)
+	}
+}
+
+func TestRevokeAllAdminSessionsReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		SessionService: fakeSessionService{
+			revokeAllAdminFn: func(ctx context.Context) error {
+				called = true
+				return nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "bob")
+	req.Header.Set("Remote-Name", "Bob Example")
+	req.Header.Set("Remote-Email", "bob@example.com")
+	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+	}
+	if !called {
+		t.Fatal("expected global revoke to be called")
 	}
 }
 
@@ -1040,11 +1240,12 @@ func (f fakeClientAuthService) Logout(ctx context.Context, request api.LogoutReq
 
 type fakeSessionService struct {
 	validateSessionFn func(ctx context.Context, sessionID string) (bool, error)
-	listProfileFn     func(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
+	listProfilePageFn func(ctx context.Context, user db.User, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error)
 	revokeProfileFn   func(ctx context.Context, user db.User, sessionID uuid.UUID) error
 	revokeOthersFn    func(ctx context.Context, user db.User, currentSessionID string) error
-	listAdminFn       func(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
+	listAdminPageFn   func(ctx context.Context, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error)
 	revokeAdminFn     func(ctx context.Context, sessionID uuid.UUID) error
+	revokeAllAdminFn  func(ctx context.Context) error
 }
 
 func (f fakeSessionService) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
@@ -1054,11 +1255,11 @@ func (f fakeSessionService) ValidateSession(ctx context.Context, sessionID strin
 	return f.validateSessionFn(ctx, sessionID)
 }
 
-func (f fakeSessionService) ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
-	if f.listProfileFn == nil {
-		return nil, nil
+func (f fakeSessionService) ListProfileSessionsPage(ctx context.Context, user db.User, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
+	if f.listProfilePageFn == nil {
+		return &api.AuthSessionPage{}, nil
 	}
-	return f.listProfileFn(ctx, user, currentSessionID)
+	return f.listProfilePageFn(ctx, user, currentSessionID, limit, offset)
 }
 
 func (f fakeSessionService) RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error {
@@ -1075,11 +1276,11 @@ func (f fakeSessionService) RevokeOtherProfileSessions(ctx context.Context, user
 	return f.revokeOthersFn(ctx, user, currentSessionID)
 }
 
-func (f fakeSessionService) ListAdminSessions(ctx context.Context, currentSessionID string) ([]api.AuthSession, error) {
-	if f.listAdminFn == nil {
-		return nil, nil
+func (f fakeSessionService) ListAdminSessionsPage(ctx context.Context, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
+	if f.listAdminPageFn == nil {
+		return &api.AuthSessionPage{}, nil
 	}
-	return f.listAdminFn(ctx, currentSessionID)
+	return f.listAdminPageFn(ctx, currentSessionID, limit, offset)
 }
 
 func (f fakeSessionService) RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error {
@@ -1087,6 +1288,13 @@ func (f fakeSessionService) RevokeAdminSession(ctx context.Context, sessionID uu
 		return nil
 	}
 	return f.revokeAdminFn(ctx, sessionID)
+}
+
+func (f fakeSessionService) RevokeAllAdminSessions(ctx context.Context) error {
+	if f.revokeAllAdminFn == nil {
+		return nil
+	}
+	return f.revokeAllAdminFn(ctx)
 }
 
 type fakeAuditLogService struct {
@@ -1118,7 +1326,6 @@ func mustTestConfig(t *testing.T) config.Config {
 			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
-			VerificationURL:    "https://intern.corp.example.com/auth/device",
 		},
 		TrustedProxy: config.TrustedProxyConfig{
 			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},

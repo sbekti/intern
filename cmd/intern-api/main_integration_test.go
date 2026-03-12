@@ -138,7 +138,6 @@ func integrationEnv(addr, databaseURL, redisURL string) []string {
 		"AUTH_REFRESH_ABSOLUTE_TTL=2160h",
 		"AUTH_DEVICE_CODE_TTL=10m",
 		"AUTH_DEVICE_POLL_INTERVAL=5s",
-		"AUTH_DEVICE_VERIFICATION_URL=https://intern.corp.example.com/auth/device",
 		"TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128",
 		"AUTH_REMOTE_USER_HEADER=Remote-User",
 		"AUTH_REMOTE_NAME_HEADER=Remote-Name",

@@ -15,10 +15,14 @@ import (
 )
 
 type Querier interface {
+	CountActiveAuthSessions(ctx context.Context) (int64, error)
+	CountActiveAuthSessionsByUserID(ctx context.Context, arg db.CountActiveAuthSessionsByUserIDParams) (int64, error)
 	GetAuthSessionByID(ctx context.Context, arg db.GetAuthSessionByIDParams) (db.AuthSession, error)
 	GetUserByID(ctx context.Context, arg db.GetUserByIDParams) (db.User, error)
-	ListAuthSessions(ctx context.Context) ([]db.AuthSession, error)
+	ListActiveAuthSessionsByUserPage(ctx context.Context, arg db.ListActiveAuthSessionsByUserPageParams) ([]db.AuthSession, error)
+	ListActiveAuthSessionsPage(ctx context.Context, arg db.ListActiveAuthSessionsPageParams) ([]db.AuthSession, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg db.ListAuthSessionsByUserIDParams) ([]db.AuthSession, error)
+	RevokeAllActiveAuthSessions(ctx context.Context, arg db.RevokeAllActiveAuthSessionsParams) (int64, error)
 	RevokeAuthSession(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error)
 	RevokeOtherAuthSessionsForUser(ctx context.Context, arg db.RevokeOtherAuthSessionsForUserParams) (int64, error)
 }
@@ -35,15 +39,31 @@ func NewService(queries Querier) *Service {
 	}
 }
 
-func (s *Service) ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error) {
-	rows, err := s.queries.ListAuthSessionsByUserID(ctx, db.ListAuthSessionsByUserIDParams{
+func (s *Service) ListProfileSessionsPage(ctx context.Context, user db.User, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
+	totalCount, err := s.queries.CountActiveAuthSessionsByUserID(ctx, db.CountActiveAuthSessionsByUserIDParams{
 		UserID: user.ID,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return s.toAPIProfileSessions(rows, user.Username, currentSessionID), nil
+	rows, err := s.queries.ListActiveAuthSessionsByUserPage(ctx, db.ListActiveAuthSessionsByUserPageParams{
+		UserID:      user.ID,
+		LimitCount:  limit,
+		OffsetCount: offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &api.AuthSessionPage{
+		Items: s.toAPISessions(rows, user.Username, currentSessionID),
+		Pagination: api.AuthSessionPagination{
+			Limit:  limit,
+			Offset: offset,
+			Total:  totalCount,
+		},
+	}, nil
 }
 
 func (s *Service) RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error {
@@ -107,20 +127,23 @@ func (s *Service) RevokeOtherProfileSessions(ctx context.Context, user db.User, 
 	return nil
 }
 
-func (s *Service) ListAdminSessions(ctx context.Context, currentSessionID string) ([]api.AuthSession, error) {
-	rows, err := s.queries.ListAuthSessions(ctx)
+func (s *Service) ListAdminSessionsPage(ctx context.Context, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error) {
+	totalCount, err := s.queries.CountActiveAuthSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.queries.ListActiveAuthSessionsPage(ctx, db.ListActiveAuthSessionsPageParams{
+		LimitCount:  limit,
+		OffsetCount: offset,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	usernames := make(map[[16]byte]string)
 	items := make([]api.AuthSession, 0, len(rows))
-	now := s.now()
 	for _, record := range rows {
-		if !s.isSessionActive(record, now) {
-			continue
-		}
-
 		username, err := s.lookupUsername(ctx, usernames, record.UserID)
 		if err != nil {
 			return nil, err
@@ -129,7 +152,14 @@ func (s *Service) ListAdminSessions(ctx context.Context, currentSessionID string
 		items = append(items, toAPISession(record, username, currentSessionID))
 	}
 
-	return items, nil
+	return &api.AuthSessionPage{
+		Items: items,
+		Pagination: api.AuthSessionPagination{
+			Limit:  limit,
+			Offset: offset,
+			Total:  totalCount,
+		},
+	}, nil
 }
 
 func (s *Service) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
@@ -176,7 +206,14 @@ func (s *Service) RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) e
 	return nil
 }
 
-func (s *Service) toAPIProfileSessions(rows []db.AuthSession, username, currentSessionID string) []api.AuthSession {
+func (s *Service) RevokeAllAdminSessions(ctx context.Context) error {
+	_, err := s.queries.RevokeAllActiveAuthSessions(ctx, db.RevokeAllActiveAuthSessionsParams{
+		RevokeReason: "admin_revoke_all",
+	})
+	return err
+}
+
+func (s *Service) toAPISessions(rows []db.AuthSession, username, currentSessionID string) []api.AuthSession {
 	items := make([]api.AuthSession, 0, len(rows))
 	now := s.now()
 	for _, record := range rows {

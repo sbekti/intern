@@ -180,6 +180,5 @@ func testAuthConfig(secret string) AuthConfig {
 		RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 		DeviceCodeTTL:      10 * time.Minute,
 		DevicePollInterval: 5 * time.Second,
-		VerificationURL:    "https://intern.corp.example.com/auth/device",
 	}
 }

@@ -69,15 +69,26 @@ type ClientAuthService interface {
 
 type SessionService interface {
 	ValidateSession(ctx context.Context, sessionID string) (bool, error)
-	ListProfileSessions(ctx context.Context, user db.User, currentSessionID string) ([]api.AuthSession, error)
+	ListProfileSessionsPage(ctx context.Context, user db.User, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error)
 	RevokeProfileSession(ctx context.Context, user db.User, sessionID uuid.UUID) error
 	RevokeOtherProfileSessions(ctx context.Context, user db.User, currentSessionID string) error
-	ListAdminSessions(ctx context.Context, currentSessionID string) ([]api.AuthSession, error)
+	ListAdminSessionsPage(ctx context.Context, currentSessionID string, limit, offset int32) (*api.AuthSessionPage, error)
 	RevokeAdminSession(ctx context.Context, sessionID uuid.UUID) error
+	RevokeAllAdminSessions(ctx context.Context) error
 }
 
 type AuditLogService interface {
 	List(ctx context.Context, filter auditlogs.Filter) (*auditlogs.Page, error)
+}
+
+const (
+	defaultAuthSessionLimit int32 = 25
+	maxAuthSessionLimit     int32 = 200
+)
+
+type authSessionPageParams struct {
+	Limit  *int32
+	Offset *int32
 }
 
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {
@@ -165,6 +176,12 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
+			params, err := decodeAuthSessionPageParams(r)
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", err.Error())
+				return
+			}
+
 			user, ok := identity.FromContext(r.Context())
 			if !ok {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
@@ -172,13 +189,19 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			}
 			principal, _ := auth.FromContext(r.Context())
 
-			items, err := sessionService.ListProfileSessions(r.Context(), user, currentSessionID(principal))
+			page, err := sessionService.ListProfileSessionsPage(
+				r.Context(),
+				user,
+				currentSessionID(principal),
+				int32Value(params.Limit, defaultAuthSessionLimit),
+				int32Value(params.Offset, 0),
+			)
 			if err != nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list sessions")
 				return
 			}
 
-			writeJSON(w, http.StatusOK, api.AuthSessionList{Items: items})
+			writeJSON(w, http.StatusOK, page)
 		})
 
 		r.With(authorizer.RequireAuthenticated()).Post("/profile/sessions/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
@@ -234,14 +257,39 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
+			params, err := decodeAuthSessionPageParams(r)
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", err.Error())
+				return
+			}
+
 			principal, _ := auth.FromContext(r.Context())
-			items, err := sessionService.ListAdminSessions(r.Context(), currentSessionID(principal))
+			page, err := sessionService.ListAdminSessionsPage(
+				r.Context(),
+				currentSessionID(principal),
+				int32Value(params.Limit, defaultAuthSessionLimit),
+				int32Value(params.Offset, 0),
+			)
 			if err != nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list admin sessions")
 				return
 			}
 
-			writeJSON(w, http.StatusOK, api.AuthSessionList{Items: items})
+			writeJSON(w, http.StatusOK, page)
+		})
+
+		r.With(authorizer.RequireAdmin()).Post("/admin/auth/sessions/revoke_all", func(w http.ResponseWriter, r *http.Request) {
+			if sessionService == nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "session service not configured")
+				return
+			}
+
+			if err := sessionService.RevokeAllAdminSessions(r.Context()); err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to revoke admin sessions")
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
 		})
 
 		r.With(authorizer.RequireAdmin()).Post("/admin/auth/sessions/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +347,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			})
 		})
 
-		r.With(authorizer.RequireAuthenticated()).Get("/networks/vlans", func(w http.ResponseWriter, r *http.Request) {
+		r.With(authorizer.RequireAdmin()).Get("/networks/vlans", func(w http.ResponseWriter, r *http.Request) {
 			if vlanService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "vlan service not configured")
 				return
@@ -319,7 +367,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusOK, api.VlanList{Items: responseItems})
 		})
 
-		r.With(authorizer.RequireAuthenticated()).Get("/networks/vlans/{id}", func(w http.ResponseWriter, r *http.Request) {
+		r.With(authorizer.RequireAdmin()).Get("/networks/vlans/{id}", func(w http.ResponseWriter, r *http.Request) {
 			if vlanService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "vlan service not configured")
 				return
@@ -750,6 +798,30 @@ func decodeAdminAuditLogParams(r *http.Request) (api.ListAdminAuditLogsParams, e
 		parsed, err := strconv.ParseInt(value, 10, 32)
 		if err != nil || parsed < 0 {
 			return api.ListAdminAuditLogsParams{}, errors.New("invalid offset")
+		}
+		cast := int32(parsed)
+		params.Offset = &cast
+	}
+
+	return params, nil
+}
+
+func decodeAuthSessionPageParams(r *http.Request) (authSessionPageParams, error) {
+	query := r.URL.Query()
+	params := authSessionPageParams{}
+
+	if value := strings.TrimSpace(query.Get("limit")); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || parsed < 1 || parsed > int64(maxAuthSessionLimit) {
+			return authSessionPageParams{}, errors.New("invalid limit")
+		}
+		cast := int32(parsed)
+		params.Limit = &cast
+	}
+	if value := strings.TrimSpace(query.Get("offset")); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 32)
+		if err != nil || parsed < 0 {
+			return authSessionPageParams{}, errors.New("invalid offset")
 		}
 		cast := int32(parsed)
 		params.Offset = &cast

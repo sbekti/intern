@@ -37,6 +37,42 @@ SELECT *
 FROM auth_sessions
 ORDER BY created_at DESC, id DESC;
 
+-- name: CountActiveAuthSessions :one
+SELECT COUNT(*)
+FROM auth_sessions
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW();
+
+-- name: CountActiveAuthSessionsByUserID :one
+SELECT COUNT(*)
+FROM auth_sessions
+WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW();
+
+-- name: ListActiveAuthSessionsPage :many
+SELECT *
+FROM auth_sessions
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(limit_count)
+OFFSET sqlc.arg(offset_count);
+
+-- name: ListActiveAuthSessionsByUserPage :many
+SELECT *
+FROM auth_sessions
+WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW()
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(limit_count)
+OFFSET sqlc.arg(offset_count);
+
 -- name: ListAuthSessionsByUserID :many
 SELECT *
 FROM auth_sessions
@@ -70,6 +106,16 @@ SET
   updated_at = NOW()
 WHERE refresh_token_family_id = sqlc.arg(refresh_token_family_id)
 ;
+
+-- name: RevokeAllActiveAuthSessions :execrows
+UPDATE auth_sessions
+SET
+  revoked_at = NOW(),
+  revoke_reason = sqlc.arg(revoke_reason),
+  updated_at = NOW()
+WHERE revoked_at IS NULL
+  AND expires_at > NOW()
+  AND idle_expires_at > NOW();
 
 -- name: TouchAuthSession :one
 UPDATE auth_sessions

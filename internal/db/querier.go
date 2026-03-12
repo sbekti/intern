@@ -9,6 +9,8 @@ import (
 )
 
 type Querier interface {
+	CountActiveAuthSessions(ctx context.Context) (int64, error)
+	CountActiveAuthSessionsByUserID(ctx context.Context, arg CountActiveAuthSessionsByUserIDParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountNetworkDevices(ctx context.Context) (int64, error)
 	CountVlans(ctx context.Context) (int64, error)
@@ -32,11 +34,14 @@ type Querier interface {
 	GetVlanByID(ctx context.Context, arg GetVlanByIDParams) (Vlan, error)
 	GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error)
 	InsertRadusergroup(ctx context.Context, arg InsertRadusergroupParams) error
+	ListActiveAuthSessionsByUserPage(ctx context.Context, arg ListActiveAuthSessionsByUserPageParams) ([]AuthSession, error)
+	ListActiveAuthSessionsPage(ctx context.Context, arg ListActiveAuthSessionsPageParams) ([]AuthSession, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error)
 	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
 	ListVlans(ctx context.Context) ([]Vlan, error)
+	RevokeAllActiveAuthSessions(ctx context.Context, arg RevokeAllActiveAuthSessionsParams) (int64, error)
 	RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionParams) (AuthSession, error)
 	RevokeAuthSessionFamily(ctx context.Context, arg RevokeAuthSessionFamilyParams) (int64, error)
 	RevokeOtherAuthSessionsForUser(ctx context.Context, arg RevokeOtherAuthSessionsForUserParams) (int64, error)
