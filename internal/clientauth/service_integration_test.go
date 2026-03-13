@@ -5,6 +5,7 @@ package clientauth
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/requestmeta"
 	"github.com/sbekti/intern-api/internal/testutil"
 )
 
@@ -19,7 +21,10 @@ func TestServiceDeviceCodeFlow(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
-	ctx := context.Background()
+	ctx := requestmeta.WithClientInfo(context.Background(), requestmeta.ClientInfo{
+		IP:       "203.0.113.40",
+		IPSource: requestmeta.SourceXForwardedFor,
+	})
 	queries := db.New(pg.Pool)
 	user := createIntegrationUser(t, ctx, queries, "alice", []string{"Users"})
 
@@ -111,13 +116,37 @@ func TestServiceDeviceCodeFlow(t *testing.T) {
 	if !loggedOut.RevokedAt.Valid || loggedOut.RevokeReason != "logout" {
 		t.Fatalf("expected logout revocation, got %#v", loggedOut)
 	}
+
+	assertAuthAuditLog(t, context.Background(), pg.Pool, "auth.device_code.approve", "alice", map[string]any{
+		"device_flow":      true,
+		"user_code":        deviceCode.UserCode,
+		"client_name":      "internctl",
+		"status":           "approved",
+		"client_ip":        "203.0.113.40",
+		"client_ip_source": requestmeta.SourceXForwardedFor,
+	})
+	assertAuthAuditLog(t, context.Background(), pg.Pool, "auth.device_code.exchange", "alice", map[string]any{
+		"device_flow":      true,
+		"user_code":        deviceCode.UserCode,
+		"client_name":      "internctl",
+		"client_ip":        "203.0.113.40",
+		"client_ip_source": requestmeta.SourceXForwardedFor,
+	})
+	assertAuthAuditLog(t, context.Background(), pg.Pool, "auth.session.logout", "alice", map[string]any{
+		"client_name":      "internctl",
+		"client_ip":        "203.0.113.40",
+		"client_ip_source": requestmeta.SourceXForwardedFor,
+	})
 }
 
 func TestServiceRefreshTokenReuseRevokesFamily(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
-	ctx := context.Background()
+	ctx := requestmeta.WithClientInfo(context.Background(), requestmeta.ClientInfo{
+		IP:       "203.0.113.41",
+		IPSource: requestmeta.SourceXRealIP,
+	})
 	queries := db.New(pg.Pool)
 	user := createIntegrationUser(t, ctx, queries, "alice", []string{"Users"})
 	service := newIntegrationService(pg, queries)
@@ -168,13 +197,23 @@ func TestServiceRefreshTokenReuseRevokesFamily(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected rotated session to remain queryable, got %v", err)
 	}
+
+	assertAuthAuditLog(t, context.Background(), pg.Pool, "auth.session.family_revoke", "alice", map[string]any{
+		"client_name":      "internctl",
+		"revoke_reason":    "refresh_token_reuse",
+		"client_ip":        "203.0.113.41",
+		"client_ip_source": requestmeta.SourceXRealIP,
+	})
 }
 
 func TestServiceExchangeDeviceCodeExpired(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
-	ctx := context.Background()
+	ctx := requestmeta.WithClientInfo(context.Background(), requestmeta.ClientInfo{
+		IP:       "203.0.113.42",
+		IPSource: requestmeta.SourceRemoteAddr,
+	})
 	queries := db.New(pg.Pool)
 	service := newIntegrationService(pg, queries)
 
@@ -207,7 +246,10 @@ func TestServiceDenyDeviceCode(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
-	ctx := context.Background()
+	ctx := requestmeta.WithClientInfo(context.Background(), requestmeta.ClientInfo{
+		IP:       "203.0.113.42",
+		IPSource: requestmeta.SourceRemoteAddr,
+	})
 	queries := db.New(pg.Pool)
 	user := createIntegrationUser(t, ctx, queries, "alice", []string{"Users"})
 	service := newIntegrationService(pg, queries)
@@ -238,6 +280,15 @@ func TestServiceDenyDeviceCode(t *testing.T) {
 	if !record.ApprovedByUserID.Valid || !record.ApprovedAt.Valid {
 		t.Fatalf("expected denying user and timestamp to be recorded, got %#v", record)
 	}
+
+	assertAuthAuditLog(t, context.Background(), pg.Pool, "auth.device_code.deny", "alice", map[string]any{
+		"device_flow":      true,
+		"user_code":        deviceCode.UserCode,
+		"client_name":      "internctl",
+		"status":           "denied",
+		"client_ip":        "203.0.113.42",
+		"client_ip_source": requestmeta.SourceRemoteAddr,
+	})
 }
 
 func TestServiceExchangeDeviceCodePollIntervalThrottled(t *testing.T) {
@@ -274,6 +325,14 @@ func TestServiceExchangeDeviceCodePollIntervalThrottled(t *testing.T) {
 	}
 	if record.Status != "pending" {
 		t.Fatalf("expected pending status to remain, got %q", record.Status)
+	}
+
+	var authAuditCount int
+	if err := pg.Pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM audit_logs WHERE action LIKE 'auth.%'`).Scan(&authAuditCount); err != nil {
+		t.Fatalf("failed to count auth audit logs: %v", err)
+	}
+	if authAuditCount != 0 {
+		t.Fatalf("expected no auth audit logs for pending/throttled polling, got %d", authAuditCount)
 	}
 }
 
@@ -316,5 +375,29 @@ func integrationConfig() config.Config {
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
 		},
+	}
+}
+
+func assertAuthAuditLog(t *testing.T, ctx context.Context, pool db.DBTX, action string, actorUsername string, wantSubset map[string]any) {
+	t.Helper()
+
+	var raw []byte
+	var gotActor string
+	if err := pool.QueryRow(ctx, `SELECT actor_username, metadata FROM audit_logs WHERE action = $1 ORDER BY created_at DESC, id DESC LIMIT 1`, action).Scan(&gotActor, &raw); err != nil {
+		t.Fatalf("failed to load audit log for %s: %v", action, err)
+	}
+	if gotActor != actorUsername {
+		t.Fatalf("actor_username for %s = %q, want %q", action, gotActor, actorUsername)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("failed to decode metadata for %s: %v", action, err)
+	}
+
+	for key, want := range wantSubset {
+		if got[key] != want {
+			t.Fatalf("metadata[%q] for %s = %#v, want %#v; raw=%s", key, action, got[key], want, string(raw))
+		}
 	}
 }

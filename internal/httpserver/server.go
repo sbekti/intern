@@ -22,6 +22,7 @@ import (
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/identity"
+	"github.com/sbekti/intern-api/internal/requestmeta"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
 
@@ -98,6 +99,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 
 	authenticator := auth.NewAuthenticator(cfg)
 	authorizer := auth.NewAuthorizer(cfg)
+	clientIPResolver := requestmeta.NewIPResolver(cfg.TrustedProxy.CIDRs)
 	userSyncer := identity.NewSyncer(deps.UserStore)
 	dashboardService := dashboard.NewService(deps.DashboardStore, deps.WeatherService)
 	vlanService := deps.VLANService
@@ -108,9 +110,9 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
+	router.Use(clientInfoMiddleware(clientIPResolver))
 	router.Use(authenticator.OptionalPrincipalMiddleware())
 	router.Use(auth.RequireActiveBearerSession(deps.SessionService))
 	router.Use(userSyncer.Middleware())

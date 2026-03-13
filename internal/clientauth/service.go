@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/url"
@@ -22,6 +23,7 @@ import (
 	"github.com/sbekti/intern-api/internal/auth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern-api/internal/requestmeta"
 )
 
 var (
@@ -55,6 +57,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, arg db.GetUserByIDParams) (db.User, error)
 	RevokeAuthSession(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error)
 	RevokeAuthSessionFamily(ctx context.Context, arg db.RevokeAuthSessionFamilyParams) (int64, error)
+	CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
 type Transactor interface {
@@ -179,31 +182,46 @@ func (s *Service) transitionDeviceCode(ctx context.Context, userCode string, use
 		return ValidationError{Message: "user_code must not be empty"}
 	}
 
-	record, err := s.queries.GetAuthDeviceAuthorizationByUserCode(ctx, db.GetAuthDeviceAuthorizationByUserCodeParams{
-		UserCode: strings.TrimSpace(userCode),
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+	if s.tx == nil {
+		return ErrTransactorNotProvided
+	}
+
+	return s.tx.InTx(ctx, func(q Querier) error {
+		record, err := q.GetAuthDeviceAuthorizationByUserCode(ctx, db.GetAuthDeviceAuthorizationByUserCodeParams{
+			UserCode: strings.TrimSpace(userCode),
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+
+		if s.isExpired(record.ExpiresAt) {
 			return ErrNotFound
 		}
-		return err
-	}
+		if record.Status != "pending" {
+			return ErrConflict
+		}
 
-	if s.isExpired(record.ExpiresAt) {
-		return ErrNotFound
-	}
-	if record.Status != "pending" {
-		return ErrConflict
-	}
+		updated, err := q.UpdateAuthDeviceAuthorizationStatus(ctx, db.UpdateAuthDeviceAuthorizationStatusParams{
+			ID:               record.ID,
+			Status:           nextStatus,
+			ApprovedByUserID: user.ID,
+			ApprovedAt:       timestamptz(s.now()),
+			LastPolledAt:     record.LastPolledAt,
+		})
+		if err != nil {
+			return err
+		}
 
-	_, err = s.queries.UpdateAuthDeviceAuthorizationStatus(ctx, db.UpdateAuthDeviceAuthorizationStatusParams{
-		ID:               record.ID,
-		Status:           nextStatus,
-		ApprovedByUserID: user.ID,
-		ApprovedAt:       timestamptz(s.now()),
-		LastPolledAt:     record.LastPolledAt,
+		return s.writeAuditLog(ctx, q, &user, "auth.device_code."+deviceCodeTransitionAction(nextStatus), "auth_device_authorization", uuidString(updated.ID), map[string]any{
+			"device_flow": true,
+			"user_code":   updated.UserCode,
+			"client_name": updated.ClientName,
+			"status":      nextStatus,
+		})
 	})
-	return err
 }
 
 func (s *Service) ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
@@ -287,6 +305,15 @@ func (s *Service) ExchangeDeviceCode(ctx context.Context, request api.DeviceCode
 				return err
 			}
 
+			if err := s.writeAuditLog(ctx, q, &user, "auth.device_code.exchange", "auth_session", uuidString(session.ID), map[string]any{
+				"device_flow":               true,
+				"client_name":               record.ClientName,
+				"user_code":                 record.UserCode,
+				"auth_device_authorization": uuidString(record.ID),
+			}); err != nil {
+				return err
+			}
+
 			response = &api.TokenResponse{
 				AccessToken:      token,
 				TokenType:        "Bearer",
@@ -326,7 +353,13 @@ func (s *Service) RefreshAccessToken(ctx context.Context, request api.RefreshTok
 
 	now := s.now()
 	if session.RevokedAt.Valid {
+		user, _ := s.lookupAuditActor(ctx, s.queries, session.UserID)
 		_ = s.revokeFamily(ctx, session.RefreshTokenFamilyID, "refresh_token_reuse")
+		_ = s.writeAuditLog(ctx, s.queries, user, "auth.session.family_revoke", "auth_session_family", uuidString(session.RefreshTokenFamilyID), map[string]any{
+			"client_name":   session.ClientName,
+			"revoke_reason": "refresh_token_reuse",
+			"session_id":    uuidString(session.ID),
+		})
 		return nil, ErrUnauthorized
 	}
 	if now.After(session.ExpiresAt.Time) || now.After(session.IdleExpiresAt.Time) {
@@ -404,11 +437,19 @@ func (s *Service) Logout(ctx context.Context, request api.LogoutRequest) error {
 		return nil
 	}
 
+	actor, _ := s.lookupAuditActor(ctx, s.queries, session.UserID)
+
 	_, err = s.queries.RevokeAuthSession(ctx, db.RevokeAuthSessionParams{
 		ID:           session.ID,
 		RevokeReason: "logout",
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	return s.writeAuditLog(ctx, s.queries, actor, "auth.session.logout", "auth_session", uuidString(session.ID), map[string]any{
+		"client_name": session.ClientName,
+	})
 }
 
 func (s *Service) createSession(ctx context.Context, q Querier, user db.User, clientName, userAgent string, familyID uuid.UUID, absoluteExpiry time.Time) (db.AuthSession, string, error) {
@@ -490,6 +531,56 @@ func (s *Service) revokeFamily(ctx context.Context, familyID pgtype.UUID, reason
 	return err
 }
 
+func (s *Service) lookupAuditActor(ctx context.Context, q Querier, userID pgtype.UUID) (*db.User, error) {
+	if !userID.Valid {
+		return nil, nil
+	}
+
+	user, err := q.GetUserByID(ctx, db.GetUserByIDParams{ID: userID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *Service) writeAuditLog(ctx context.Context, q Querier, actor *db.User, action, resourceType, resourceID string, metadata map[string]any) error {
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+
+	if clientInfo, ok := requestmeta.FromContext(ctx); ok {
+		if strings.TrimSpace(clientInfo.IP) != "" {
+			metadata["client_ip"] = clientInfo.IP
+		}
+		if strings.TrimSpace(clientInfo.IPSource) != "" {
+			metadata["client_ip_source"] = clientInfo.IPSource
+		}
+	}
+
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+
+	params := db.CreateAuditLogParams{
+		ActorUsername: "",
+		Action:        action,
+		ResourceType:  resourceType,
+		ResourceID:    resourceID,
+		Metadata:      payload,
+	}
+	if actor != nil {
+		params.ActorUserID = actor.ID
+		params.ActorUsername = actor.Username
+	}
+
+	_, err = q.CreateAuditLog(ctx, params)
+	return err
+}
+
 func (s *Service) isExpired(value pgtype.Timestamptz) bool {
 	return value.Valid && s.now().After(value.Time)
 }
@@ -507,6 +598,24 @@ func pgUUIDFromUUID(value uuid.UUID) pgtype.UUID {
 	var raw [16]byte
 	copy(raw[:], value[:])
 	return pgtype.UUID{Bytes: raw, Valid: true}
+}
+
+func uuidString(value pgtype.UUID) string {
+	if !value.Valid {
+		return ""
+	}
+	return uuid.UUID(value.Bytes).String()
+}
+
+func deviceCodeTransitionAction(status string) string {
+	switch status {
+	case "approved":
+		return "approve"
+	case "denied":
+		return "deny"
+	default:
+		return status
+	}
 }
 
 func isUniqueViolation(err error) bool {

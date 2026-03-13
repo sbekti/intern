@@ -3,15 +3,14 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"net/netip"
 	"strings"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
 
 	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern-api/internal/requestmeta"
 )
 
 var (
@@ -21,15 +20,15 @@ var (
 )
 
 type Authenticator struct {
-	trustedProxyCIDRs []netip.Prefix
-	userHeader        string
-	nameHeader        string
-	emailHeader       string
-	groupsHeader      string
-	jwtIssuer         string
-	jwtAudience       string
-	jwtHMACSecret     []byte
-	now               func() time.Time
+	ipResolver    *requestmeta.IPResolver
+	userHeader    string
+	nameHeader    string
+	emailHeader   string
+	groupsHeader  string
+	jwtIssuer     string
+	jwtAudience   string
+	jwtHMACSecret []byte
+	now           func() time.Time
 }
 
 type AccessTokenClaims struct {
@@ -45,15 +44,15 @@ type AccessTokenClaims struct {
 
 func NewAuthenticator(cfg config.Config) *Authenticator {
 	return &Authenticator{
-		trustedProxyCIDRs: cfg.TrustedProxy.CIDRs,
-		userHeader:        cfg.TrustedProxy.UserHeader,
-		nameHeader:        cfg.TrustedProxy.NameHeader,
-		emailHeader:       cfg.TrustedProxy.EmailHeader,
-		groupsHeader:      cfg.TrustedProxy.GroupsHeader,
-		jwtIssuer:         cfg.Auth.JWTIssuer,
-		jwtAudience:       cfg.Auth.JWTAudience,
-		jwtHMACSecret:     []byte(cfg.Auth.JWTHMACSecret),
-		now:               time.Now,
+		ipResolver:    requestmeta.NewIPResolver(cfg.TrustedProxy.CIDRs),
+		userHeader:    cfg.TrustedProxy.UserHeader,
+		nameHeader:    cfg.TrustedProxy.NameHeader,
+		emailHeader:   cfg.TrustedProxy.EmailHeader,
+		groupsHeader:  cfg.TrustedProxy.GroupsHeader,
+		jwtIssuer:     cfg.Auth.JWTIssuer,
+		jwtAudience:   cfg.Auth.JWTAudience,
+		jwtHMACSecret: []byte(cfg.Auth.JWTHMACSecret),
+		now:           time.Now,
 	}
 }
 
@@ -82,7 +81,7 @@ func (a *Authenticator) AuthenticateRequest(r *http.Request) (*Principal, error)
 	}
 
 	if a.hasForwardAuthHeaders(r.Header) {
-		if !a.isTrustedProxyRequest(r.RemoteAddr) {
+		if !a.ipResolver.IsTrustedProxyRequest(r.RemoteAddr) {
 			return nil, ErrUntrustedProxy
 		}
 		return a.authenticateForwardHeaders(r.Header)
@@ -160,26 +159,6 @@ func (a *Authenticator) hasForwardAuthHeaders(header http.Header) bool {
 		strings.TrimSpace(header.Get(a.nameHeader)) != "" ||
 		strings.TrimSpace(header.Get(a.emailHeader)) != "" ||
 		strings.TrimSpace(header.Get(a.groupsHeader)) != ""
-}
-
-func (a *Authenticator) isTrustedProxyRequest(remoteAddr string) bool {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		host = remoteAddr
-	}
-
-	addr, err := netip.ParseAddr(strings.TrimSpace(host))
-	if err != nil {
-		return false
-	}
-
-	for _, prefix := range a.trustedProxyCIDRs {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func splitCommaSeparated(raw string) []string {

@@ -195,6 +195,7 @@ func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/approve", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	req.Header.Set("X-Forwarded-For", "203.0.113.60, 127.0.0.1")
 	req.Header.Set("Remote-User", "alice")
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
@@ -216,6 +217,12 @@ func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 	if record.Status != "approved" {
 		t.Fatalf("expected approved status, got %q", record.Status)
 	}
+
+	assertAuditLogContains(t, context.Background(), testEnv.pg.Pool, "auth.device_code.approve", map[string]any{
+		"client_ip":        "203.0.113.60",
+		"client_ip_source": "x_forwarded_for",
+		"user_code":        deviceCode.UserCode,
+	})
 }
 
 func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
@@ -232,6 +239,7 @@ func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/deny", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	req.Header.Set("X-Real-IP", "203.0.113.61")
 	req.Header.Set("Remote-User", "alice")
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
@@ -253,6 +261,12 @@ func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
 	if record.Status != "denied" {
 		t.Fatalf("expected denied status, got %q", record.Status)
 	}
+
+	assertAuditLogContains(t, context.Background(), testEnv.pg.Pool, "auth.device_code.deny", map[string]any{
+		"client_ip":        "203.0.113.61",
+		"client_ip_source": "x_real_ip",
+		"user_code":        deviceCode.UserCode,
+	})
 }
 
 func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
@@ -669,6 +683,26 @@ func decodeBody(t *testing.T, body *bytes.Buffer, target any) {
 
 	if err := json.NewDecoder(body).Decode(target); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
+	}
+}
+
+func assertAuditLogContains(t *testing.T, ctx context.Context, pool db.DBTX, action string, want map[string]any) {
+	t.Helper()
+
+	var raw []byte
+	if err := pool.QueryRow(ctx, `SELECT metadata FROM audit_logs WHERE action = $1 ORDER BY created_at DESC, id DESC LIMIT 1`, action).Scan(&raw); err != nil {
+		t.Fatalf("failed to load audit metadata for %s: %v", action, err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("failed to decode audit metadata for %s: %v", action, err)
+	}
+
+	for key, value := range want {
+		if got[key] != value {
+			t.Fatalf("metadata[%q] for %s = %#v, want %#v; raw=%s", key, action, got[key], value, string(raw))
+		}
 	}
 }
 

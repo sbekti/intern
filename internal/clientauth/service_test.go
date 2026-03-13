@@ -26,6 +26,7 @@ type fakeQuerier struct {
 	getUserByIDFn      func(ctx context.Context, arg db.GetUserByIDParams) (db.User, error)
 	revokeSessionFn    func(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error)
 	revokeFamilyFn     func(ctx context.Context, arg db.RevokeAuthSessionFamilyParams) (int64, error)
+	createAuditLogFn   func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
 func (f fakeQuerier) CreateAuthDeviceAuthorization(ctx context.Context, arg db.CreateAuthDeviceAuthorizationParams) (db.AuthDeviceAuthorization, error) {
@@ -54,6 +55,9 @@ func (f fakeQuerier) RevokeAuthSession(ctx context.Context, arg db.RevokeAuthSes
 }
 func (f fakeQuerier) RevokeAuthSessionFamily(ctx context.Context, arg db.RevokeAuthSessionFamilyParams) (int64, error) {
 	return f.revokeFamilyFn(ctx, arg)
+}
+func (f fakeQuerier) CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
+	return f.createAuditLogFn(ctx, arg)
 }
 
 type fakeTransactor struct {
@@ -111,13 +115,15 @@ func TestApproveDeviceCode(t *testing.T) {
 	t.Parallel()
 
 	updated := false
+	audited := false
 	service := testService(fakeQuerier{
 		getAuthzByUserFn: func(ctx context.Context, arg db.GetAuthDeviceAuthorizationByUserCodeParams) (db.AuthDeviceAuthorization, error) {
 			return db.AuthDeviceAuthorization{
-				ID:        pgUUID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
-				UserCode:  arg.UserCode,
-				Status:    "pending",
-				ExpiresAt: timestamptz(time.Date(2026, 3, 9, 13, 0, 0, 0, time.UTC)),
+				ID:         pgUUID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
+				UserCode:   arg.UserCode,
+				ClientName: "desktop-app",
+				Status:     "pending",
+				ExpiresAt:  timestamptz(time.Date(2026, 3, 9, 13, 0, 0, 0, time.UTC)),
 			}, nil
 		},
 		updateAuthzFn: func(ctx context.Context, arg db.UpdateAuthDeviceAuthorizationStatusParams) (db.AuthDeviceAuthorization, error) {
@@ -125,7 +131,19 @@ func TestApproveDeviceCode(t *testing.T) {
 			if arg.Status != "approved" {
 				t.Fatalf("expected approved status, got %q", arg.Status)
 			}
-			return db.AuthDeviceAuthorization{}, nil
+			return db.AuthDeviceAuthorization{
+				ID:         arg.ID,
+				UserCode:   "ABCD-EFGH",
+				ClientName: "desktop-app",
+				Status:     "approved",
+			}, nil
+		},
+		createAuditLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
+			audited = true
+			if arg.Action != "auth.device_code.approve" {
+				t.Fatalf("unexpected audit action %q", arg.Action)
+			}
+			return db.AuditLog{}, nil
 		},
 	})
 
@@ -138,6 +156,9 @@ func TestApproveDeviceCode(t *testing.T) {
 	}
 	if !updated {
 		t.Fatal("expected update auth device authorization to be called")
+	}
+	if !audited {
+		t.Fatal("expected audit log to be written")
 	}
 }
 
@@ -224,6 +245,12 @@ func TestExchangeDeviceCodeApproved(t *testing.T) {
 		},
 		updateAuthzFn: func(ctx context.Context, arg db.UpdateAuthDeviceAuthorizationStatusParams) (db.AuthDeviceAuthorization, error) {
 			return db.AuthDeviceAuthorization{}, nil
+		},
+		createAuditLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
+			if arg.Action != "auth.device_code.exchange" {
+				t.Fatalf("unexpected audit action %q", arg.Action)
+			}
+			return db.AuditLog{}, nil
 		},
 	}, strings.NewReader(strings.Repeat("a", 64)))
 
