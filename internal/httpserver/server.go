@@ -75,6 +75,7 @@ type AuthSpamService interface {
 	CheckDeviceCodeCreate(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	CheckDeviceTokenExchange(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	CheckDeviceDecision(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
+	CheckRefreshToken(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 }
 
 type SessionService interface {
@@ -623,7 +624,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitCreate, ""); err != nil {
-				handleAuthSpamError(w, err)
+				handleAuthSpamError(w, logger, r, "device_code_create", "", err)
 				return
 			}
 
@@ -656,7 +657,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitDecision, user.Username); err != nil {
-				handleAuthSpamError(w, err)
+				handleAuthSpamError(w, logger, r, "device_decision", user.Username, err)
 				return
 			}
 
@@ -680,7 +681,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitDecision, user.Username); err != nil {
-				handleAuthSpamError(w, err)
+				handleAuthSpamError(w, logger, r, "device_decision", user.Username, err)
 				return
 			}
 
@@ -698,7 +699,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitExchange, ""); err != nil {
-				handleAuthSpamError(w, err)
+				handleAuthSpamError(w, logger, r, "device_token_exchange", "", err)
 				return
 			}
 
@@ -720,6 +721,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 		r.Post("/auth/tokens/refresh", func(w http.ResponseWriter, r *http.Request) {
 			if clientAuthService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth service not configured")
+				return
+			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitRefresh, ""); err != nil {
+				handleAuthSpamError(w, logger, r, "refresh_token", "", err)
 				return
 			}
 
@@ -994,6 +999,7 @@ const (
 	deviceFlowRateLimitCreate   deviceFlowRateLimitScope = "create"
 	deviceFlowRateLimitExchange deviceFlowRateLimitScope = "exchange"
 	deviceFlowRateLimitDecision deviceFlowRateLimitScope = "decision"
+	deviceFlowRateLimitRefresh  deviceFlowRateLimitScope = "refresh"
 )
 
 func enforceDeviceFlowRateLimit(r *http.Request, limiter AuthSpamService, scope deviceFlowRateLimitScope, username string) error {
@@ -1010,22 +1016,40 @@ func enforceDeviceFlowRateLimit(r *http.Request, limiter AuthSpamService, scope 
 		return limiter.CheckDeviceTokenExchange(r.Context(), clientInfo)
 	case deviceFlowRateLimitDecision:
 		return limiter.CheckDeviceDecision(r.Context(), username, clientInfo)
+	case deviceFlowRateLimitRefresh:
+		return limiter.CheckRefreshToken(r.Context(), clientInfo)
 	default:
 		return nil
 	}
 }
 
-func handleAuthSpamError(w http.ResponseWriter, err error) {
+func handleAuthSpamError(w http.ResponseWriter, logger *slog.Logger, r *http.Request, scope, username string, err error) {
 	var limitedErr authspam.RateLimitedError
 	if errors.As(err, &limitedErr) {
 		retryAfterSeconds := int(limitedErr.RetryAfter.Round(time.Second) / time.Second)
 		if retryAfterSeconds < 1 {
 			retryAfterSeconds = 1
 		}
+		logAuthRateLimit(logger, r, scope, username, retryAfterSeconds)
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
 		writeAPIError(w, http.StatusTooManyRequests, "too_many_requests", "too many requests")
 		return
 	}
 
+	logger.Error("auth rate limiter failed", "path", r.URL.Path, "method", r.Method, "scope", scope, "username", username, "error", err)
 	writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth rate limiter failed")
+}
+
+func logAuthRateLimit(logger *slog.Logger, r *http.Request, scope, username string, retryAfterSeconds int) {
+	clientInfo, _ := requestmeta.FromContext(r.Context())
+	logger.Warn(
+		"auth rate limit exceeded",
+		"scope", scope,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"username", username,
+		"client_ip", clientInfo.IP,
+		"client_ip_source", clientInfo.IPSource,
+		"retry_after_seconds", retryAfterSeconds,
+	)
 }

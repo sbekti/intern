@@ -72,6 +72,13 @@ func (s *Service) CheckDeviceDecision(ctx context.Context, username string, clie
 	return s.check(ctx, "device_decision", rateLimitKey("device_decision", username, clientInfo.IP), s.cfg.DeviceDecision)
 }
 
+func (s *Service) CheckRefreshToken(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if s == nil {
+		return nil
+	}
+	return s.check(ctx, "refresh_token", rateLimitKey("refresh_token", "", clientInfo.IP), s.cfg.RefreshToken)
+}
+
 func (s *Service) check(ctx context.Context, scope, key string, rule config.AuthRateLimitRule) error {
 	if s == nil || s.client == nil {
 		return nil

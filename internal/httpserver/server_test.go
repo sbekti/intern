@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -788,6 +789,75 @@ func TestRefreshAccessTokenUnauthorized(t *testing.T) {
 	}
 }
 
+func TestRefreshAccessTokenRateLimitedReturns429(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{
+			refreshFn: func(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				called = true
+				return &api.TokenResponse{}, nil
+			},
+		},
+		AuthSpamService: fakeAuthSpamService{
+			checkRefreshTokenFn: func(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+				return authspam.RateLimitedError{RetryAfter: 7 * time.Second}
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/refresh", strings.NewReader(`{"refresh_token":"good"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, rec.Code)
+	}
+	if rec.Header().Get("Retry-After") != "7" {
+		t.Fatalf("expected Retry-After 7, got %q", rec.Header().Get("Retry-After"))
+	}
+	if called {
+		t.Fatal("expected request to be blocked before refresh")
+	}
+}
+
+func TestRefreshAccessTokenRateLimitLogsStructuredWarning(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+	handler := NewHandler(logger, mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{},
+		AuthSpamService: fakeAuthSpamService{
+			checkRefreshTokenFn: func(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+				return authspam.RateLimitedError{RetryAfter: 9 * time.Second}
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/refresh", strings.NewReader(`{"refresh_token":"good"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Forwarded-For", "203.0.113.77, 127.0.0.1")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	output := logs.String()
+	if !strings.Contains(output, `"msg":"auth rate limit exceeded"`) {
+		t.Fatalf("expected auth rate limit log, got %s", output)
+	}
+	if !strings.Contains(output, `"scope":"refresh_token"`) {
+		t.Fatalf("expected refresh scope log, got %s", output)
+	}
+	if !strings.Contains(output, `"retry_after_seconds":9`) {
+		t.Fatalf("expected retry_after_seconds log, got %s", output)
+	}
+}
+
 func TestListProfileSessionsReturnsItems(t *testing.T) {
 	t.Parallel()
 
@@ -1410,6 +1480,7 @@ type fakeAuthSpamService struct {
 	checkDeviceCodeCreateFn    func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	checkDeviceTokenExchangeFn func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	checkDeviceDecisionFn      func(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
+	checkRefreshTokenFn        func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 }
 
 func (f fakeAuthSpamService) CheckDeviceCodeCreate(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
@@ -1431,6 +1502,13 @@ func (f fakeAuthSpamService) CheckDeviceDecision(ctx context.Context, username s
 		return nil
 	}
 	return f.checkDeviceDecisionFn(ctx, username, clientInfo)
+}
+
+func (f fakeAuthSpamService) CheckRefreshToken(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if f.checkRefreshTokenFn == nil {
+		return nil
+	}
+	return f.checkRefreshTokenFn(ctx, clientInfo)
 }
 
 func mustTestConfig(t *testing.T) config.Config {
@@ -1456,6 +1534,7 @@ func mustTestConfig(t *testing.T) config.Config {
 				DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 				DeviceTokenExchange: config.AuthRateLimitRule{Limit: 120, Window: time.Minute},
 				DeviceDecision:      config.AuthRateLimitRule{Limit: 30, Window: time.Minute},
+				RefreshToken:        config.AuthRateLimitRule{Limit: 60, Window: time.Minute},
 			},
 		},
 		TrustedProxy: config.TrustedProxyConfig{

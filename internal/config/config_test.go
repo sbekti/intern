@@ -266,6 +266,7 @@ func testAuthConfig(secret string) AuthConfig {
 			DeviceCodeCreate:    AuthRateLimitRule{Limit: 10, Window: time.Minute},
 			DeviceTokenExchange: AuthRateLimitRule{Limit: 120, Window: time.Minute},
 			DeviceDecision:      AuthRateLimitRule{Limit: 30, Window: time.Minute},
+			RefreshToken:        AuthRateLimitRule{Limit: 60, Window: time.Minute},
 		},
 	}
 }

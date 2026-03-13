@@ -346,6 +346,66 @@ func TestHandlerIntegrationApproveDeviceCodeRateLimitedByUserAndIP(t *testing.T)
 	}
 }
 
+func TestHandlerIntegrationRefreshTokenRateLimitedByIP(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newRateLimitedHandlerIntegrationEnv(t)
+
+	user, err := testEnv.queries.UpsertUserByUsername(context.Background(), db.UpsertUserByUsernameParams{
+		Username: "alice",
+		Name:     "Alice Example",
+		Email:    "alice@example.com",
+		Groups:   []string{"Users"},
+	})
+	if err != nil {
+		t.Fatalf("failed to upsert user: %v", err)
+	}
+
+	deviceCode, err := testEnv.clientAuthService.CreateDeviceCode(context.Background(), &api.DeviceCodeCreateRequest{
+		ClientName: stringPtr("desktop-app"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create device code: %v", err)
+	}
+	if err := testEnv.clientAuthService.ApproveDeviceCode(context.Background(), deviceCode.UserCode, user); err != nil {
+		t.Fatalf("failed to approve device code: %v", err)
+	}
+
+	token, err := testEnv.clientAuthService.ExchangeDeviceCode(context.Background(), api.DeviceCodeTokenRequest{
+		DeviceCode: deviceCode.DeviceCode,
+	}, "integration-test")
+	if err != nil {
+		t.Fatalf("failed to exchange device code: %v", err)
+	}
+
+	makeRefreshRequest := func(refreshToken string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/refresh", bytes.NewBufferString(`{"refresh_token":"`+refreshToken+`"}`))
+		req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+		req.Header.Set("X-Forwarded-For", "203.0.113.92, 127.0.0.1")
+		req.Header.Set("Content-Type", "application/json")
+
+		rec := httptest.NewRecorder()
+		testEnv.handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := makeRefreshRequest(token.RefreshToken)
+	if first.Code != http.StatusOK {
+		t.Fatalf("expected first status 200, got %d body=%s", first.Code, first.Body.String())
+	}
+
+	var refreshed api.TokenResponse
+	decodeBody(t, first.Body, &refreshed)
+
+	second := makeRefreshRequest(refreshed.RefreshToken)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected second status 429, got %d body=%s", second.Code, second.Body.String())
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header on limited response")
+	}
+}
+
 func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
 	t.Parallel()
 
@@ -693,6 +753,7 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	cfg.Auth.RateLimit.DeviceCodeCreate = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
 	cfg.Auth.RateLimit.DeviceTokenExchange = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
 	cfg.Auth.RateLimit.DeviceDecision = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
+	cfg.Auth.RateLimit.RefreshToken = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
 
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pg.Pool))
 	sessionService := sessions.NewService(queries)
@@ -739,6 +800,7 @@ func integrationHandlerConfig(databaseURL, redisURL string) config.Config {
 				DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 				DeviceTokenExchange: config.AuthRateLimitRule{Limit: 120, Window: time.Minute},
 				DeviceDecision:      config.AuthRateLimitRule{Limit: 30, Window: time.Minute},
+				RefreshToken:        config.AuthRateLimitRule{Limit: 60, Window: time.Minute},
 			},
 		},
 		TrustedProxy: config.TrustedProxyConfig{

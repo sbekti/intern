@@ -21,6 +21,7 @@ func TestServiceIntegrationDeviceCodeCreateIPLimit(t *testing.T) {
 		DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
 		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceDecision:      config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		RefreshToken:        config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 	})
 
 	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.20"}
@@ -50,6 +51,7 @@ func TestServiceIntegrationDeviceDecisionUsesUserAndIPKey(t *testing.T) {
 		DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceDecision:      config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
+		RefreshToken:        config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 	})
 
 	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.21"}
@@ -63,5 +65,27 @@ func TestServiceIntegrationDeviceDecisionUsesUserAndIPKey(t *testing.T) {
 	err := service.CheckDeviceDecision(context.Background(), "alice", clientInfo)
 	if !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("expected alice second request to be rate limited, got %v", err)
+	}
+}
+
+func TestServiceIntegrationRefreshTokenIPLimit(t *testing.T) {
+	t.Parallel()
+
+	redisContainer := testutil.StartRedis(t)
+	service := NewService(redisContainer.Client, config.AuthRateLimitConfig{
+		DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		DeviceDecision:      config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		RefreshToken:        config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
+	})
+
+	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.22"}
+	if err := service.CheckRefreshToken(context.Background(), clientInfo); err != nil {
+		t.Fatalf("expected first refresh request to pass, got %v", err)
+	}
+
+	err := service.CheckRefreshToken(context.Background(), clientInfo)
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("expected rate limited error, got %v", err)
 	}
 }

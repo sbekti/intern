@@ -59,6 +59,7 @@ type AuthRateLimitConfig struct {
 	DeviceCodeCreate    AuthRateLimitRule
 	DeviceTokenExchange AuthRateLimitRule
 	DeviceDecision      AuthRateLimitRule
+	RefreshToken        AuthRateLimitRule
 }
 
 type AuthRateLimitRule struct {
@@ -149,6 +150,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	refreshTokenLimit, err := envInt64OrDefault("AUTH_REFRESH_TOKEN_RATE_LIMIT", 60)
+	if err != nil {
+		return Config{}, err
+	}
+	refreshTokenWindow, err := envDurationOrDefault("AUTH_REFRESH_TOKEN_RATE_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Server: ServerConfig{
@@ -190,6 +199,10 @@ func Load() (Config, error) {
 				DeviceDecision: AuthRateLimitRule{
 					Limit:  deviceDecisionLimit,
 					Window: deviceDecisionWindow,
+				},
+				RefreshToken: AuthRateLimitRule{
+					Limit:  refreshTokenLimit,
+					Window: refreshTokenWindow,
 				},
 			},
 		},
@@ -276,6 +289,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := validateAuthRateLimitRule("AUTH_DEVICE_DECISION_RATE", c.Auth.RateLimit.DeviceDecision); err != nil {
+		return err
+	}
+	if err := validateAuthRateLimitRule("AUTH_REFRESH_TOKEN_RATE", c.Auth.RateLimit.RefreshToken); err != nil {
 		return err
 	}
 	if len(c.TrustedProxy.CIDRs) == 0 {

@@ -100,6 +100,9 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
 - `AUTH_DEVICE_DECISION_RATE_LIMIT`, `AUTH_DEVICE_DECISION_RATE_WINDOW`
   - user-plus-IP rate limit for authenticated approve and deny actions
   - defaults: `30`, `1m`
+- `AUTH_REFRESH_TOKEN_RATE_LIMIT`, `AUTH_REFRESH_TOKEN_RATE_WINDOW`
+  - IP-based rate limit for unauthenticated refresh-token rotation
+  - defaults: `60`, `1m`
 - `WEATHER_BASE_URL`
   - Open-Meteo forecast API base URL
   - default: `https://api.open-meteo.com/v1/forecast`
