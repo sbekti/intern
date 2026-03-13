@@ -73,6 +73,9 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
 - `AUTH_JWT_ISSUER`, `AUTH_JWT_AUDIENCE`, `AUTH_JWT_HMAC_SECRET`
   - JWT validation settings for public-client bearer tokens
   - defaults: `intern.corp.example.com`, `internctl`, `dev-insecure-jwt-secret`
+- `AUTH_PUBLIC_BASE_URL`
+  - canonical public browser base URL used to build device-flow verification links
+  - required
 - `AUTH_ACCESS_TOKEN_TTL`
   - access token lifetime
   - default: `15m`
@@ -169,7 +172,7 @@ curl -X POST http://localhost:18080/api/v1/auth/tokens \
   -d '{"device_code":"..."}'
 ```
 
-During device login, clients should send the user to `/auth/device` on the same origin they first contacted for the API.
+During device login, the API will use `AUTH_PUBLIC_BASE_URL` as the canonical browser origin for verification links such as `/auth/device`.
 
 Shut the stack down with:
 

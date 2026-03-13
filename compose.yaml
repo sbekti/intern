@@ -63,6 +63,7 @@ services:
       AUTH_JWT_ISSUER: intern.corp.example.com
       AUTH_JWT_AUDIENCE: internctl
       AUTH_JWT_HMAC_SECRET: dev-compose-jwt-secret
+      AUTH_PUBLIC_BASE_URL: http://127.0.0.1:3000
       AUTH_ACCESS_TOKEN_TTL: 15m
       AUTH_REFRESH_IDLE_TTL: 720h
       AUTH_REFRESH_ABSOLUTE_TTL: 2160h

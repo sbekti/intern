@@ -90,6 +90,64 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "missing auth public base url",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					PublicBaseURL:      "",
+					JWTIssuer:          "intern.corp.example.com",
+					JWTAudience:        "internctl",
+					JWTHMACSecret:      "test-secret",
+					AccessTokenTTL:     15 * time.Minute,
+					RefreshIdleTTL:     30 * 24 * time.Hour,
+					RefreshAbsoluteTTL: 90 * 24 * time.Hour,
+					DeviceCodeTTL:      10 * time.Minute,
+					DevicePollInterval: 5 * time.Second,
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid auth public base url",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel: LogLevelInfo,
+				Auth: AuthConfig{
+					PublicBaseURL:      "not-a-url",
+					JWTIssuer:          "intern.corp.example.com",
+					JWTAudience:        "internctl",
+					JWTHMACSecret:      "test-secret",
+					AccessTokenTTL:     15 * time.Minute,
+					RefreshIdleTTL:     30 * 24 * time.Hour,
+					RefreshAbsoluteTTL: 90 * 24 * time.Hour,
+					DeviceCodeTTL:      10 * time.Minute,
+					DevicePollInterval: 5 * time.Second,
+				},
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "missing trusted proxy",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
@@ -172,6 +230,7 @@ func TestEnvPrefixesOrDefault(t *testing.T) {
 
 func testAuthConfig(secret string) AuthConfig {
 	return AuthConfig{
+		PublicBaseURL:      "https://intern.corp.example.com",
 		JWTIssuer:          "intern.corp.example.com",
 		JWTAudience:        "internctl",
 		JWTHMACSecret:      secret,

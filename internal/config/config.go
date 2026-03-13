@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -42,6 +43,7 @@ type WeatherConfig struct {
 }
 
 type AuthConfig struct {
+	PublicBaseURL      string
 	JWTIssuer          string
 	JWTAudience        string
 	JWTHMACSecret      string
@@ -131,6 +133,7 @@ func Load() (Config, error) {
 		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
+			PublicBaseURL:      envOrDefault("AUTH_PUBLIC_BASE_URL", ""),
 			JWTIssuer:          envOrDefault("AUTH_JWT_ISSUER", "intern.corp.example.com"),
 			JWTAudience:        envOrDefault("AUTH_JWT_AUDIENCE", "internctl"),
 			JWTHMACSecret:      envOrDefault("AUTH_JWT_HMAC_SECRET", "dev-insecure-jwt-secret"),
@@ -187,6 +190,13 @@ func (c Config) Validate() error {
 
 	if strings.TrimSpace(c.Auth.JWTIssuer) == "" {
 		return fmt.Errorf("AUTH_JWT_ISSUER must not be empty")
+	}
+	if strings.TrimSpace(c.Auth.PublicBaseURL) == "" {
+		return fmt.Errorf("AUTH_PUBLIC_BASE_URL must not be empty")
+	}
+	publicBaseURL, err := url.Parse(strings.TrimSpace(c.Auth.PublicBaseURL))
+	if err != nil || !publicBaseURL.IsAbs() || strings.TrimSpace(publicBaseURL.Host) == "" {
+		return fmt.Errorf("AUTH_PUBLIC_BASE_URL must be an absolute URL")
 	}
 	if strings.TrimSpace(c.Auth.JWTAudience) == "" {
 		return fmt.Errorf("AUTH_JWT_AUDIENCE must not be empty")
