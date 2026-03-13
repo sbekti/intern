@@ -56,7 +56,7 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
   - PostgreSQL connection string for persisted application state
   - required
 - `INTERN_API_REDIS_URL`
-  - Redis connection string for weather caching
+  - Redis connection string for weather caching and auth-flow rate limiting
   - required
 - `INTERN_API_LOG_LEVEL`
   - one of `debug`, `info`, `warn`, `error`
@@ -91,6 +91,15 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
 - `AUTH_DEVICE_POLL_INTERVAL`
   - minimum polling interval for device token exchange
   - default: `5s`
+- `AUTH_DEVICE_CODE_CREATE_RATE_LIMIT`, `AUTH_DEVICE_CODE_CREATE_RATE_WINDOW`
+  - IP-based rate limit for unauthenticated device-code creation
+  - defaults: `10`, `1m`
+- `AUTH_DEVICE_TOKEN_EXCHANGE_RATE_LIMIT`, `AUTH_DEVICE_TOKEN_EXCHANGE_RATE_WINDOW`
+  - IP-based rate limit for unauthenticated device token exchange polling
+  - defaults: `120`, `1m`
+- `AUTH_DEVICE_DECISION_RATE_LIMIT`, `AUTH_DEVICE_DECISION_RATE_WINDOW`
+  - user-plus-IP rate limit for authenticated approve and deny actions
+  - defaults: `30`, `1m`
 - `WEATHER_BASE_URL`
   - Open-Meteo forecast API base URL
   - default: `https://api.open-meteo.com/v1/forecast`
@@ -110,7 +119,7 @@ Route authorization is provided by `internal/auth.Authorizer`. Bearer-token sess
 go generate ./internal/api
 go generate ./internal/db
 go test ./...
-go test -tags=integration ./internal/vlans ./internal/devices ./internal/clientauth ./internal/weather
+go test -tags=integration ./internal/vlans ./internal/devices ./internal/clientauth ./internal/authspam ./internal/weather ./internal/httpserver
 go run ./cmd/intern-api
 ```
 

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/sbekti/intern-api/internal/auditlogs"
+	"github.com/sbekti/intern-api/internal/authspam"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
@@ -75,6 +76,7 @@ func main() {
 
 	queries := db.New(pool)
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pool))
+	authSpamService := authspam.NewService(redisClient, cfg.Auth.RateLimit)
 	auditLogService := auditlogs.NewService(queries)
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
 	sessionService := sessions.NewService(queries)
@@ -89,6 +91,7 @@ func main() {
 			VLANService:       vlanService,
 			DeviceService:     deviceService,
 			ClientAuthService: clientAuthService,
+			AuthSpamService:   authSpamService,
 			SessionService:    sessionService,
 			AuditLogService:   auditLogService,
 		}),

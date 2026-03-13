@@ -21,10 +21,12 @@ import (
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auditlogs"
 	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern-api/internal/authspam"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
+	"github.com/sbekti/intern-api/internal/requestmeta"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
 
@@ -634,6 +636,41 @@ func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
 	}
 }
 
+func TestCreateDeviceAuthorizationRateLimitedReturns429(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{
+			createFn: func(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error) {
+				called = true
+				return &api.DeviceCode{}, nil
+			},
+		},
+		AuthSpamService: fakeAuthSpamService{
+			checkDeviceCodeCreateFn: func(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+				return authspam.RateLimitedError{RetryAfter: 3 * time.Second}
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes", strings.NewReader(`{"client_name":"internctl"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, rec.Code)
+	}
+	if rec.Header().Get("Retry-After") != "3" {
+		t.Fatalf("expected Retry-After 3, got %q", rec.Header().Get("Retry-After"))
+	}
+	if called {
+		t.Fatal("expected request to be blocked before client auth service")
+	}
+}
+
 func TestApproveDeviceAuthorizationRequiresAuth(t *testing.T) {
 	t.Parallel()
 
@@ -692,6 +729,41 @@ func TestExchangeDeviceAuthorizationSlowDownReturns400(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"error":"slow_down"`) {
 		t.Fatalf("expected slow_down error body, got %s", rec.Body.String())
+	}
+}
+
+func TestExchangeDeviceAuthorizationRateLimitedReturns429(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{
+			exchangeFn: func(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				called = true
+				return &api.TokenResponse{}, nil
+			},
+		},
+		AuthSpamService: fakeAuthSpamService{
+			checkDeviceTokenExchangeFn: func(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+				return authspam.RateLimitedError{RetryAfter: 4 * time.Second}
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"device_code":"device-code"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, rec.Code)
+	}
+	if rec.Header().Get("Retry-After") != "4" {
+		t.Fatalf("expected Retry-After 4, got %q", rec.Header().Get("Retry-After"))
+	}
+	if called {
+		t.Fatal("expected request to be blocked before client auth service")
 	}
 }
 
@@ -1334,6 +1406,33 @@ func (f fakeAuditLogService) List(ctx context.Context, filter auditlogs.Filter) 
 	return f.listFn(ctx, filter)
 }
 
+type fakeAuthSpamService struct {
+	checkDeviceCodeCreateFn    func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	checkDeviceTokenExchangeFn func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	checkDeviceDecisionFn      func(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
+}
+
+func (f fakeAuthSpamService) CheckDeviceCodeCreate(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if f.checkDeviceCodeCreateFn == nil {
+		return nil
+	}
+	return f.checkDeviceCodeCreateFn(ctx, clientInfo)
+}
+
+func (f fakeAuthSpamService) CheckDeviceTokenExchange(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if f.checkDeviceTokenExchangeFn == nil {
+		return nil
+	}
+	return f.checkDeviceTokenExchangeFn(ctx, clientInfo)
+}
+
+func (f fakeAuthSpamService) CheckDeviceDecision(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error {
+	if f.checkDeviceDecisionFn == nil {
+		return nil
+	}
+	return f.checkDeviceDecisionFn(ctx, username, clientInfo)
+}
+
 func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
@@ -1353,6 +1452,11 @@ func mustTestConfig(t *testing.T) config.Config {
 			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
+			RateLimit: config.AuthRateLimitConfig{
+				DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+				DeviceTokenExchange: config.AuthRateLimitRule{Limit: 120, Window: time.Minute},
+				DeviceDecision:      config.AuthRateLimitRule{Limit: 30, Window: time.Minute},
+			},
 		},
 		TrustedProxy: config.TrustedProxyConfig{
 			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},

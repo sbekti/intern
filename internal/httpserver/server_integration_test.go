@@ -22,6 +22,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern-api/internal/authspam"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
@@ -267,6 +268,82 @@ func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
 		"client_ip_source": "x_real_ip",
 		"user_code":        deviceCode.UserCode,
 	})
+}
+
+func TestHandlerIntegrationCreateDeviceCodeRateLimitedByIP(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newRateLimitedHandlerIntegrationEnv(t)
+
+	makeRequest := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes", bytes.NewBufferString(`{"client_name":"desktop-app"}`))
+		req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+		req.Header.Set("X-Forwarded-For", "203.0.113.90, 127.0.0.1")
+		req.Header.Set("Content-Type", "application/json")
+
+		rec := httptest.NewRecorder()
+		testEnv.handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := makeRequest()
+	if first.Code != http.StatusCreated {
+		t.Fatalf("expected first status 201, got %d body=%s", first.Code, first.Body.String())
+	}
+
+	second := makeRequest()
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected second status 429, got %d body=%s", second.Code, second.Body.String())
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header on limited response")
+	}
+}
+
+func TestHandlerIntegrationApproveDeviceCodeRateLimitedByUserAndIP(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newRateLimitedHandlerIntegrationEnv(t)
+
+	firstCode, err := testEnv.clientAuthService.CreateDeviceCode(context.Background(), &api.DeviceCodeCreateRequest{
+		ClientName: stringPtr("desktop-app"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create first device code: %v", err)
+	}
+	secondCode, err := testEnv.clientAuthService.CreateDeviceCode(context.Background(), &api.DeviceCodeCreateRequest{
+		ClientName: stringPtr("mobile-app"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create second device code: %v", err)
+	}
+
+	makeApproveRequest := func(code string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+code+"/approve", nil)
+		req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+		req.Header.Set("X-Forwarded-For", "203.0.113.91, 127.0.0.1")
+		req.Header.Set("Remote-User", "alice")
+		req.Header.Set("Remote-Name", "Alice Example")
+		req.Header.Set("Remote-Email", "alice@example.com")
+		req.Header.Set("Remote-Groups", "Users")
+
+		rec := httptest.NewRecorder()
+		testEnv.handler.ServeHTTP(rec, req)
+		return rec
+	}
+
+	first := makeApproveRequest(firstCode.UserCode)
+	if first.Code != http.StatusNoContent {
+		t.Fatalf("expected first status 204, got %d body=%s", first.Code, first.Body.String())
+	}
+
+	second := makeApproveRequest(secondCode.UserCode)
+	if second.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected second status 429, got %d body=%s", second.Code, second.Body.String())
+	}
+	if second.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header on limited response")
+	}
 }
 
 func TestHandlerIntegrationBearerTokenAuthenticatedProfile(t *testing.T) {
@@ -571,6 +648,7 @@ type handlerIntegrationEnv struct {
 	cfg               config.Config
 	handler           http.Handler
 	pg                *testutil.PostgresContainer
+	redis             *testutil.RedisContainer
 	queries           *db.Queries
 	sessionService    *sessions.Service
 	clientAuthService *clientauth.Service
@@ -581,7 +659,7 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 
 	pg := testutil.StartPostgres(t)
 	queries := db.New(pg.Pool)
-	cfg := integrationHandlerConfig(pg.URL)
+	cfg := integrationHandlerConfig(pg.URL, "redis://127.0.0.1:6379/0")
 
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pg.Pool))
 	sessionService := sessions.NewService(queries)
@@ -605,11 +683,46 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	}
 }
 
-func integrationHandlerConfig(databaseURL string) config.Config {
+func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
+	t.Helper()
+
+	pg := testutil.StartPostgres(t)
+	redisContainer := testutil.StartRedis(t)
+	queries := db.New(pg.Pool)
+	cfg := integrationHandlerConfig(pg.URL, redisContainer.URL)
+	cfg.Auth.RateLimit.DeviceCodeCreate = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
+	cfg.Auth.RateLimit.DeviceTokenExchange = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
+	cfg.Auth.RateLimit.DeviceDecision = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
+
+	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pg.Pool))
+	sessionService := sessions.NewService(queries)
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
+		UserStore:         queries,
+		DashboardStore:    queries,
+		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
+		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
+		SessionService:    sessionService,
+		ClientAuthService: clientAuthService,
+		AuthSpamService:   authspam.NewService(redisContainer.Client, cfg.Auth.RateLimit),
+	})
+
+	return handlerIntegrationEnv{
+		cfg:               cfg,
+		handler:           handler,
+		pg:                pg,
+		redis:             redisContainer,
+		queries:           queries,
+		sessionService:    sessionService,
+		clientAuthService: clientAuthService,
+	}
+}
+
+func integrationHandlerConfig(databaseURL, redisURL string) config.Config {
 	cfg := config.Config{
 		Server:   config.ServerConfig{Addr: ":8080"},
 		Database: config.DatabaseConfig{URL: databaseURL},
-		Redis:    config.RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+		Redis:    config.RedisConfig{URL: redisURL},
 		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
@@ -622,6 +735,11 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 			RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 			DeviceCodeTTL:      10 * time.Minute,
 			DevicePollInterval: 5 * time.Second,
+			RateLimit: config.AuthRateLimitConfig{
+				DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+				DeviceTokenExchange: config.AuthRateLimitRule{Limit: 120, Window: time.Minute},
+				DeviceDecision:      config.AuthRateLimitRule{Limit: 30, Window: time.Minute},
+			},
 		},
 		TrustedProxy: config.TrustedProxyConfig{
 			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},

@@ -163,6 +163,29 @@ func TestValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "invalid auth rate limit",
+			cfg: Config{
+				Server:   ServerConfig{Addr: ":8080"},
+				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel: LogLevelInfo,
+				Auth: func() AuthConfig {
+					cfg := testAuthConfig("test-secret")
+					cfg.RateLimit.DeviceDecision.Limit = 0
+					return cfg
+				}(),
+				TrustedProxy: TrustedProxyConfig{
+					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+					UserHeader: "Remote-User",
+				},
+				Authorization: AuthorizationConfig{
+					AdminGroups: []string{"Super-Users"},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			name: "missing database url",
 			cfg: Config{
 				Server:   ServerConfig{Addr: ":8080"},
@@ -239,5 +262,10 @@ func testAuthConfig(secret string) AuthConfig {
 		RefreshAbsoluteTTL: 90 * 24 * time.Hour,
 		DeviceCodeTTL:      10 * time.Minute,
 		DevicePollInterval: 5 * time.Second,
+		RateLimit: AuthRateLimitConfig{
+			DeviceCodeCreate:    AuthRateLimitRule{Limit: 10, Window: time.Minute},
+			DeviceTokenExchange: AuthRateLimitRule{Limit: 120, Window: time.Minute},
+			DeviceDecision:      AuthRateLimitRule{Limit: 30, Window: time.Minute},
+		},
 	}
 }

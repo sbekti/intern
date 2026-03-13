@@ -52,6 +52,18 @@ type AuthConfig struct {
 	RefreshAbsoluteTTL time.Duration
 	DeviceCodeTTL      time.Duration
 	DevicePollInterval time.Duration
+	RateLimit          AuthRateLimitConfig
+}
+
+type AuthRateLimitConfig struct {
+	DeviceCodeCreate    AuthRateLimitRule
+	DeviceTokenExchange AuthRateLimitRule
+	DeviceDecision      AuthRateLimitRule
+}
+
+type AuthRateLimitRule struct {
+	Limit  int64
+	Window time.Duration
 }
 
 type TrustedProxyConfig struct {
@@ -113,6 +125,30 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	deviceCodeCreateLimit, err := envInt64OrDefault("AUTH_DEVICE_CODE_CREATE_RATE_LIMIT", 10)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceCodeCreateWindow, err := envDurationOrDefault("AUTH_DEVICE_CODE_CREATE_RATE_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceTokenExchangeLimit, err := envInt64OrDefault("AUTH_DEVICE_TOKEN_EXCHANGE_RATE_LIMIT", 120)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceTokenExchangeWindow, err := envDurationOrDefault("AUTH_DEVICE_TOKEN_EXCHANGE_RATE_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceDecisionLimit, err := envInt64OrDefault("AUTH_DEVICE_DECISION_RATE_LIMIT", 30)
+	if err != nil {
+		return Config{}, err
+	}
+	deviceDecisionWindow, err := envDurationOrDefault("AUTH_DEVICE_DECISION_RATE_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Server: ServerConfig{
@@ -142,6 +178,20 @@ func Load() (Config, error) {
 			RefreshAbsoluteTTL: refreshAbsoluteTTL,
 			DeviceCodeTTL:      deviceCodeTTL,
 			DevicePollInterval: devicePollInterval,
+			RateLimit: AuthRateLimitConfig{
+				DeviceCodeCreate: AuthRateLimitRule{
+					Limit:  deviceCodeCreateLimit,
+					Window: deviceCodeCreateWindow,
+				},
+				DeviceTokenExchange: AuthRateLimitRule{
+					Limit:  deviceTokenExchangeLimit,
+					Window: deviceTokenExchangeWindow,
+				},
+				DeviceDecision: AuthRateLimitRule{
+					Limit:  deviceDecisionLimit,
+					Window: deviceDecisionWindow,
+				},
+			},
 		},
 		TrustedProxy: TrustedProxyConfig{
 			CIDRs:        trustedProxyCIDRs,
@@ -219,6 +269,15 @@ func (c Config) Validate() error {
 	if c.Auth.DevicePollInterval <= 0 {
 		return fmt.Errorf("AUTH_DEVICE_POLL_INTERVAL must be greater than zero")
 	}
+	if err := validateAuthRateLimitRule("AUTH_DEVICE_CODE_CREATE_RATE", c.Auth.RateLimit.DeviceCodeCreate); err != nil {
+		return err
+	}
+	if err := validateAuthRateLimitRule("AUTH_DEVICE_TOKEN_EXCHANGE_RATE", c.Auth.RateLimit.DeviceTokenExchange); err != nil {
+		return err
+	}
+	if err := validateAuthRateLimitRule("AUTH_DEVICE_DECISION_RATE", c.Auth.RateLimit.DeviceDecision); err != nil {
+		return err
+	}
 	if len(c.TrustedProxy.CIDRs) == 0 {
 		return fmt.Errorf("TRUSTED_PROXY_CIDRS must contain at least one CIDR")
 	}
@@ -257,6 +316,20 @@ func envOrDefault(key, fallback string) string {
 	return value
 }
 
+func envInt64OrDefault(key string, fallback int64) (int64, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a valid integer: %w", key, err)
+	}
+
+	return parsed, nil
+}
+
 func envCSVOrDefault(key string, fallback []string) []string {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -275,6 +348,16 @@ func envCSVOrDefault(key string, fallback []string) []string {
 		return append([]string(nil), fallback...)
 	}
 	return result
+}
+
+func validateAuthRateLimitRule(prefix string, rule AuthRateLimitRule) error {
+	if rule.Limit <= 0 {
+		return fmt.Errorf("%s_LIMIT must be greater than zero", prefix)
+	}
+	if rule.Window <= 0 {
+		return fmt.Errorf("%s_WINDOW must be greater than zero", prefix)
+	}
+	return nil
 }
 
 func envPrefixesOrDefault(key string, fallback []string) ([]netip.Prefix, error) {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,6 +17,7 @@ import (
 	"github.com/sbekti/intern-api/internal/api"
 	"github.com/sbekti/intern-api/internal/auditlogs"
 	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern-api/internal/authspam"
 	"github.com/sbekti/intern-api/internal/clientauth"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/dashboard"
@@ -39,6 +41,7 @@ type Dependencies struct {
 	VLANService       VLANService
 	DeviceService     DeviceService
 	ClientAuthService ClientAuthService
+	AuthSpamService   AuthSpamService
 	SessionService    SessionService
 	AuditLogService   AuditLogService
 }
@@ -66,6 +69,12 @@ type ClientAuthService interface {
 	ExchangeDeviceCode(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error)
 	RefreshAccessToken(ctx context.Context, request api.RefreshTokenRequest, userAgent string) (*api.TokenResponse, error)
 	Logout(ctx context.Context, request api.LogoutRequest) error
+}
+
+type AuthSpamService interface {
+	CheckDeviceCodeCreate(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	CheckDeviceTokenExchange(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	CheckDeviceDecision(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
 }
 
 type SessionService interface {
@@ -105,6 +114,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	vlanService := deps.VLANService
 	deviceService := deps.DeviceService
 	clientAuthService := deps.ClientAuthService
+	authSpamService := deps.AuthSpamService
 	sessionService := deps.SessionService
 	auditLogService := deps.AuditLogService
 
@@ -612,6 +622,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth service not configured")
 				return
 			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitCreate, ""); err != nil {
+				handleAuthSpamError(w, err)
+				return
+			}
 
 			var body api.DeviceCodeCreateRequest
 			if r.ContentLength > 0 {
@@ -641,6 +655,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
 				return
 			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitDecision, user.Username); err != nil {
+				handleAuthSpamError(w, err)
+				return
+			}
 
 			if err := clientAuthService.ApproveDeviceCode(r.Context(), chi.URLParam(r, "user_code"), user); err != nil {
 				handleClientAuthError(w, err)
@@ -661,6 +679,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
 				return
 			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitDecision, user.Username); err != nil {
+				handleAuthSpamError(w, err)
+				return
+			}
 
 			if err := clientAuthService.DenyDeviceCode(r.Context(), chi.URLParam(r, "user_code"), user); err != nil {
 				handleClientAuthError(w, err)
@@ -673,6 +695,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 		r.Post("/auth/tokens", func(w http.ResponseWriter, r *http.Request) {
 			if clientAuthService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth service not configured")
+				return
+			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitExchange, ""); err != nil {
+				handleAuthSpamError(w, err)
 				return
 			}
 
@@ -960,4 +986,46 @@ func handleClientAuthError(w http.ResponseWriter, err error) {
 	default:
 		writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth operation failed")
 	}
+}
+
+type deviceFlowRateLimitScope string
+
+const (
+	deviceFlowRateLimitCreate   deviceFlowRateLimitScope = "create"
+	deviceFlowRateLimitExchange deviceFlowRateLimitScope = "exchange"
+	deviceFlowRateLimitDecision deviceFlowRateLimitScope = "decision"
+)
+
+func enforceDeviceFlowRateLimit(r *http.Request, limiter AuthSpamService, scope deviceFlowRateLimitScope, username string) error {
+	if limiter == nil {
+		return nil
+	}
+
+	clientInfo, _ := requestmeta.FromContext(r.Context())
+
+	switch scope {
+	case deviceFlowRateLimitCreate:
+		return limiter.CheckDeviceCodeCreate(r.Context(), clientInfo)
+	case deviceFlowRateLimitExchange:
+		return limiter.CheckDeviceTokenExchange(r.Context(), clientInfo)
+	case deviceFlowRateLimitDecision:
+		return limiter.CheckDeviceDecision(r.Context(), username, clientInfo)
+	default:
+		return nil
+	}
+}
+
+func handleAuthSpamError(w http.ResponseWriter, err error) {
+	var limitedErr authspam.RateLimitedError
+	if errors.As(err, &limitedErr) {
+		retryAfterSeconds := int(limitedErr.RetryAfter.Round(time.Second) / time.Second)
+		if retryAfterSeconds < 1 {
+			retryAfterSeconds = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
+		writeAPIError(w, http.StatusTooManyRequests, "too_many_requests", "too many requests")
+		return
+	}
+
+	writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth rate limiter failed")
 }
