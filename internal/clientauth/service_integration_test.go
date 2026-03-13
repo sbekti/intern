@@ -33,6 +33,15 @@ func TestServiceDeviceCodeFlow(t *testing.T) {
 	if deviceCode.DeviceCode == "" || deviceCode.UserCode == "" {
 		t.Fatalf("expected populated device code response, got %#v", deviceCode)
 	}
+	if deviceCode.VerificationUri != "https://intern.corp.example.com/auth/device" {
+		t.Fatalf("verification_uri = %q", deviceCode.VerificationUri)
+	}
+	if deviceCode.VerificationUriComplete == "" {
+		t.Fatal("expected verification_uri_complete")
+	}
+	if deviceCode.ExpiresIn != 600 || deviceCode.Interval != 5 {
+		t.Fatalf("unexpected device code timing fields: %#v", deviceCode)
+	}
 
 	if err := service.ApproveDeviceCode(ctx, deviceCode.UserCode, user); err != nil {
 		t.Fatalf("expected approval to succeed, got %v", err)
@@ -297,6 +306,7 @@ func fixedIntegrationNow() time.Time {
 func integrationConfig() config.Config {
 	return config.Config{
 		Auth: config.AuthConfig{
+			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",
 			JWTAudience:        "internctl",
 			JWTHMACSecret:      "integration-secret",

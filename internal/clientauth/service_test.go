@@ -86,12 +86,24 @@ func TestCreateDeviceCode(t *testing.T) {
 		},
 	})
 
-	_, err := service.CreateDeviceCode(context.Background(), nil)
+	response, err := service.CreateDeviceCode(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if !called {
 		t.Fatal("expected create auth device authorization to be called")
+	}
+	if response.VerificationUri != "https://intern.corp.example.com/auth/device" {
+		t.Fatalf("verification_uri = %q", response.VerificationUri)
+	}
+	if response.VerificationUriComplete == "" {
+		t.Fatal("expected verification_uri_complete")
+	}
+	if response.ExpiresIn != 600 {
+		t.Fatalf("expires_in = %d, want 600", response.ExpiresIn)
+	}
+	if response.Interval != 5 {
+		t.Fatalf("interval = %d, want 5", response.Interval)
 	}
 }
 
@@ -279,6 +291,7 @@ func testService(q Querier) *Service {
 func testServiceWithTransactor(q Querier, random io.Reader) *Service {
 	service := NewService(config.Config{
 		Auth: config.AuthConfig{
+			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",
 			JWTAudience:        "internctl",
 			JWTHMACSecret:      "test-secret",

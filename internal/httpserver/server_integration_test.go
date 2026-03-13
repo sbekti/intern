@@ -599,6 +599,7 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
+			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",
 			JWTAudience:        "internctl",
 			JWTHMACSecret:      "integration-secret",

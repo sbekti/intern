@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -127,11 +128,14 @@ func (s *Service) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeC
 			Status:          "pending",
 		})
 		if err == nil {
+			verificationURI, verificationURIComplete := s.verificationURIs(userCode)
 			return &api.DeviceCode{
-				DeviceCode:          deviceCode,
-				UserCode:            userCode,
-				ExpiresInSeconds:    int32(s.cfg.DeviceCodeTTL.Seconds()),
-				PollIntervalSeconds: int32(s.cfg.DevicePollInterval.Seconds()),
+				DeviceCode:              deviceCode,
+				UserCode:                userCode,
+				VerificationUri:         verificationURI,
+				VerificationUriComplete: verificationURIComplete,
+				ExpiresIn:               int32(s.cfg.DeviceCodeTTL.Seconds()),
+				Interval:                int32(s.cfg.DevicePollInterval.Seconds()),
 			}, nil
 		}
 		if !isUniqueViolation(err) {
@@ -140,6 +144,25 @@ func (s *Service) CreateDeviceCode(ctx context.Context, request *api.DeviceCodeC
 	}
 
 	return nil, ErrTooManyRequests
+}
+
+func (s *Service) verificationURIs(userCode string) (string, string) {
+	baseURL := strings.TrimSpace(s.cfg.PublicBaseURL)
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return strings.TrimRight(baseURL, "/") + "/auth/device", strings.TrimRight(baseURL, "/") + "/auth/device?user_code=" + url.QueryEscape(userCode)
+	}
+
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/auth/device"
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	verificationURI := parsed.String()
+
+	query := parsed.Query()
+	query.Set("user_code", userCode)
+	parsed.RawQuery = query.Encode()
+
+	return verificationURI, parsed.String()
 }
 
 func (s *Service) ApproveDeviceCode(ctx context.Context, userCode string, user db.User) error {

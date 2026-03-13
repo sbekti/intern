@@ -613,10 +613,12 @@ func TestCreateDeviceAuthorizationReturnsCreated(t *testing.T) {
 		ClientAuthService: fakeClientAuthService{
 			createFn: func(ctx context.Context, request *api.DeviceCodeCreateRequest) (*api.DeviceCode, error) {
 				return &api.DeviceCode{
-					DeviceCode:          "device-code",
-					UserCode:            "ABCD-EFGH",
-					ExpiresInSeconds:    600,
-					PollIntervalSeconds: 5,
+					DeviceCode:              "device-code",
+					UserCode:                "ABCD-EFGH",
+					VerificationUri:         "https://intern.corp.example.com/auth/device",
+					VerificationUriComplete: "https://intern.corp.example.com/auth/device?user_code=ABCD-EFGH",
+					ExpiresIn:               600,
+					Interval:                5,
 				}, nil
 			},
 		},
@@ -1318,6 +1320,7 @@ func mustTestConfig(t *testing.T) config.Config {
 		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
+			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",
 			JWTAudience:        "internctl",
 			JWTHMACSecret:      "test-secret",
