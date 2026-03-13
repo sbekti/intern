@@ -259,8 +259,8 @@ func TestServiceExchangeDeviceCodePollIntervalThrottled(t *testing.T) {
 	}
 
 	_, err = service.ExchangeDeviceCode(ctx, api.DeviceCodeTokenRequest{DeviceCode: deviceCode.DeviceCode}, "internctl/test")
-	if !errors.Is(err, ErrTooManyRequests) {
-		t.Fatalf("expected ErrTooManyRequests on second poll, got %v", err)
+	if !errors.Is(err, ErrSlowDown) {
+		t.Fatalf("expected ErrSlowDown on second poll, got %v", err)
 	}
 
 	record, err := queries.GetAuthDeviceAuthorizationByDeviceCode(ctx, db.GetAuthDeviceAuthorizationByDeviceCodeParams{

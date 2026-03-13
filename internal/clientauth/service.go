@@ -28,6 +28,7 @@ var (
 	ErrNotFound              = errors.New("resource not found")
 	ErrConflict              = errors.New("resource conflict")
 	ErrAuthorizationPending  = errors.New("authorization pending")
+	ErrSlowDown              = errors.New("slow down")
 	ErrExpiredToken          = errors.New("expired token")
 	ErrAccessDenied          = errors.New("access denied")
 	ErrInvalidRequest        = errors.New("invalid request")
@@ -234,7 +235,7 @@ func (s *Service) ExchangeDeviceCode(ctx context.Context, request api.DeviceCode
 	}
 
 	if record.LastPolledAt.Valid && now.Before(record.LastPolledAt.Time.Add(s.cfg.DevicePollInterval)) {
-		return nil, ErrTooManyRequests
+		return nil, ErrSlowDown
 	}
 
 	switch record.Status {

@@ -671,6 +671,30 @@ func TestExchangeDeviceAuthorizationPendingReturns428(t *testing.T) {
 	}
 }
 
+func TestExchangeDeviceAuthorizationSlowDownReturns400(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{
+			exchangeFn: func(ctx context.Context, request api.DeviceCodeTokenRequest, userAgent string) (*api.TokenResponse, error) {
+				return nil, clientauth.ErrSlowDown
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"device_code":"device-code"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `"error":"slow_down"`) {
+		t.Fatalf("expected slow_down error body, got %s", rec.Body.String())
+	}
+}
+
 func TestRefreshAccessTokenUnauthorized(t *testing.T) {
 	t.Parallel()
 

@@ -931,6 +931,11 @@ func handleClientAuthError(w http.ResponseWriter, err error) {
 			Error:            api.AuthorizationPending,
 			ErrorDescription: "device code request is still pending approval",
 		})
+	case errors.Is(err, clientauth.ErrSlowDown):
+		writeJSON(w, http.StatusBadRequest, api.ClientAuthError{
+			Error:            api.SlowDown,
+			ErrorDescription: "device code request is being polled too quickly",
+		})
 	case errors.Is(err, clientauth.ErrExpiredToken):
 		writeJSON(w, http.StatusBadRequest, api.ClientAuthError{
 			Error:            api.ExpiredToken,

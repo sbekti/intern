@@ -164,6 +164,27 @@ func TestExchangeDeviceCodePending(t *testing.T) {
 	}
 }
 
+func TestExchangeDeviceCodeSlowDown(t *testing.T) {
+	t.Parallel()
+
+	service := testService(fakeQuerier{
+		getAuthzByDeviceFn: func(ctx context.Context, arg db.GetAuthDeviceAuthorizationByDeviceCodeParams) (db.AuthDeviceAuthorization, error) {
+			return db.AuthDeviceAuthorization{
+				ID:           pgUUID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
+				DeviceCode:   arg.DeviceCode,
+				Status:       "pending",
+				LastPolledAt: timestamptz(time.Date(2026, 3, 9, 11, 59, 57, 0, time.UTC)),
+				ExpiresAt:    timestamptz(time.Date(2026, 3, 9, 13, 0, 0, 0, time.UTC)),
+			}, nil
+		},
+	})
+
+	_, err := service.ExchangeDeviceCode(context.Background(), api.DeviceCodeTokenRequest{DeviceCode: "code"}, "internctl")
+	if !errors.Is(err, ErrSlowDown) {
+		t.Fatalf("expected ErrSlowDown, got %v", err)
+	}
+}
+
 func TestExchangeDeviceCodeApproved(t *testing.T) {
 	t.Parallel()
 
