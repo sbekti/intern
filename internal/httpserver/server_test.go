@@ -858,6 +858,41 @@ func TestRefreshAccessTokenRateLimitLogsStructuredWarning(t *testing.T) {
 	}
 }
 
+func TestLogoutRateLimitedReturns429(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		ClientAuthService: fakeClientAuthService{
+			logoutFn: func(ctx context.Context, request api.LogoutRequest) error {
+				called = true
+				return nil
+			},
+		},
+		AuthSpamService: fakeAuthSpamService{
+			checkLogoutFn: func(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+				return authspam.RateLimitedError{RetryAfter: 8 * time.Second}
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", strings.NewReader(`{"refresh_token":"good"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected status %d, got %d", http.StatusTooManyRequests, rec.Code)
+	}
+	if rec.Header().Get("Retry-After") != "8" {
+		t.Fatalf("expected Retry-After 8, got %q", rec.Header().Get("Retry-After"))
+	}
+	if called {
+		t.Fatal("expected request to be blocked before logout")
+	}
+}
+
 func TestListProfileSessionsReturnsItems(t *testing.T) {
 	t.Parallel()
 
@@ -1481,6 +1516,7 @@ type fakeAuthSpamService struct {
 	checkDeviceTokenExchangeFn func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	checkDeviceDecisionFn      func(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
 	checkRefreshTokenFn        func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	checkLogoutFn              func(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 }
 
 func (f fakeAuthSpamService) CheckDeviceCodeCreate(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
@@ -1511,6 +1547,13 @@ func (f fakeAuthSpamService) CheckRefreshToken(ctx context.Context, clientInfo r
 	return f.checkRefreshTokenFn(ctx, clientInfo)
 }
 
+func (f fakeAuthSpamService) CheckLogout(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if f.checkLogoutFn == nil {
+		return nil
+	}
+	return f.checkLogoutFn(ctx, clientInfo)
+}
+
 func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
@@ -1535,6 +1578,7 @@ func mustTestConfig(t *testing.T) config.Config {
 				DeviceTokenExchange: config.AuthRateLimitRule{Limit: 120, Window: time.Minute},
 				DeviceDecision:      config.AuthRateLimitRule{Limit: 30, Window: time.Minute},
 				RefreshToken:        config.AuthRateLimitRule{Limit: 60, Window: time.Minute},
+				Logout:              config.AuthRateLimitRule{Limit: 60, Window: time.Minute},
 			},
 		},
 		TrustedProxy: config.TrustedProxyConfig{

@@ -79,6 +79,13 @@ func (s *Service) CheckRefreshToken(ctx context.Context, clientInfo requestmeta.
 	return s.check(ctx, "refresh_token", rateLimitKey("refresh_token", "", clientInfo.IP), s.cfg.RefreshToken)
 }
 
+func (s *Service) CheckLogout(ctx context.Context, clientInfo requestmeta.ClientInfo) error {
+	if s == nil {
+		return nil
+	}
+	return s.check(ctx, "logout", rateLimitKey("logout", "", clientInfo.IP), s.cfg.Logout)
+}
+
 func (s *Service) check(ctx context.Context, scope, key string, rule config.AuthRateLimitRule) error {
 	if s == nil || s.client == nil {
 		return nil

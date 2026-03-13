@@ -60,6 +60,7 @@ type AuthRateLimitConfig struct {
 	DeviceTokenExchange AuthRateLimitRule
 	DeviceDecision      AuthRateLimitRule
 	RefreshToken        AuthRateLimitRule
+	Logout              AuthRateLimitRule
 }
 
 type AuthRateLimitRule struct {
@@ -158,6 +159,14 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	logoutLimit, err := envInt64OrDefault("AUTH_LOGOUT_RATE_LIMIT", 60)
+	if err != nil {
+		return Config{}, err
+	}
+	logoutWindow, err := envDurationOrDefault("AUTH_LOGOUT_RATE_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Server: ServerConfig{
@@ -203,6 +212,10 @@ func Load() (Config, error) {
 				RefreshToken: AuthRateLimitRule{
 					Limit:  refreshTokenLimit,
 					Window: refreshTokenWindow,
+				},
+				Logout: AuthRateLimitRule{
+					Limit:  logoutLimit,
+					Window: logoutWindow,
 				},
 			},
 		},
@@ -292,6 +305,9 @@ func (c Config) Validate() error {
 		return err
 	}
 	if err := validateAuthRateLimitRule("AUTH_REFRESH_TOKEN_RATE", c.Auth.RateLimit.RefreshToken); err != nil {
+		return err
+	}
+	if err := validateAuthRateLimitRule("AUTH_LOGOUT_RATE", c.Auth.RateLimit.Logout); err != nil {
 		return err
 	}
 	if len(c.TrustedProxy.CIDRs) == 0 {

@@ -76,6 +76,7 @@ type AuthSpamService interface {
 	CheckDeviceTokenExchange(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 	CheckDeviceDecision(ctx context.Context, username string, clientInfo requestmeta.ClientInfo) error
 	CheckRefreshToken(ctx context.Context, clientInfo requestmeta.ClientInfo) error
+	CheckLogout(ctx context.Context, clientInfo requestmeta.ClientInfo) error
 }
 
 type SessionService interface {
@@ -748,6 +749,10 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth service not configured")
 				return
 			}
+			if err := enforceDeviceFlowRateLimit(r, authSpamService, deviceFlowRateLimitLogout, ""); err != nil {
+				handleAuthSpamError(w, logger, r, "logout", "", err)
+				return
+			}
 
 			var body api.LogoutRequest
 			if err := decodeJSON(r, &body); err != nil {
@@ -1000,6 +1005,7 @@ const (
 	deviceFlowRateLimitExchange deviceFlowRateLimitScope = "exchange"
 	deviceFlowRateLimitDecision deviceFlowRateLimitScope = "decision"
 	deviceFlowRateLimitRefresh  deviceFlowRateLimitScope = "refresh"
+	deviceFlowRateLimitLogout   deviceFlowRateLimitScope = "logout"
 )
 
 func enforceDeviceFlowRateLimit(r *http.Request, limiter AuthSpamService, scope deviceFlowRateLimitScope, username string) error {
@@ -1018,6 +1024,8 @@ func enforceDeviceFlowRateLimit(r *http.Request, limiter AuthSpamService, scope 
 		return limiter.CheckDeviceDecision(r.Context(), username, clientInfo)
 	case deviceFlowRateLimitRefresh:
 		return limiter.CheckRefreshToken(r.Context(), clientInfo)
+	case deviceFlowRateLimitLogout:
+		return limiter.CheckLogout(r.Context(), clientInfo)
 	default:
 		return nil
 	}

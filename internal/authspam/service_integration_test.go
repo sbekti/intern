@@ -22,6 +22,7 @@ func TestServiceIntegrationDeviceCodeCreateIPLimit(t *testing.T) {
 		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceDecision:      config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		RefreshToken:        config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		Logout:              config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 	})
 
 	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.20"}
@@ -52,6 +53,7 @@ func TestServiceIntegrationDeviceDecisionUsesUserAndIPKey(t *testing.T) {
 		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceDecision:      config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
 		RefreshToken:        config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		Logout:              config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 	})
 
 	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.21"}
@@ -77,6 +79,7 @@ func TestServiceIntegrationRefreshTokenIPLimit(t *testing.T) {
 		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		DeviceDecision:      config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 		RefreshToken:        config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
+		Logout:              config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
 	})
 
 	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.22"}
@@ -85,6 +88,29 @@ func TestServiceIntegrationRefreshTokenIPLimit(t *testing.T) {
 	}
 
 	err := service.CheckRefreshToken(context.Background(), clientInfo)
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("expected rate limited error, got %v", err)
+	}
+}
+
+func TestServiceIntegrationLogoutIPLimit(t *testing.T) {
+	t.Parallel()
+
+	redisContainer := testutil.StartRedis(t)
+	service := NewService(redisContainer.Client, config.AuthRateLimitConfig{
+		DeviceCodeCreate:    config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		DeviceTokenExchange: config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		DeviceDecision:      config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		RefreshToken:        config.AuthRateLimitRule{Limit: 10, Window: time.Minute},
+		Logout:              config.AuthRateLimitRule{Limit: 1, Window: time.Minute},
+	})
+
+	clientInfo := requestmeta.ClientInfo{IP: "203.0.113.23"}
+	if err := service.CheckLogout(context.Background(), clientInfo); err != nil {
+		t.Fatalf("expected first logout request to pass, got %v", err)
+	}
+
+	err := service.CheckLogout(context.Background(), clientInfo)
 	if !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("expected rate limited error, got %v", err)
 	}
