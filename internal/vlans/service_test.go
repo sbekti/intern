@@ -119,8 +119,8 @@ func TestClassifyDBError(t *testing.T) {
 	if !errors.Is(classifyDBError(&pgconn.PgError{Code: "23503"}), ErrConflict) {
 		t.Fatal("expected foreign key violation to map to ErrConflict")
 	}
-	if !errors.Is(classifyDBError(&pgconn.PgError{Code: "23001"}), ErrConflict) {
-		t.Fatal("expected restrict violation to map to ErrConflict")
+	if !errors.Is(classifyDeleteError(&pgconn.PgError{Code: "23001"}), ErrReferencedByDevices) {
+		t.Fatal("expected restrict violation to map to ErrReferencedByDevices")
 	}
 }
 

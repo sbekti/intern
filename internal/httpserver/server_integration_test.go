@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -211,6 +212,9 @@ func TestHandlerIntegrationDeleteReferencedVlanReturnsConflict(t *testing.T) {
 
 	if deleteRec.Code != http.StatusConflict {
 		t.Fatalf("expected delete status 409, got %d body=%s", deleteRec.Code, deleteRec.Body.String())
+	}
+	if !strings.Contains(deleteRec.Body.String(), "still assigned to one or more devices") {
+		t.Fatalf("expected referenced-vlan message, got body=%s", deleteRec.Body.String())
 	}
 }
 

@@ -907,6 +907,8 @@ func handleVLANError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusBadRequest, "bad_request", validationErr.Error())
 	case errors.Is(err, vlans.ErrNotFound):
 		writeAPIError(w, http.StatusNotFound, "not_found", "vlan not found")
+	case errors.Is(err, vlans.ErrReferencedByDevices):
+		writeAPIError(w, http.StatusConflict, "conflict", "this VLAN is still assigned to one or more devices; reassign or delete those devices before deleting the VLAN")
 	case errors.Is(err, vlans.ErrConflict):
 		writeAPIError(w, http.StatusConflict, "conflict", "vlan conflicts with an existing record")
 	default:

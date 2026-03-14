@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	ErrNotFound          = errors.New("vlan not found")
-	ErrConflict          = errors.New("vlan conflict")
-	ErrTransactorMissing = errors.New("vlan transactor not configured")
+	ErrNotFound            = errors.New("vlan not found")
+	ErrConflict            = errors.New("vlan conflict")
+	ErrReferencedByDevices = errors.New("vlan is still assigned to devices")
+	ErrTransactorMissing   = errors.New("vlan transactor not configured")
 )
 
 type ValidationError struct {
@@ -244,7 +245,7 @@ func (s *Service) Delete(ctx context.Context, actor db.User, vlanID int32) error
 		}
 
 		if err := q.DeleteVlan(ctx, db.DeleteVlanParams{VlanID: vlanID}); err != nil {
-			return classifyDBError(err)
+			return classifyDeleteError(err)
 		}
 		if err := q.DeleteRadgrouprepliesByGroupname(ctx, db.DeleteRadgrouprepliesByGroupnameParams{
 			Groupname: radiusGroupName(current.VlanID),
@@ -359,9 +360,19 @@ func classifyDBError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
-		case "23001", "23505", "23503":
+		case "23505", "23503":
 			return ErrConflict
 		}
 	}
 	return err
+}
+
+func classifyDeleteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "23001" {
+			return ErrReferencedByDevices
+		}
+	}
+	return classifyDBError(err)
 }
