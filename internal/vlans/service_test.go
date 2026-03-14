@@ -122,6 +122,9 @@ func TestClassifyDBError(t *testing.T) {
 	if !errors.Is(classifyDeleteError(&pgconn.PgError{Code: "23001"}), ErrReferencedByDevices) {
 		t.Fatal("expected restrict violation to map to ErrReferencedByDevices")
 	}
+	if !errors.Is(classifyDeleteError(&pgconn.PgError{Code: "23503"}), ErrReferencedByDevices) {
+		t.Fatal("expected foreign key violation to map to ErrReferencedByDevices for delete")
+	}
 }
 
 func TestServiceCreateWritesAuditLog(t *testing.T) {

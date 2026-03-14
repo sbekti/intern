@@ -370,7 +370,7 @@ func classifyDBError(err error) error {
 func classifyDeleteError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		if pgErr.Code == "23001" {
+		if pgErr.Code == "23001" || pgErr.Code == "23503" {
 			return ErrReferencedByDevices
 		}
 	}
