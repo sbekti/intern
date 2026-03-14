@@ -16,7 +16,7 @@ COPY db ./db
 COPY internal ./internal
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/intern-api ./cmd/intern-api
-RUN GOBIN=/out go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOBIN=/out go install github.com/pressly/goose/v3/cmd/goose@${GOOSE_VERSION}
 
 FROM alpine:3.23
 
