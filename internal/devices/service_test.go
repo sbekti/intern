@@ -19,7 +19,7 @@ type fakeQuerier struct {
 	createFn           func(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
 	updateFn           func(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
 	deleteFn           func(ctx context.Context, arg db.DeleteNetworkDeviceParams) error
-	getVlanFn          func(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error)
+	getVlanFn          func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
 	upsertRadcheckFn   func(ctx context.Context, arg db.UpsertRadcheckCleartextPasswordParams) error
 	deleteRadcheckFn   func(ctx context.Context, arg db.DeleteRadcheckCleartextPasswordByUsernameParams) error
 	deleteUsergroupsFn func(ctx context.Context, arg db.DeleteRadusergroupsByUsernameParams) error
@@ -47,7 +47,7 @@ func (f fakeQuerier) DeleteNetworkDevice(ctx context.Context, arg db.DeleteNetwo
 	return f.deleteFn(ctx, arg)
 }
 
-func (f fakeQuerier) GetVlanByID(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error) {
+func (f fakeQuerier) GetVlanByVlanID(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
 	return f.getVlanFn(ctx, arg)
 }
 
@@ -114,7 +114,7 @@ func TestMergePatch(t *testing.T) {
 	}
 
 	name := "  Updated TV  "
-	vlanID := int64(3)
+	vlanID := int32(3)
 	macAddress := "AA-BB-CC-00-11-22"
 	params, err := mergePatch(current, api.NetworkDevicePatch{
 		MacAddress:  &macAddress,
@@ -137,8 +137,8 @@ func TestServiceCreateWritesRadiusState(t *testing.T) {
 	radgroupCalled := false
 	service := NewService(nil, fakeTransactor{
 		q: fakeQuerier{
-			getVlanFn: func(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error) {
-				return db.Vlan{ID: 2, Name: "iot", VlanID: 20}, nil
+			getVlanFn: func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
+				return db.Vlan{Name: "iot", VlanID: 20}, nil
 			},
 			createFn: func(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error) {
 				if arg.MacAddress != "aa:bb:cc:dd:ee:ff" {
@@ -163,8 +163,8 @@ func TestServiceCreateWritesRadiusState(t *testing.T) {
 			},
 			insertUsergroupFn: func(ctx context.Context, arg db.InsertRadusergroupParams) error {
 				radgroupCalled = true
-				if arg.Groupname != "iot" {
-					t.Fatalf("expected iot group, got %q", arg.Groupname)
+				if arg.Groupname != "vlan-20" {
+					t.Fatalf("expected vlan-20 group, got %q", arg.Groupname)
 				}
 				return nil
 			},
@@ -180,7 +180,7 @@ func TestServiceCreateWritesRadiusState(t *testing.T) {
 	}, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-FF",
 		DisplayName: "Camera",
-		VlanId:      2,
+		VlanId:      20,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

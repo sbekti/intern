@@ -12,19 +12,22 @@ import (
 )
 
 type fakeQuerier struct {
-	listFn      func(ctx context.Context) ([]db.Vlan, error)
-	getFn       func(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error)
-	createFn    func(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error)
-	updateFn    func(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error)
-	deleteFn    func(ctx context.Context, arg db.DeleteVlanParams) error
-	createLogFn func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
+	listFn             func(ctx context.Context) ([]db.Vlan, error)
+	getFn              func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
+	createFn           func(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error)
+	updateFn           func(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error)
+	deleteFn           func(ctx context.Context, arg db.DeleteVlanParams) error
+	deleteGroupFn      func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error
+	insertGroupFn      func(ctx context.Context, arg db.InsertRadgroupreplyParams) error
+	updateUsergroupsFn func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error
+	createLogFn        func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
 func (f fakeQuerier) ListVlans(ctx context.Context) ([]db.Vlan, error) {
 	return f.listFn(ctx)
 }
 
-func (f fakeQuerier) GetVlanByID(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error) {
+func (f fakeQuerier) GetVlanByVlanID(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
 	return f.getFn(ctx, arg)
 }
 
@@ -38,6 +41,18 @@ func (f fakeQuerier) UpdateVlan(ctx context.Context, arg db.UpdateVlanParams) (d
 
 func (f fakeQuerier) DeleteVlan(ctx context.Context, arg db.DeleteVlanParams) error {
 	return f.deleteFn(ctx, arg)
+}
+
+func (f fakeQuerier) DeleteRadgrouprepliesByGroupname(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error {
+	return f.deleteGroupFn(ctx, arg)
+}
+
+func (f fakeQuerier) InsertRadgroupreply(ctx context.Context, arg db.InsertRadgroupreplyParams) error {
+	return f.insertGroupFn(ctx, arg)
+}
+
+func (f fakeQuerier) UpdateRadusergroupsGroupname(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
+	return f.updateUsergroupsFn(ctx, arg)
 }
 
 func (f fakeQuerier) CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
@@ -68,20 +83,15 @@ func TestNormalizeCreate(t *testing.T) {
 	if params.Name != "guest" {
 		t.Fatalf("expected trimmed name guest, got %q", params.Name)
 	}
-	if !params.IsActive {
-		t.Fatal("expected default is_active true")
-	}
 }
 
 func TestMergePatch(t *testing.T) {
 	t.Parallel()
 
 	current := db.Vlan{
-		ID:          1,
 		Name:        "guest",
 		VlanID:      10,
 		Description: "Guest devices",
-		IsActive:    true,
 	}
 
 	_, err := mergePatch(current, api.VlanPatch{})
@@ -120,12 +130,24 @@ func TestServiceCreateWritesAuditLog(t *testing.T) {
 		q: fakeQuerier{
 			createFn: func(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error) {
 				createCalled = true
-				return db.Vlan{ID: 1, Name: arg.Name, VlanID: arg.VlanID, Description: arg.Description, IsActive: arg.IsActive}, nil
+				return db.Vlan{Name: arg.Name, VlanID: arg.VlanID, Description: arg.Description}, nil
+			},
+			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error {
+				return nil
+			},
+			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error {
+				return nil
+			},
+			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
+				return nil
 			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
 				logCalled = true
 				if arg.Action != "vlan.create" {
 					t.Fatalf("expected vlan.create, got %q", arg.Action)
+				}
+				if arg.ResourceID != "10" {
+					t.Fatalf("expected resource id 10, got %q", arg.ResourceID)
 				}
 				return db.AuditLog{}, nil
 			},
@@ -149,12 +171,17 @@ func TestServiceUpdateReturnsNotFound(t *testing.T) {
 
 	service := NewService(nil, fakeTransactor{
 		q: fakeQuerier{
-			getFn: func(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error) {
+			getFn: func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
 				return db.Vlan{}, pgx.ErrNoRows
 			},
 			updateFn: func(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error) {
 				t.Fatal("expected update not to be called")
 				return db.Vlan{}, nil
+			},
+			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error { return nil },
+			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error { return nil },
+			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
+				return nil
 			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
 				t.Fatal("expected audit log not to be called")
@@ -163,7 +190,7 @@ func TestServiceUpdateReturnsNotFound(t *testing.T) {
 		},
 	})
 
-	_, err := service.Update(context.Background(), db.User{Username: "alice"}, 1, api.VlanPatch{Name: stringPtr("iot")})
+	_, err := service.Update(context.Background(), db.User{Username: "alice"}, 10, api.VlanPatch{Name: stringPtr("iot")})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -174,11 +201,16 @@ func TestServiceDeleteTreatsMissingAsSuccess(t *testing.T) {
 
 	service := NewService(nil, fakeTransactor{
 		q: fakeQuerier{
-			getFn: func(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error) {
+			getFn: func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
 				return db.Vlan{}, pgx.ErrNoRows
 			},
 			deleteFn: func(ctx context.Context, arg db.DeleteVlanParams) error {
 				t.Fatal("expected delete not to be called")
+				return nil
+			},
+			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error { return nil },
+			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error { return nil },
+			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
 				return nil
 			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
@@ -188,7 +220,7 @@ func TestServiceDeleteTreatsMissingAsSuccess(t *testing.T) {
 		},
 	})
 
-	if err := service.Delete(context.Background(), db.User{Username: "alice"}, 1); err != nil {
+	if err := service.Delete(context.Background(), db.User{Username: "alice"}, 10); err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 }

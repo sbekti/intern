@@ -28,23 +28,20 @@ CREATE TABLE user_preferences (
 );
 
 CREATE TABLE vlans (
-  id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  vlan_id integer PRIMARY KEY CHECK (vlan_id BETWEEN 1 AND 4094),
   name text NOT NULL,
-  vlan_id integer NOT NULL CHECK (vlan_id BETWEEN 1 AND 4094),
   description text NOT NULL DEFAULT '',
-  is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT NOW(),
   updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
 CREATE UNIQUE INDEX vlans_name_lower_idx ON vlans (LOWER(name));
-CREATE UNIQUE INDEX vlans_vlan_id_idx ON vlans (vlan_id);
 
 CREATE TABLE network_devices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   mac_address text NOT NULL,
   display_name text NOT NULL,
-  vlan_id bigint NOT NULL REFERENCES vlans(id) ON DELETE RESTRICT,
+  vlan_id integer NOT NULL REFERENCES vlans(vlan_id) ON UPDATE CASCADE ON DELETE RESTRICT,
   created_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   updated_by_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT NOW(),
@@ -231,23 +228,23 @@ CREATE TABLE nasreload (
   reloadtime timestamptz NOT NULL
 );
 
-INSERT INTO vlans (name, vlan_id, description, is_active)
+INSERT INTO vlans (vlan_id, name, description)
 VALUES
-  ('trusted', 1, 'Trusted devices', true),
-  ('guest', 10, 'Guest devices', true),
-  ('iot', 20, 'IoT devices', true);
+  (1, 'trusted', 'Trusted devices'),
+  (10, 'guest', 'Guest devices'),
+  (20, 'iot', 'IoT devices');
 
 INSERT INTO radgroupreply (groupname, attribute, op, value)
 VALUES
-  ('guest', 'Tunnel-Type', ':=', 'VLAN'),
-  ('guest', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
-  ('guest', 'Tunnel-Private-Group-ID', ':=', '10'),
-  ('iot', 'Tunnel-Type', ':=', 'VLAN'),
-  ('iot', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
-  ('iot', 'Tunnel-Private-Group-ID', ':=', '20'),
-  ('trusted', 'Tunnel-Type', ':=', 'VLAN'),
-  ('trusted', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
-  ('trusted', 'Tunnel-Private-Group-ID', ':=', '1');
+  ('vlan-10', 'Tunnel-Type', ':=', 'VLAN'),
+  ('vlan-10', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
+  ('vlan-10', 'Tunnel-Private-Group-ID', ':=', '10'),
+  ('vlan-20', 'Tunnel-Type', ':=', 'VLAN'),
+  ('vlan-20', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
+  ('vlan-20', 'Tunnel-Private-Group-ID', ':=', '20'),
+  ('vlan-1', 'Tunnel-Type', ':=', 'VLAN'),
+  ('vlan-1', 'Tunnel-Medium-Type', ':=', 'IEEE-802'),
+  ('vlan-1', 'Tunnel-Private-Group-ID', ':=', '1');
 
 CREATE TRIGGER users_set_updated_at
 BEFORE UPDATE ON users

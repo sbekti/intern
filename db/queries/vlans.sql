@@ -1,16 +1,16 @@
 -- name: ListVlans :many
 SELECT *
 FROM vlans
-ORDER BY vlan_id, id;
+ORDER BY vlan_id;
 
 -- name: CountVlans :one
 SELECT COUNT(*)
 FROM vlans;
 
--- name: GetVlanByID :one
+-- name: GetVlanByVlanID :one
 SELECT *
 FROM vlans
-WHERE id = sqlc.arg(id)
+WHERE vlan_id = sqlc.arg(vlan_id)
 LIMIT 1;
 
 -- name: GetVlanByName :one
@@ -21,29 +21,26 @@ LIMIT 1;
 
 -- name: CreateVlan :one
 INSERT INTO vlans (
-  name,
   vlan_id,
-  description,
-  is_active
+  name,
+  description
 ) VALUES (
-  sqlc.arg(name),
   sqlc.arg(vlan_id),
-  sqlc.arg(description),
-  sqlc.arg(is_active)
+  sqlc.arg(name),
+  sqlc.arg(description)
 )
 RETURNING *;
 
 -- name: UpdateVlan :one
 UPDATE vlans
 SET
-  name = sqlc.arg(name),
   vlan_id = sqlc.arg(vlan_id),
+  name = sqlc.arg(name),
   description = sqlc.arg(description),
-  is_active = sqlc.arg(is_active),
   updated_at = NOW()
-WHERE id = sqlc.arg(id)
+WHERE vlan_id = sqlc.arg(current_vlan_id)
 RETURNING *;
 
 -- name: DeleteVlan :exec
 DELETE FROM vlans
-WHERE id = sqlc.arg(id);
+WHERE vlan_id = sqlc.arg(vlan_id);

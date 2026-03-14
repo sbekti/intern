@@ -311,11 +311,9 @@ func TestListVlansReturnsItems(t *testing.T) {
 		VLANService: fakeVLANService{
 			listFn: func(ctx context.Context) ([]db.Vlan, error) {
 				return []db.Vlan{{
-					ID:          1,
 					Name:        "guest",
 					VlanID:      10,
 					Description: "Guest devices",
-					IsActive:    true,
 					CreatedAt:   testTimestamp(),
 					UpdatedAt:   testTimestamp(),
 				}}, nil
@@ -412,11 +410,9 @@ func TestCreateVlanReturnsCreated(t *testing.T) {
 		VLANService: fakeVLANService{
 			createFn: func(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error) {
 				return db.Vlan{
-					ID:          1,
 					Name:        input.Name,
 					VlanID:      input.VlanId,
 					Description: "",
-					IsActive:    true,
 					CreatedAt:   testTimestamp(),
 					UpdatedAt:   testTimestamp(),
 				}, nil
@@ -449,7 +445,7 @@ func TestGetVlanReturnsNotFound(t *testing.T) {
 			},
 		},
 		VLANService: fakeVLANService{
-			getFn: func(ctx context.Context, id int64) (db.Vlan, error) {
+			getFn: func(ctx context.Context, vlanID int32) (db.Vlan, error) {
 				return db.Vlan{}, vlans.ErrNotFound
 			},
 		},
@@ -479,7 +475,7 @@ func TestGetVlanRequiresAdmin(t *testing.T) {
 			},
 		},
 		VLANService: fakeVLANService{
-			getFn: func(ctx context.Context, id int64) (db.Vlan, error) {
+			getFn: func(ctx context.Context, vlanID int32) (db.Vlan, error) {
 				t.Fatal("expected get not to be called")
 				return db.Vlan{}, nil
 			},
@@ -555,7 +551,6 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 						UpdatedByUserID: actor.ID,
 					},
 					VLAN: db.Vlan{
-						ID:     input.VlanId,
 						Name:   "iot",
 						VlanID: 20,
 					},
@@ -564,7 +559,7 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","vlan_id":2}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","vlan_id":20}`))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Remote-User", "alice")
@@ -1329,30 +1324,30 @@ func (f fakeDashboardWeatherService) GetSummary(ctx context.Context) (*api.Weath
 
 type fakeVLANService struct {
 	listFn   func(ctx context.Context) ([]db.Vlan, error)
-	getFn    func(ctx context.Context, id int64) (db.Vlan, error)
+	getFn    func(ctx context.Context, vlanID int32) (db.Vlan, error)
 	createFn func(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error)
-	updateFn func(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error)
-	deleteFn func(ctx context.Context, actor db.User, id int64) error
+	updateFn func(ctx context.Context, actor db.User, vlanID int32, patch api.VlanPatch) (db.Vlan, error)
+	deleteFn func(ctx context.Context, actor db.User, vlanID int32) error
 }
 
 func (f fakeVLANService) List(ctx context.Context) ([]db.Vlan, error) {
 	return f.listFn(ctx)
 }
 
-func (f fakeVLANService) Get(ctx context.Context, id int64) (db.Vlan, error) {
-	return f.getFn(ctx, id)
+func (f fakeVLANService) Get(ctx context.Context, vlanID int32) (db.Vlan, error) {
+	return f.getFn(ctx, vlanID)
 }
 
 func (f fakeVLANService) Create(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error) {
 	return f.createFn(ctx, actor, input)
 }
 
-func (f fakeVLANService) Update(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error) {
-	return f.updateFn(ctx, actor, id, patch)
+func (f fakeVLANService) Update(ctx context.Context, actor db.User, vlanID int32, patch api.VlanPatch) (db.Vlan, error) {
+	return f.updateFn(ctx, actor, vlanID, patch)
 }
 
-func (f fakeVLANService) Delete(ctx context.Context, actor db.User, id int64) error {
-	return f.deleteFn(ctx, actor, id)
+func (f fakeVLANService) Delete(ctx context.Context, actor db.User, vlanID int32) error {
+	return f.deleteFn(ctx, actor, vlanID)
 }
 
 func testTimestamp() pgtype.Timestamptz {

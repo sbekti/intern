@@ -75,7 +75,7 @@ type NetworkDevice struct {
 	ID              pgtype.UUID        `db:"id" json:"id"`
 	MacAddress      string             `db:"mac_address" json:"mac_address"`
 	DisplayName     string             `db:"display_name" json:"display_name"`
-	VlanID          int64              `db:"vlan_id" json:"vlan_id"`
+	VlanID          int32              `db:"vlan_id" json:"vlan_id"`
 	CreatedByUserID pgtype.UUID        `db:"created_by_user_id" json:"created_by_user_id"`
 	UpdatedByUserID pgtype.UUID        `db:"updated_by_user_id" json:"updated_by_user_id"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
@@ -184,11 +184,9 @@ type UserPreference struct {
 }
 
 type Vlan struct {
-	ID          int64              `db:"id" json:"id"`
-	Name        string             `db:"name" json:"name"`
 	VlanID      int32              `db:"vlan_id" json:"vlan_id"`
+	Name        string             `db:"name" json:"name"`
 	Description string             `db:"description" json:"description"`
-	IsActive    bool               `db:"is_active" json:"is_active"`
 	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }

@@ -43,7 +43,7 @@ type Querier interface {
 	CreateNetworkDevice(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
 	UpdateNetworkDevice(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
 	DeleteNetworkDevice(ctx context.Context, arg db.DeleteNetworkDeviceParams) error
-	GetVlanByID(ctx context.Context, arg db.GetVlanByIDParams) (db.Vlan, error)
+	GetVlanByVlanID(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
 	UpsertRadcheckCleartextPassword(ctx context.Context, arg db.UpsertRadcheckCleartextPasswordParams) error
 	DeleteRadcheckCleartextPasswordByUsername(ctx context.Context, arg db.DeleteRadcheckCleartextPasswordByUsernameParams) error
 	DeleteRadusergroupsByUsername(ctx context.Context, arg db.DeleteRadusergroupsByUsernameParams) error
@@ -102,7 +102,7 @@ func (s *Service) List(ctx context.Context) ([]DeviceRecord, error) {
 
 	records := make([]DeviceRecord, 0, len(devices))
 	for _, device := range devices {
-		vlan, err := s.queries.GetVlanByID(ctx, db.GetVlanByIDParams{ID: device.VlanID})
+		vlan, err := s.queries.GetVlanByVlanID(ctx, db.GetVlanByVlanIDParams{VlanID: device.VlanID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil, ErrConflict
@@ -128,7 +128,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (DeviceRecord, error) {
 		return DeviceRecord{}, err
 	}
 
-	vlan, err := s.queries.GetVlanByID(ctx, db.GetVlanByIDParams{ID: device.VlanID})
+	vlan, err := s.queries.GetVlanByVlanID(ctx, db.GetVlanByVlanIDParams{VlanID: device.VlanID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return DeviceRecord{}, ErrConflict
@@ -151,7 +151,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 
 	var created DeviceRecord
 	err = s.tx.InTx(ctx, func(q Querier) error {
-		vlan, err := q.GetVlanByID(ctx, db.GetVlanByIDParams{ID: params.VlanID})
+		vlan, err := q.GetVlanByVlanID(ctx, db.GetVlanByVlanIDParams{VlanID: params.VlanID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrConflict
@@ -183,7 +183,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 		}
 		if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
 			Username:  params.MacAddressBare,
-			Groupname: vlan.Name,
+			Groupname: radiusGroupName(vlan.VlanID),
 			Priority:  0,
 		}); err != nil {
 			return classifyDBError(err)
@@ -195,7 +195,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 				"mac_address":  device.MacAddress,
 				"display_name": device.DisplayName,
 				"vlan_id":      device.VlanID,
-				"radius_group": vlan.Name,
+				"radius_group": radiusGroupName(vlan.VlanID),
 			},
 		})
 		if err != nil {
@@ -245,7 +245,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 		}
 		params.ID = current.ID
 
-		vlan, err := q.GetVlanByID(ctx, db.GetVlanByIDParams{ID: params.VlanID})
+		vlan, err := q.GetVlanByVlanID(ctx, db.GetVlanByVlanIDParams{VlanID: params.VlanID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrConflict
@@ -292,7 +292,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 		}
 		if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
 			Username:  newRadiusUsername,
-			Groupname: vlan.Name,
+			Groupname: radiusGroupName(vlan.VlanID),
 			Priority:  0,
 		}); err != nil {
 			return classifyDBError(err)
@@ -310,7 +310,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 				"mac_address":  device.MacAddress,
 				"display_name": device.DisplayName,
 				"vlan_id":      device.VlanID,
-				"radius_group": vlan.Name,
+				"radius_group": radiusGroupName(vlan.VlanID),
 			},
 		}
 		if current.MacAddress != device.MacAddress {
@@ -403,7 +403,7 @@ type normalizedCreate struct {
 	MacAddressColon string
 	MacAddressBare  string
 	DisplayName     string
-	VlanID          int64
+	VlanID          int32
 }
 
 func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
@@ -416,8 +416,8 @@ func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
 	if displayName == "" {
 		return normalizedCreate{}, ValidationError{Message: "display_name must not be empty"}
 	}
-	if input.VlanId < 1 {
-		return normalizedCreate{}, ValidationError{Message: "vlan_id must be greater than zero"}
+	if input.VlanId < 1 || input.VlanId > 4094 {
+		return normalizedCreate{}, ValidationError{Message: "vlan_id must be between 1 and 4094"}
 	}
 
 	return normalizedCreate{
@@ -452,8 +452,8 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 
 	vlanID := current.VlanID
 	if patch.VlanId != nil {
-		if *patch.VlanId < 1 {
-			return db.UpdateNetworkDeviceParams{}, ValidationError{Message: "vlan_id must be greater than zero"}
+		if *patch.VlanId < 1 || *patch.VlanId > 4094 {
+			return db.UpdateNetworkDeviceParams{}, ValidationError{Message: "vlan_id must be between 1 and 4094"}
 		}
 		vlanID = *patch.VlanId
 	}
@@ -495,6 +495,10 @@ func normalizeMAC(raw string) (bare string, colon string, err error) {
 	}
 
 	return bare, colonBuilder.String(), nil
+}
+
+func radiusGroupName(vlanID int32) string {
+	return fmt.Sprintf("vlan-%d", vlanID)
 }
 
 func colonMACToBare(value string) string {

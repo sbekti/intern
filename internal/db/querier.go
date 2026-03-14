@@ -21,6 +21,7 @@ type Querier interface {
 	CreateVlan(ctx context.Context, arg CreateVlanParams) (Vlan, error)
 	DeleteNetworkDevice(ctx context.Context, arg DeleteNetworkDeviceParams) error
 	DeleteRadcheckCleartextPasswordByUsername(ctx context.Context, arg DeleteRadcheckCleartextPasswordByUsernameParams) error
+	DeleteRadgrouprepliesByGroupname(ctx context.Context, arg DeleteRadgrouprepliesByGroupnameParams) error
 	DeleteRadusergroupsByUsername(ctx context.Context, arg DeleteRadusergroupsByUsernameParams) error
 	DeleteVlan(ctx context.Context, arg DeleteVlanParams) error
 	GetAuthDeviceAuthorizationByDeviceCode(ctx context.Context, arg GetAuthDeviceAuthorizationByDeviceCodeParams) (AuthDeviceAuthorization, error)
@@ -31,8 +32,9 @@ type Querier interface {
 	GetNetworkDeviceByMACAddress(ctx context.Context, arg GetNetworkDeviceByMACAddressParams) (NetworkDevice, error)
 	GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error)
 	GetUserByUsername(ctx context.Context, arg GetUserByUsernameParams) (User, error)
-	GetVlanByID(ctx context.Context, arg GetVlanByIDParams) (Vlan, error)
 	GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error)
+	GetVlanByVlanID(ctx context.Context, arg GetVlanByVlanIDParams) (Vlan, error)
+	InsertRadgroupreply(ctx context.Context, arg InsertRadgroupreplyParams) error
 	InsertRadusergroup(ctx context.Context, arg InsertRadusergroupParams) error
 	ListActiveAuthSessionsByUserPage(ctx context.Context, arg ListActiveAuthSessionsByUserPageParams) ([]AuthSession, error)
 	ListActiveAuthSessionsPage(ctx context.Context, arg ListActiveAuthSessionsPageParams) ([]AuthSession, error)
@@ -48,6 +50,7 @@ type Querier interface {
 	TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) (AuthSession, error)
 	UpdateAuthDeviceAuthorizationStatus(ctx context.Context, arg UpdateAuthDeviceAuthorizationStatusParams) (AuthDeviceAuthorization, error)
 	UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error)
+	UpdateRadusergroupsGroupname(ctx context.Context, arg UpdateRadusergroupsGroupnameParams) error
 	UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, error)
 	UpsertRadcheckCleartextPassword(ctx context.Context, arg UpsertRadcheckCleartextPasswordParams) error
 	UpsertUserByUsername(ctx context.Context, arg UpsertUserByUsernameParams) (User, error)

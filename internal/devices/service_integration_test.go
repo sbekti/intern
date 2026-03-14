@@ -31,8 +31,8 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("failed to create actor: %v", err)
 	}
 
-	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
-	guestID := vlanIDByName(t, ctx, pg.Pool, "guest")
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
+	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
 	service := NewService(queries, NewPGXTransactor(pg.Pool))
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
@@ -48,12 +48,12 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("expected normalized mac, got %q", created.Device.MacAddress)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddeeff", "iot")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddeeff", "vlan-20")
 
 	updated, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
 		MacAddress:  stringPtr("AA-BB-CC-DD-EE-99"),
 		DisplayName: stringPtr("Porch Camera"),
-		VlanId:      int64Ptr(guestID),
+		VlanId:      int32Ptr(guestID),
 	})
 	if err != nil {
 		t.Fatalf("expected update to succeed, got %v", err)
@@ -63,7 +63,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("unexpected updated record %#v", updated)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee99", "guest")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee99", "vlan-10")
 	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddeeff")
 
 	if err := service.Delete(ctx, actor, deviceID(created.Device)); err != nil {
@@ -91,7 +91,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"mac_address":  "aa:bb:cc:dd:ee:ff",
 			"display_name": "Camera",
 			"vlan_id":      float64(iotID),
-			"radius_group": "iot",
+			"radius_group": "vlan-20",
 		},
 	})
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.update", map[string]any{
@@ -106,7 +106,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"mac_address":  "aa:bb:cc:dd:ee:99",
 			"display_name": "Porch Camera",
 			"vlan_id":      float64(guestID),
-			"radius_group": "guest",
+			"radius_group": "vlan-10",
 		},
 		"old_mac_address": "aa:bb:cc:dd:ee:ff",
 		"new_mac_address": "aa:bb:cc:dd:ee:99",
@@ -128,8 +128,8 @@ func TestServiceCreateRejectsDuplicateNormalizedMAC(t *testing.T) {
 	ctx := context.Background()
 	queries := db.New(pg.Pool)
 	actor := createActor(t, ctx, queries)
-	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
-	guestID := vlanIDByName(t, ctx, pg.Pool, "guest")
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
+	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
 	service := NewService(queries, NewPGXTransactor(pg.Pool))
 	_, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
@@ -166,7 +166,7 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T
 	ctx := context.Background()
 	queries := db.New(pg.Pool)
 	actor := createActor(t, ctx, queries)
-	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 
 	service := NewService(queries, NewPGXTransactor(pg.Pool))
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
@@ -179,7 +179,7 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T
 	}
 
 	_, err = service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
-		VlanId: int64Ptr(999999),
+		VlanId: int32Ptr(999),
 	})
 	if !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected ErrConflict for missing target vlan, got %v", err)
@@ -193,7 +193,7 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T
 		t.Fatalf("expected device state to remain unchanged, got %#v", record)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee11", "iot")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee11", "vlan-20")
 
 	var auditCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'device.update'`).Scan(&auditCount); err != nil {
@@ -211,8 +211,8 @@ func TestServiceUpdateRejectsDuplicateNormalizedMACWithoutPartialChanges(t *test
 	ctx := context.Background()
 	queries := db.New(pg.Pool)
 	actor := createActor(t, ctx, queries)
-	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
-	guestID := vlanIDByName(t, ctx, pg.Pool, "guest")
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
+	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
 	service := NewService(queries, NewPGXTransactor(pg.Pool))
 	_, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
@@ -248,8 +248,8 @@ func TestServiceUpdateRejectsDuplicateNormalizedMACWithoutPartialChanges(t *test
 		t.Fatalf("expected second device to remain unchanged, got %#v", record)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee31", "iot")
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee32", "guest")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee31", "vlan-20")
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee32", "vlan-10")
 
 	var auditCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'device.update' AND resource_id = $1`, deviceID(second.Device).String()).Scan(&auditCount); err != nil {
@@ -267,7 +267,7 @@ func TestServiceDeleteSucceedsWithMissingReferencedVLAN(t *testing.T) {
 	ctx := context.Background()
 	queries := db.New(pg.Pool)
 	actor := createActor(t, ctx, queries)
-	iotID := vlanIDByName(t, ctx, pg.Pool, "iot")
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 
 	service := NewService(queries, NewPGXTransactor(pg.Pool))
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
@@ -282,7 +282,7 @@ func TestServiceDeleteSucceedsWithMissingReferencedVLAN(t *testing.T) {
 	if _, err := pg.Pool.Exec(ctx, `SET session_replication_role = replica`); err != nil {
 		t.Fatalf("failed to disable constraints: %v", err)
 	}
-	if _, err := pg.Pool.Exec(ctx, `DELETE FROM vlans WHERE id = $1`, iotID); err != nil {
+	if _, err := pg.Pool.Exec(ctx, `DELETE FROM vlans WHERE vlan_id = $1`, iotID); err != nil {
 		t.Fatalf("failed to corrupt vlan reference: %v", err)
 	}
 	if _, err := pg.Pool.Exec(ctx, `SET session_replication_role = DEFAULT`); err != nil {
@@ -323,14 +323,14 @@ func createActor(t *testing.T, ctx context.Context, queries *db.Queries) db.User
 	return actor
 }
 
-func vlanIDByName(t *testing.T, ctx context.Context, pool db.DBTX, name string) int64 {
+func vlanNumberByName(t *testing.T, ctx context.Context, pool db.DBTX, name string) int32 {
 	t.Helper()
 
-	var id int64
-	if err := pool.QueryRow(ctx, `SELECT id FROM vlans WHERE name = $1`, name).Scan(&id); err != nil {
+	var vlanID int32
+	if err := pool.QueryRow(ctx, `SELECT vlan_id FROM vlans WHERE name = $1`, name).Scan(&vlanID); err != nil {
 		t.Fatalf("failed to look up vlan %q: %v", name, err)
 	}
-	return id
+	return vlanID
 }
 
 func assertRadiusState(t *testing.T, ctx context.Context, pool db.DBTX, username, groupName string) {
@@ -399,7 +399,7 @@ func stringPtr(value string) *string {
 	return &value
 }
 
-func int64Ptr(value int64) *int64 {
+func int32Ptr(value int32) *int32 {
 	return &value
 }
 

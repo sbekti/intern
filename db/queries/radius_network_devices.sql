@@ -23,6 +23,11 @@ WHERE username = sqlc.arg(username)
 DELETE FROM radusergroup
 WHERE username = sqlc.arg(username);
 
+-- name: UpdateRadusergroupsGroupname :exec
+UPDATE radusergroup
+SET groupname = sqlc.arg(new_groupname)
+WHERE groupname = sqlc.arg(old_groupname);
+
 -- name: InsertRadusergroup :exec
 INSERT INTO radusergroup (
   username,
@@ -32,4 +37,21 @@ INSERT INTO radusergroup (
   sqlc.arg(username),
   sqlc.arg(groupname),
   sqlc.arg(priority)
+);
+
+-- name: DeleteRadgrouprepliesByGroupname :exec
+DELETE FROM radgroupreply
+WHERE groupname = sqlc.arg(groupname);
+
+-- name: InsertRadgroupreply :exec
+INSERT INTO radgroupreply (
+  groupname,
+  attribute,
+  op,
+  value
+) VALUES (
+  sqlc.arg(groupname),
+  sqlc.arg(attribute),
+  sqlc.arg(op),
+  sqlc.arg(value)
 );

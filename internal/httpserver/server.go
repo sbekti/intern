@@ -48,10 +48,10 @@ type Dependencies struct {
 
 type VLANService interface {
 	List(ctx context.Context) ([]db.Vlan, error)
-	Get(ctx context.Context, id int64) (db.Vlan, error)
+	Get(ctx context.Context, vlanID int32) (db.Vlan, error)
 	Create(ctx context.Context, actor db.User, input api.VlanWrite) (db.Vlan, error)
-	Update(ctx context.Context, actor db.User, id int64, patch api.VlanPatch) (db.Vlan, error)
-	Delete(ctx context.Context, actor db.User, id int64) error
+	Update(ctx context.Context, actor db.User, vlanID int32, patch api.VlanPatch) (db.Vlan, error)
+	Delete(ctx context.Context, actor db.User, vlanID int32) error
 }
 
 type DeviceService interface {
@@ -381,19 +381,19 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusOK, api.VlanList{Items: responseItems})
 		})
 
-		r.With(authorizer.RequireAdmin()).Get("/networks/vlans/{id}", func(w http.ResponseWriter, r *http.Request) {
+		r.With(authorizer.RequireAdmin()).Get("/networks/vlans/{vlan_id}", func(w http.ResponseWriter, r *http.Request) {
 			if vlanService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "vlan service not configured")
 				return
 			}
 
-			id, err := decodeInt64PathParam(r, "id")
+			vlanID, err := decodeInt32PathParam(r, "vlan_id")
 			if err != nil {
 				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid vlan id")
 				return
 			}
 
-			vlan, err := vlanService.Get(r.Context(), id)
+			vlan, err := vlanService.Get(r.Context(), vlanID)
 			if err != nil {
 				if errors.Is(err, vlans.ErrNotFound) {
 					writeAPIError(w, http.StatusNotFound, "not_found", "vlan not found")
@@ -433,7 +433,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusCreated, toAPIVlan(created))
 		})
 
-		r.With(authorizer.RequireAdmin()).Patch("/networks/vlans/{id}", func(w http.ResponseWriter, r *http.Request) {
+		r.With(authorizer.RequireAdmin()).Patch("/networks/vlans/{vlan_id}", func(w http.ResponseWriter, r *http.Request) {
 			if vlanService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "vlan service not configured")
 				return
@@ -445,7 +445,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			id, err := decodeInt64PathParam(r, "id")
+			vlanID, err := decodeInt32PathParam(r, "vlan_id")
 			if err != nil {
 				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid vlan id")
 				return
@@ -457,7 +457,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			updated, err := vlanService.Update(r.Context(), actor, id, body)
+			updated, err := vlanService.Update(r.Context(), actor, vlanID, body)
 			if err != nil {
 				handleVLANError(w, err)
 				return
@@ -466,7 +466,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusOK, toAPIVlan(updated))
 		})
 
-		r.With(authorizer.RequireAdmin()).Delete("/networks/vlans/{id}", func(w http.ResponseWriter, r *http.Request) {
+		r.With(authorizer.RequireAdmin()).Delete("/networks/vlans/{vlan_id}", func(w http.ResponseWriter, r *http.Request) {
 			if vlanService == nil {
 				writeAPIError(w, http.StatusInternalServerError, "internal_error", "vlan service not configured")
 				return
@@ -478,13 +478,13 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			id, err := decodeInt64PathParam(r, "id")
+			vlanID, err := decodeInt32PathParam(r, "vlan_id")
 			if err != nil {
 				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid vlan id")
 				return
 			}
 
-			if err := vlanService.Delete(r.Context(), actor, id); err != nil {
+			if err := vlanService.Delete(r.Context(), actor, vlanID); err != nil {
 				handleVLANError(w, err)
 				return
 			}
@@ -803,6 +803,17 @@ func decodeInt64PathParam(r *http.Request, key string) (int64, error) {
 	return strconv.ParseInt(raw, 10, 64)
 }
 
+func decodeInt32PathParam(r *http.Request, key string) (int32, error) {
+	value, err := decodeInt64PathParam(r, key)
+	if err != nil {
+		return 0, err
+	}
+	if value < 1 || value > 4094 {
+		return 0, strconv.ErrRange
+	}
+	return int32(value), nil
+}
+
 func decodeUUIDPathParam(r *http.Request, key string) (uuid.UUID, error) {
 	raw := chi.URLParam(r, key)
 	return uuid.Parse(raw)
@@ -905,11 +916,9 @@ func handleVLANError(w http.ResponseWriter, err error) {
 
 func toAPIVlan(value db.Vlan) api.Vlan {
 	return api.Vlan{
-		Id:          value.ID,
 		Name:        value.Name,
 		VlanId:      value.VlanID,
 		Description: value.Description,
-		IsActive:    value.IsActive,
 		CreatedAt:   value.CreatedAt.Time,
 		UpdatedAt:   value.UpdatedAt.Time,
 	}
@@ -935,7 +944,6 @@ func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 		MacAddress:  record.Device.MacAddress,
 		DisplayName: record.Device.DisplayName,
 		Vlan: api.VlanRef{
-			Id:     record.VLAN.ID,
 			Name:   record.VLAN.Name,
 			VlanId: record.VLAN.VlanID,
 		},

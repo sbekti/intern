@@ -24,6 +24,20 @@ func (q *Queries) DeleteRadcheckCleartextPasswordByUsername(ctx context.Context,
 	return err
 }
 
+const deleteRadgrouprepliesByGroupname = `-- name: DeleteRadgrouprepliesByGroupname :exec
+DELETE FROM radgroupreply
+WHERE groupname = $1
+`
+
+type DeleteRadgrouprepliesByGroupnameParams struct {
+	Groupname string `db:"groupname" json:"groupname"`
+}
+
+func (q *Queries) DeleteRadgrouprepliesByGroupname(ctx context.Context, arg DeleteRadgrouprepliesByGroupnameParams) error {
+	_, err := q.db.Exec(ctx, deleteRadgrouprepliesByGroupname, arg.Groupname)
+	return err
+}
+
 const deleteRadusergroupsByUsername = `-- name: DeleteRadusergroupsByUsername :exec
 DELETE FROM radusergroup
 WHERE username = $1
@@ -35,6 +49,37 @@ type DeleteRadusergroupsByUsernameParams struct {
 
 func (q *Queries) DeleteRadusergroupsByUsername(ctx context.Context, arg DeleteRadusergroupsByUsernameParams) error {
 	_, err := q.db.Exec(ctx, deleteRadusergroupsByUsername, arg.Username)
+	return err
+}
+
+const insertRadgroupreply = `-- name: InsertRadgroupreply :exec
+INSERT INTO radgroupreply (
+  groupname,
+  attribute,
+  op,
+  value
+) VALUES (
+  $1,
+  $2,
+  $3,
+  $4
+)
+`
+
+type InsertRadgroupreplyParams struct {
+	Groupname string `db:"groupname" json:"groupname"`
+	Attribute string `db:"attribute" json:"attribute"`
+	Op        string `db:"op" json:"op"`
+	Value     string `db:"value" json:"value"`
+}
+
+func (q *Queries) InsertRadgroupreply(ctx context.Context, arg InsertRadgroupreplyParams) error {
+	_, err := q.db.Exec(ctx, insertRadgroupreply,
+		arg.Groupname,
+		arg.Attribute,
+		arg.Op,
+		arg.Value,
+	)
 	return err
 }
 
@@ -58,6 +103,22 @@ type InsertRadusergroupParams struct {
 
 func (q *Queries) InsertRadusergroup(ctx context.Context, arg InsertRadusergroupParams) error {
 	_, err := q.db.Exec(ctx, insertRadusergroup, arg.Username, arg.Groupname, arg.Priority)
+	return err
+}
+
+const updateRadusergroupsGroupname = `-- name: UpdateRadusergroupsGroupname :exec
+UPDATE radusergroup
+SET groupname = $1
+WHERE groupname = $2
+`
+
+type UpdateRadusergroupsGroupnameParams struct {
+	NewGroupname string `db:"new_groupname" json:"new_groupname"`
+	OldGroupname string `db:"old_groupname" json:"old_groupname"`
+}
+
+func (q *Queries) UpdateRadusergroupsGroupname(ctx context.Context, arg UpdateRadusergroupsGroupnameParams) error {
+	_, err := q.db.Exec(ctx, updateRadusergroupsGroupname, arg.NewGroupname, arg.OldGroupname)
 	return err
 }
 

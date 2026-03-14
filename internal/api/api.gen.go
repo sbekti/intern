@@ -172,14 +172,14 @@ type NetworkDeviceList struct {
 type NetworkDevicePatch struct {
 	DisplayName *string `json:"display_name,omitempty"`
 	MacAddress  *string `json:"mac_address,omitempty"`
-	VlanId      *int64  `json:"vlan_id,omitempty"`
+	VlanId      *int32  `json:"vlan_id,omitempty"`
 }
 
 // NetworkDeviceWrite defines model for NetworkDeviceWrite.
 type NetworkDeviceWrite struct {
 	DisplayName string `json:"display_name"`
 	MacAddress  string `json:"mac_address"`
-	VlanId      int64  `json:"vlan_id"`
+	VlanId      int32  `json:"vlan_id"`
 }
 
 // NetworkSummary defines model for NetworkSummary.
@@ -226,8 +226,6 @@ type TokenResponse struct {
 type Vlan struct {
 	CreatedAt   time.Time `json:"created_at"`
 	Description string    `json:"description"`
-	Id          int64     `json:"id"`
-	IsActive    bool      `json:"is_active"`
 	Name        string    `json:"name"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	VlanId      int32     `json:"vlan_id"`
@@ -241,14 +239,12 @@ type VlanList struct {
 // VlanPatch defines model for VlanPatch.
 type VlanPatch struct {
 	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"is_active,omitempty"`
 	Name        *string `json:"name,omitempty"`
 	VlanId      *int32  `json:"vlan_id,omitempty"`
 }
 
 // VlanRef defines model for VlanRef.
 type VlanRef struct {
-	Id     int64  `json:"id"`
 	Name   string `json:"name"`
 	VlanId int32  `json:"vlan_id"`
 }
@@ -256,7 +252,6 @@ type VlanRef struct {
 // VlanWrite defines model for VlanWrite.
 type VlanWrite struct {
 	Description *string `json:"description,omitempty"`
-	IsActive    *bool   `json:"is_active,omitempty"`
 	Name        string  `json:"name"`
 	VlanId      int32   `json:"vlan_id"`
 }
@@ -285,7 +280,7 @@ type SessionId = openapi_types.UUID
 type UserCode = string
 
 // VlanId defines model for VlanId.
-type VlanId = int64
+type VlanId = int32
 
 // BadRequest defines model for BadRequest.
 type BadRequest = ErrorResponse
@@ -496,15 +491,15 @@ type ClientInterface interface {
 	CreateVlan(ctx context.Context, body CreateVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteVlan request
-	DeleteVlan(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	DeleteVlan(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetVlan request
-	GetVlan(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetVlan(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PatchVlanWithBody request with any body
-	PatchVlanWithBody(ctx context.Context, id VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PatchVlanWithBody(ctx context.Context, vlanId VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	PatchVlan(ctx context.Context, id VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	PatchVlan(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProfile request
 	GetProfile(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -824,8 +819,8 @@ func (c *Client) CreateVlan(ctx context.Context, body CreateVlanJSONRequestBody,
 	return c.Client.Do(req)
 }
 
-func (c *Client) DeleteVlan(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteVlanRequest(c.Server, id)
+func (c *Client) DeleteVlan(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteVlanRequest(c.Server, vlanId)
 	if err != nil {
 		return nil, err
 	}
@@ -836,8 +831,8 @@ func (c *Client) DeleteVlan(ctx context.Context, id VlanId, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetVlan(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetVlanRequest(c.Server, id)
+func (c *Client) GetVlan(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetVlanRequest(c.Server, vlanId)
 	if err != nil {
 		return nil, err
 	}
@@ -848,8 +843,8 @@ func (c *Client) GetVlan(ctx context.Context, id VlanId, reqEditors ...RequestEd
 	return c.Client.Do(req)
 }
 
-func (c *Client) PatchVlanWithBody(ctx context.Context, id VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPatchVlanRequestWithBody(c.Server, id, contentType, body)
+func (c *Client) PatchVlanWithBody(ctx context.Context, vlanId VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchVlanRequestWithBody(c.Server, vlanId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -860,8 +855,8 @@ func (c *Client) PatchVlanWithBody(ctx context.Context, id VlanId, contentType s
 	return c.Client.Do(req)
 }
 
-func (c *Client) PatchVlan(ctx context.Context, id VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPatchVlanRequest(c.Server, id, body)
+func (c *Client) PatchVlan(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchVlanRequest(c.Server, vlanId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1704,12 +1699,12 @@ func NewCreateVlanRequestWithBody(server string, contentType string, body io.Rea
 }
 
 // NewDeleteVlanRequest generates requests for DeleteVlan
-func NewDeleteVlanRequest(server string, id VlanId) (*http.Request, error) {
+func NewDeleteVlanRequest(server string, vlanId VlanId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "vlan_id", vlanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int32"})
 	if err != nil {
 		return nil, err
 	}
@@ -1738,12 +1733,12 @@ func NewDeleteVlanRequest(server string, id VlanId) (*http.Request, error) {
 }
 
 // NewGetVlanRequest generates requests for GetVlan
-func NewGetVlanRequest(server string, id VlanId) (*http.Request, error) {
+func NewGetVlanRequest(server string, vlanId VlanId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "vlan_id", vlanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int32"})
 	if err != nil {
 		return nil, err
 	}
@@ -1772,23 +1767,23 @@ func NewGetVlanRequest(server string, id VlanId) (*http.Request, error) {
 }
 
 // NewPatchVlanRequest calls the generic PatchVlan builder with application/json body
-func NewPatchVlanRequest(server string, id VlanId, body PatchVlanJSONRequestBody) (*http.Request, error) {
+func NewPatchVlanRequest(server string, vlanId VlanId, body PatchVlanJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewPatchVlanRequestWithBody(server, id, "application/json", bodyReader)
+	return NewPatchVlanRequestWithBody(server, vlanId, "application/json", bodyReader)
 }
 
 // NewPatchVlanRequestWithBody generates requests for PatchVlan with any type of body
-func NewPatchVlanRequestWithBody(server string, id VlanId, contentType string, body io.Reader) (*http.Request, error) {
+func NewPatchVlanRequestWithBody(server string, vlanId VlanId, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
 
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int64"})
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "vlan_id", vlanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: "int32"})
 	if err != nil {
 		return nil, err
 	}
@@ -2123,15 +2118,15 @@ type ClientWithResponsesInterface interface {
 	CreateVlanWithResponse(ctx context.Context, body CreateVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateVlanResponse, error)
 
 	// DeleteVlanWithResponse request
-	DeleteVlanWithResponse(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*DeleteVlanResponse, error)
+	DeleteVlanWithResponse(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*DeleteVlanResponse, error)
 
 	// GetVlanWithResponse request
-	GetVlanWithResponse(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*GetVlanResponse, error)
+	GetVlanWithResponse(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*GetVlanResponse, error)
 
 	// PatchVlanWithBodyWithResponse request with any body
-	PatchVlanWithBodyWithResponse(ctx context.Context, id VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error)
+	PatchVlanWithBodyWithResponse(ctx context.Context, vlanId VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error)
 
-	PatchVlanWithResponse(ctx context.Context, id VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error)
+	PatchVlanWithResponse(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error)
 
 	// GetProfileWithResponse request
 	GetProfileWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetProfileResponse, error)
@@ -3007,8 +3002,8 @@ func (c *ClientWithResponses) CreateVlanWithResponse(ctx context.Context, body C
 }
 
 // DeleteVlanWithResponse request returning *DeleteVlanResponse
-func (c *ClientWithResponses) DeleteVlanWithResponse(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*DeleteVlanResponse, error) {
-	rsp, err := c.DeleteVlan(ctx, id, reqEditors...)
+func (c *ClientWithResponses) DeleteVlanWithResponse(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*DeleteVlanResponse, error) {
+	rsp, err := c.DeleteVlan(ctx, vlanId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -3016,8 +3011,8 @@ func (c *ClientWithResponses) DeleteVlanWithResponse(ctx context.Context, id Vla
 }
 
 // GetVlanWithResponse request returning *GetVlanResponse
-func (c *ClientWithResponses) GetVlanWithResponse(ctx context.Context, id VlanId, reqEditors ...RequestEditorFn) (*GetVlanResponse, error) {
-	rsp, err := c.GetVlan(ctx, id, reqEditors...)
+func (c *ClientWithResponses) GetVlanWithResponse(ctx context.Context, vlanId VlanId, reqEditors ...RequestEditorFn) (*GetVlanResponse, error) {
+	rsp, err := c.GetVlan(ctx, vlanId, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -3025,16 +3020,16 @@ func (c *ClientWithResponses) GetVlanWithResponse(ctx context.Context, id VlanId
 }
 
 // PatchVlanWithBodyWithResponse request with arbitrary body returning *PatchVlanResponse
-func (c *ClientWithResponses) PatchVlanWithBodyWithResponse(ctx context.Context, id VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error) {
-	rsp, err := c.PatchVlanWithBody(ctx, id, contentType, body, reqEditors...)
+func (c *ClientWithResponses) PatchVlanWithBodyWithResponse(ctx context.Context, vlanId VlanId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error) {
+	rsp, err := c.PatchVlanWithBody(ctx, vlanId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParsePatchVlanResponse(rsp)
 }
 
-func (c *ClientWithResponses) PatchVlanWithResponse(ctx context.Context, id VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error) {
-	rsp, err := c.PatchVlan(ctx, id, body, reqEditors...)
+func (c *ClientWithResponses) PatchVlanWithResponse(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error) {
+	rsp, err := c.PatchVlan(ctx, vlanId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -4281,15 +4276,15 @@ type ServerInterface interface {
 	// Create a VLAN definition.
 	// (POST /api/v1/networks/vlans)
 	CreateVlan(w http.ResponseWriter, r *http.Request)
-	// Delete a VLAN definition.
-	// (DELETE /api/v1/networks/vlans/{id})
-	DeleteVlan(w http.ResponseWriter, r *http.Request, id VlanId)
-	// Get one VLAN definition.
-	// (GET /api/v1/networks/vlans/{id})
-	GetVlan(w http.ResponseWriter, r *http.Request, id VlanId)
-	// Update a VLAN definition.
-	// (PATCH /api/v1/networks/vlans/{id})
-	PatchVlan(w http.ResponseWriter, r *http.Request, id VlanId)
+	// Delete a VLAN definition by VLAN number.
+	// (DELETE /api/v1/networks/vlans/{vlan_id})
+	DeleteVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId)
+	// Get one VLAN definition by VLAN number.
+	// (GET /api/v1/networks/vlans/{vlan_id})
+	GetVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId)
+	// Update a VLAN definition by VLAN number.
+	// (PATCH /api/v1/networks/vlans/{vlan_id})
+	PatchVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId)
 	// Get the current authenticated user's profile.
 	// (GET /api/v1/profile)
 	GetProfile(w http.ResponseWriter, r *http.Request)
@@ -4419,21 +4414,21 @@ func (_ Unimplemented) CreateVlan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Delete a VLAN definition.
-// (DELETE /api/v1/networks/vlans/{id})
-func (_ Unimplemented) DeleteVlan(w http.ResponseWriter, r *http.Request, id VlanId) {
+// Delete a VLAN definition by VLAN number.
+// (DELETE /api/v1/networks/vlans/{vlan_id})
+func (_ Unimplemented) DeleteVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Get one VLAN definition.
-// (GET /api/v1/networks/vlans/{id})
-func (_ Unimplemented) GetVlan(w http.ResponseWriter, r *http.Request, id VlanId) {
+// Get one VLAN definition by VLAN number.
+// (GET /api/v1/networks/vlans/{vlan_id})
+func (_ Unimplemented) GetVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Update a VLAN definition.
-// (PATCH /api/v1/networks/vlans/{id})
-func (_ Unimplemented) PatchVlan(w http.ResponseWriter, r *http.Request, id VlanId) {
+// Update a VLAN definition by VLAN number.
+// (PATCH /api/v1/networks/vlans/{vlan_id})
+func (_ Unimplemented) PatchVlan(w http.ResponseWriter, r *http.Request, vlanId VlanId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4957,12 +4952,12 @@ func (siw *ServerInterfaceWrapper) DeleteVlan(w http.ResponseWriter, r *http.Req
 
 	var err error
 
-	// ------------- Path parameter "id" -------------
-	var id VlanId
+	// ------------- Path parameter "vlan_id" -------------
+	var vlanId VlanId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	err = runtime.BindStyledParameterWithOptions("simple", "vlan_id", chi.URLParam(r, "vlan_id"), &vlanId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int32"})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "vlan_id", Err: err})
 		return
 	}
 
@@ -4973,7 +4968,7 @@ func (siw *ServerInterfaceWrapper) DeleteVlan(w http.ResponseWriter, r *http.Req
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteVlan(w, r, id)
+		siw.Handler.DeleteVlan(w, r, vlanId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4988,12 +4983,12 @@ func (siw *ServerInterfaceWrapper) GetVlan(w http.ResponseWriter, r *http.Reques
 
 	var err error
 
-	// ------------- Path parameter "id" -------------
-	var id VlanId
+	// ------------- Path parameter "vlan_id" -------------
+	var vlanId VlanId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	err = runtime.BindStyledParameterWithOptions("simple", "vlan_id", chi.URLParam(r, "vlan_id"), &vlanId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int32"})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "vlan_id", Err: err})
 		return
 	}
 
@@ -5004,7 +4999,7 @@ func (siw *ServerInterfaceWrapper) GetVlan(w http.ResponseWriter, r *http.Reques
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetVlan(w, r, id)
+		siw.Handler.GetVlan(w, r, vlanId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5019,12 +5014,12 @@ func (siw *ServerInterfaceWrapper) PatchVlan(w http.ResponseWriter, r *http.Requ
 
 	var err error
 
-	// ------------- Path parameter "id" -------------
-	var id VlanId
+	// ------------- Path parameter "vlan_id" -------------
+	var vlanId VlanId
 
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64"})
+	err = runtime.BindStyledParameterWithOptions("simple", "vlan_id", chi.URLParam(r, "vlan_id"), &vlanId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int32"})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "vlan_id", Err: err})
 		return
 	}
 
@@ -5035,7 +5030,7 @@ func (siw *ServerInterfaceWrapper) PatchVlan(w http.ResponseWriter, r *http.Requ
 	r = r.WithContext(ctx)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PatchVlan(w, r, id)
+		siw.Handler.PatchVlan(w, r, vlanId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5345,13 +5340,13 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/api/v1/networks/vlans", wrapper.CreateVlan)
 	})
 	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/api/v1/networks/vlans/{id}", wrapper.DeleteVlan)
+		r.Delete(options.BaseURL+"/api/v1/networks/vlans/{vlan_id}", wrapper.DeleteVlan)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/api/v1/networks/vlans/{id}", wrapper.GetVlan)
+		r.Get(options.BaseURL+"/api/v1/networks/vlans/{vlan_id}", wrapper.GetVlan)
 	})
 	r.Group(func(r chi.Router) {
-		r.Patch(options.BaseURL+"/api/v1/networks/vlans/{id}", wrapper.PatchVlan)
+		r.Patch(options.BaseURL+"/api/v1/networks/vlans/{vlan_id}", wrapper.PatchVlan)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/profile", wrapper.GetProfile)
@@ -5375,67 +5370,66 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"/wMAAP//VHaSH/ZfAAA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

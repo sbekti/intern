@@ -43,7 +43,7 @@ RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by
 type CreateNetworkDeviceParams struct {
 	MacAddress      string      `db:"mac_address" json:"mac_address"`
 	DisplayName     string      `db:"display_name" json:"display_name"`
-	VlanID          int64       `db:"vlan_id" json:"vlan_id"`
+	VlanID          int32       `db:"vlan_id" json:"vlan_id"`
 	CreatedByUserID pgtype.UUID `db:"created_by_user_id" json:"created_by_user_id"`
 	UpdatedByUserID pgtype.UUID `db:"updated_by_user_id" json:"updated_by_user_id"`
 }
@@ -188,7 +188,7 @@ RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by
 type UpdateNetworkDeviceParams struct {
 	MacAddress      string      `db:"mac_address" json:"mac_address"`
 	DisplayName     string      `db:"display_name" json:"display_name"`
-	VlanID          int64       `db:"vlan_id" json:"vlan_id"`
+	VlanID          int32       `db:"vlan_id" json:"vlan_id"`
 	UpdatedByUserID pgtype.UUID `db:"updated_by_user_id" json:"updated_by_user_id"`
 	ID              pgtype.UUID `db:"id" json:"id"`
 }
