@@ -359,7 +359,7 @@ func classifyDBError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
-		case "23505", "23503":
+		case "23001", "23505", "23503":
 			return ErrConflict
 		}
 	}

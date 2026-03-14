@@ -164,6 +164,56 @@ func TestHandlerIntegrationAdminRouteAllowsSuperUsers(t *testing.T) {
 	}
 }
 
+func TestHandlerIntegrationDeleteReferencedVlanReturnsConflict(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	createVlanReq := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", bytes.NewBufferString(`{"name":"lab","vlan_id":334}`))
+	createVlanReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	createVlanReq.Header.Set("Content-Type", "application/json")
+	createVlanReq.Header.Set("Remote-User", "bob")
+	createVlanReq.Header.Set("Remote-Name", "Bob Example")
+	createVlanReq.Header.Set("Remote-Email", "bob@example.com")
+	createVlanReq.Header.Set("Remote-Groups", "Users, Super-Users")
+
+	createVlanRec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(createVlanRec, createVlanReq)
+
+	if createVlanRec.Code != http.StatusCreated {
+		t.Fatalf("expected vlan create status 201, got %d body=%s", createVlanRec.Code, createVlanRec.Body.String())
+	}
+
+	createDeviceReq := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", bytes.NewBufferString(`{"display_name":"Lab device","mac_address":"02:00:00:00:03:34","vlan_id":334}`))
+	createDeviceReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	createDeviceReq.Header.Set("Content-Type", "application/json")
+	createDeviceReq.Header.Set("Remote-User", "bob")
+	createDeviceReq.Header.Set("Remote-Name", "Bob Example")
+	createDeviceReq.Header.Set("Remote-Email", "bob@example.com")
+	createDeviceReq.Header.Set("Remote-Groups", "Users, Super-Users")
+
+	createDeviceRec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(createDeviceRec, createDeviceReq)
+
+	if createDeviceRec.Code != http.StatusCreated {
+		t.Fatalf("expected device create status 201, got %d body=%s", createDeviceRec.Code, createDeviceRec.Body.String())
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/networks/vlans/334", nil)
+	deleteReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	deleteReq.Header.Set("Remote-User", "bob")
+	deleteReq.Header.Set("Remote-Name", "Bob Example")
+	deleteReq.Header.Set("Remote-Email", "bob@example.com")
+	deleteReq.Header.Set("Remote-Groups", "Users, Super-Users")
+
+	deleteRec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(deleteRec, deleteReq)
+
+	if deleteRec.Code != http.StatusConflict {
+		t.Fatalf("expected delete status 409, got %d body=%s", deleteRec.Code, deleteRec.Body.String())
+	}
+}
+
 func TestHandlerIntegrationAdminDeviceListRequiresAdmin(t *testing.T) {
 	t.Parallel()
 
