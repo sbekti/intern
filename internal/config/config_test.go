@@ -17,16 +17,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "valid defaults",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevelInfo,
-				Auth:     testAuthConfig("test-secret"),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ":8080"},
+				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevelInfo,
+				Auth:         testAuthConfig("test-secret"),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -35,16 +32,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "empty addr",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ""},
-				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevelInfo,
-				Auth:     testAuthConfig("test-secret"),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ""},
+				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevelInfo,
+				Auth:         testAuthConfig("test-secret"),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -54,16 +48,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "invalid log level",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevel("trace"),
-				Auth:     testAuthConfig("test-secret"),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ":8080"},
+				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevel("trace"),
+				Auth:         testAuthConfig("test-secret"),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -73,16 +64,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing jwt secret",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevelInfo,
-				Auth:     testAuthConfig(""),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ":8080"},
+				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevelInfo,
+				Auth:         testAuthConfig(""),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -108,10 +96,7 @@ func TestValidate(t *testing.T) {
 					DeviceCodeTTL:      10 * time.Minute,
 					DevicePollInterval: 5 * time.Second,
 				},
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -137,10 +122,7 @@ func TestValidate(t *testing.T) {
 					DeviceCodeTTL:      10 * time.Minute,
 					DevicePollInterval: 5 * time.Second,
 				},
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -175,10 +157,7 @@ func TestValidate(t *testing.T) {
 					cfg.RateLimit.DeviceDecision.Limit = 0
 					return cfg
 				}(),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -188,16 +167,13 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing database url",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{},
-				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevelInfo,
-				Auth:     testAuthConfig("test-secret"),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ":8080"},
+				Database:     DatabaseConfig{},
+				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevelInfo,
+				Auth:         testAuthConfig("test-secret"),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -207,15 +183,12 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing redis url",
 			cfg: Config{
-				Server:   ServerConfig{Addr: ":8080"},
-				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				LogLevel: LogLevelInfo,
-				Auth:     testAuthConfig("test-secret"),
-				TrustedProxy: TrustedProxyConfig{
-					CIDRs:      []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
-					UserHeader: "Remote-User",
-				},
+				Server:       ServerConfig{Addr: ":8080"},
+				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
+				LogLevel:     LogLevelInfo,
+				Auth:         testAuthConfig("test-secret"),
+				TrustedProxy: testTrustedProxyConfig(),
 				Authorization: AuthorizationConfig{
 					AdminGroups: []string{"Super-Users"},
 				},
@@ -269,5 +242,17 @@ func testAuthConfig(secret string) AuthConfig {
 			RefreshToken:        AuthRateLimitRule{Limit: 60, Window: time.Minute},
 			Logout:              AuthRateLimitRule{Limit: 60, Window: time.Minute},
 		},
+	}
+}
+
+func testTrustedProxyConfig() TrustedProxyConfig {
+	return TrustedProxyConfig{
+		CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+		UserHeader:   "Remote-User",
+		NameHeader:   "Remote-Name",
+		EmailHeader:  "Remote-Email",
+		GroupsHeader: "Remote-Groups",
+		MarkerHeader: "X-Intern-Forward-Auth",
+		MarkerValue:  "authenticated-ingress",
 	}
 }

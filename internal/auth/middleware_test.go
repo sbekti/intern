@@ -27,6 +27,8 @@ func TestAuthenticateRequestForwardHeaders(t *testing.T) {
 			NameHeader:   "Remote-Name",
 			EmailHeader:  "Remote-Email",
 			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
 		},
 	})
 
@@ -36,6 +38,7 @@ func TestAuthenticateRequestForwardHeaders(t *testing.T) {
 	req.Header.Set("Remote-Name", "Alice Example")
 	req.Header.Set("Remote-Email", "alice@example.com")
 	req.Header.Set("Remote-Groups", "Super-Users, Operators")
+	req.Header.Set("X-Intern-Forward-Auth", "authenticated-ingress")
 
 	principal, err := authenticator.AuthenticateRequest(req)
 	if err != nil {
@@ -67,12 +70,15 @@ func TestAuthenticateRequestRejectsUntrustedForwardHeaders(t *testing.T) {
 			NameHeader:   "Remote-Name",
 			EmailHeader:  "Remote-Email",
 			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
 		},
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "10.0.0.10:12345"
 	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("X-Intern-Forward-Auth", "authenticated-ingress")
 
 	_, err := authenticator.AuthenticateRequest(req)
 	if err == nil {
@@ -80,6 +86,39 @@ func TestAuthenticateRequestRejectsUntrustedForwardHeaders(t *testing.T) {
 	}
 	if err != ErrUntrustedProxy {
 		t.Fatalf("expected ErrUntrustedProxy, got %v", err)
+	}
+}
+
+func TestAuthenticateRequestRejectsMissingTrustedMarker(t *testing.T) {
+	t.Parallel()
+
+	authenticator := NewAuthenticator(config.Config{
+		Auth: config.AuthConfig{
+			JWTIssuer:     "intern.corp.example.com",
+			JWTAudience:   "internctl",
+			JWTHMACSecret: "test-secret",
+		},
+		TrustedProxy: config.TrustedProxyConfig{
+			CIDRs:        []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")},
+			UserHeader:   "Remote-User",
+			NameHeader:   "Remote-Name",
+			EmailHeader:  "Remote-Email",
+			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Remote-User", "alice")
+
+	_, err := authenticator.AuthenticateRequest(req)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if err != ErrMissingTrustedMarker {
+		t.Fatalf("expected ErrMissingTrustedMarker, got %v", err)
 	}
 }
 
@@ -98,6 +137,8 @@ func TestAuthenticateRequestBearerToken(t *testing.T) {
 			NameHeader:   "Remote-Name",
 			EmailHeader:  "Remote-Email",
 			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
 		},
 	})
 	authenticator.now = func() time.Time {

@@ -40,10 +40,7 @@ func TestHandlerIntegrationTrustedForwardAuthPersistsUser(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -88,6 +85,23 @@ func TestHandlerIntegrationRejectsUntrustedForwardHeaders(t *testing.T) {
 	}
 }
 
+func TestHandlerIntegrationRejectsTrustedProxyForwardHeadersWithoutMarker(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
+	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "54321")
+	req.Header.Set("Remote-User", "alice")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestHandlerIntegrationAdminRouteForbiddenForNonAdmin(t *testing.T) {
 	t.Parallel()
 
@@ -96,10 +110,7 @@ func TestHandlerIntegrationAdminRouteForbiddenForNonAdmin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", bytes.NewBufferString(`{"name":"lab","vlan_id":30}`))
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -116,10 +127,7 @@ func TestHandlerIntegrationAdminVlanListForbiddenForNonAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -137,10 +145,7 @@ func TestHandlerIntegrationAdminRouteAllowsSuperUsers(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", bytes.NewBufferString(`{"name":"lab","vlan_id":30}`))
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -173,10 +178,7 @@ func TestHandlerIntegrationDeleteReferencedVlanReturnsConflict(t *testing.T) {
 	createVlanReq := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", bytes.NewBufferString(`{"name":"lab","vlan_id":334}`))
 	createVlanReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	createVlanReq.Header.Set("Content-Type", "application/json")
-	createVlanReq.Header.Set("Remote-User", "bob")
-	createVlanReq.Header.Set("Remote-Name", "Bob Example")
-	createVlanReq.Header.Set("Remote-Email", "bob@example.com")
-	createVlanReq.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(createVlanReq, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	createVlanRec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(createVlanRec, createVlanReq)
@@ -188,10 +190,7 @@ func TestHandlerIntegrationDeleteReferencedVlanReturnsConflict(t *testing.T) {
 	createDeviceReq := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", bytes.NewBufferString(`{"display_name":"Lab device","mac_address":"02:00:00:00:03:34","vlan_id":334}`))
 	createDeviceReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	createDeviceReq.Header.Set("Content-Type", "application/json")
-	createDeviceReq.Header.Set("Remote-User", "bob")
-	createDeviceReq.Header.Set("Remote-Name", "Bob Example")
-	createDeviceReq.Header.Set("Remote-Email", "bob@example.com")
-	createDeviceReq.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(createDeviceReq, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	createDeviceRec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(createDeviceRec, createDeviceReq)
@@ -202,10 +201,7 @@ func TestHandlerIntegrationDeleteReferencedVlanReturnsConflict(t *testing.T) {
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/api/v1/networks/vlans/334", nil)
 	deleteReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
-	deleteReq.Header.Set("Remote-User", "bob")
-	deleteReq.Header.Set("Remote-Name", "Bob Example")
-	deleteReq.Header.Set("Remote-Email", "bob@example.com")
-	deleteReq.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(deleteReq, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	deleteRec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(deleteRec, deleteReq)
@@ -225,8 +221,7 @@ func TestHandlerIntegrationAdminDeviceListRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "", "", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -251,10 +246,7 @@ func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/approve", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("X-Forwarded-For", "203.0.113.60, 127.0.0.1")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -280,6 +272,41 @@ func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 	})
 }
 
+func TestHandlerIntegrationRejectsDeviceCodeApprovalWithoutTrustedMarker(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	deviceCode, err := testEnv.clientAuthService.CreateDeviceCode(context.Background(), &api.DeviceCodeCreateRequest{
+		ClientName: stringPtr("desktop-app"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create device code: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/approve", nil)
+	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("Remote-Groups", "Super-Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	record, err := testEnv.queries.GetAuthDeviceAuthorizationByDeviceCode(context.Background(), db.GetAuthDeviceAuthorizationByDeviceCodeParams{
+		DeviceCode: deviceCode.DeviceCode,
+	})
+	if err != nil {
+		t.Fatalf("failed to reload device code: %v", err)
+	}
+	if record.Status != "pending" {
+		t.Fatalf("expected pending status, got %q", record.Status)
+	}
+}
+
 func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
 	t.Parallel()
 
@@ -295,10 +322,7 @@ func TestHandlerIntegrationDenyDeviceCodeForAuthenticatedUser(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+deviceCode.UserCode+"/deny", nil)
 	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 	req.Header.Set("X-Real-IP", "203.0.113.61")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -376,10 +400,7 @@ func TestHandlerIntegrationApproveDeviceCodeRateLimitedByUserAndIP(t *testing.T)
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/device_codes/"+code+"/approve", nil)
 		req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
 		req.Header.Set("X-Forwarded-For", "203.0.113.91, 127.0.0.1")
-		req.Header.Set("Remote-User", "alice")
-		req.Header.Set("Remote-Name", "Alice Example")
-		req.Header.Set("Remote-Email", "alice@example.com")
-		req.Header.Set("Remote-Groups", "Users")
+		setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 
 		rec := httptest.NewRecorder()
 		testEnv.handler.ServeHTTP(rec, req)
@@ -681,10 +702,7 @@ func TestHandlerIntegrationAdminSessionsPaginated(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions?limit=1&offset=0", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -733,10 +751,7 @@ func TestHandlerIntegrationProfileSessionsPaginated(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions?limit=1&offset=0", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "eve")
-	req.Header.Set("Remote-Name", "Eve Example")
-	req.Header.Set("Remote-Email", "eve@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "eve", "Eve Example", "eve@example.com", "Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -794,10 +809,7 @@ func TestHandlerIntegrationAdminRevokeAllSessions(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 
 	rec := httptest.NewRecorder()
 	testEnv.handler.ServeHTTP(rec, req)
@@ -922,6 +934,8 @@ func integrationHandlerConfig(databaseURL, redisURL string) config.Config {
 			NameHeader:   "Remote-Name",
 			EmailHeader:  "Remote-Email",
 			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
 		},
 		Authorization: config.AuthorizationConfig{
 			AdminGroups: []string{"Super-Users"},

@@ -74,6 +74,8 @@ type TrustedProxyConfig struct {
 	NameHeader   string
 	EmailHeader  string
 	GroupsHeader string
+	MarkerHeader string
+	MarkerValue  string
 }
 
 type AuthorizationConfig struct {
@@ -225,6 +227,8 @@ func Load() (Config, error) {
 			NameHeader:   envOrDefault("AUTH_REMOTE_NAME_HEADER", "Remote-Name"),
 			EmailHeader:  envOrDefault("AUTH_REMOTE_EMAIL_HEADER", "Remote-Email"),
 			GroupsHeader: envOrDefault("AUTH_REMOTE_GROUPS_HEADER", "Remote-Groups"),
+			MarkerHeader: envOrDefault("AUTH_FORWARD_AUTH_MARKER_HEADER", "X-Intern-Forward-Auth"),
+			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", "authenticated-ingress"),
 		},
 		Authorization: AuthorizationConfig{
 			AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"}),
@@ -315,6 +319,12 @@ func (c Config) Validate() error {
 	}
 	if strings.TrimSpace(c.TrustedProxy.UserHeader) == "" {
 		return fmt.Errorf("AUTH_REMOTE_USER_HEADER must not be empty")
+	}
+	if strings.TrimSpace(c.TrustedProxy.MarkerHeader) == "" {
+		return fmt.Errorf("AUTH_FORWARD_AUTH_MARKER_HEADER must not be empty")
+	}
+	if strings.TrimSpace(c.TrustedProxy.MarkerValue) == "" {
+		return fmt.Errorf("AUTH_FORWARD_AUTH_MARKER_VALUE must not be empty")
 	}
 	if len(c.Authorization.AdminGroups) == 0 {
 		return fmt.Errorf("AUTH_ADMIN_GROUPS must contain at least one group")

@@ -72,6 +72,7 @@ func TestBootstrapRoutesWithForwardAuth(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/ping", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Remote-User", "alice")
+	req.Header.Set("X-Intern-Forward-Auth", "authenticated-ingress")
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -144,10 +145,7 @@ func TestGetProfileSyncsAndReturnsProfile(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -219,10 +217,7 @@ func TestGetDashboardReturnsSummary(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -323,10 +318,7 @@ func TestListVlansReturnsItems(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -354,10 +346,7 @@ func TestListVlansRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -386,10 +375,7 @@ func TestCreateVlanRequiresAdmin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", strings.NewReader(`{"name":"guest","vlan_id":10}`))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -423,10 +409,7 @@ func TestCreateVlanReturnsCreated(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/vlans", strings.NewReader(`{"name":"guest","vlan_id":10}`))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -453,10 +436,7 @@ func TestGetVlanReturnsNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans/999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -484,10 +464,7 @@ func TestGetVlanRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/vlans/999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -509,10 +486,7 @@ func TestListDevicesRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -562,10 +536,7 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","vlan_id":20}`))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -592,10 +563,7 @@ func TestGetDeviceReturnsNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices/11111111-1111-1111-1111-111111111111", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -935,10 +903,7 @@ func TestListProfileSessionsReturnsItems(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -964,10 +929,7 @@ func TestListProfileSessionsRejectsBadLimit(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile/sessions?limit=999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1000,10 +962,7 @@ func TestRevokeProfileSessionReturnsNoContent(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/profile/sessions/"+sessionID.String()+"/revoke", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1029,10 +988,7 @@ func TestListAdminSessionsRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1080,10 +1036,7 @@ func TestListAdminSessionsReturnsItems(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1106,10 +1059,7 @@ func TestListAdminSessionsRejectsBadLimit(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/auth/sessions?limit=999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1132,10 +1082,7 @@ func TestRevokeAllAdminSessionsRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1164,10 +1111,7 @@ func TestRevokeAllAdminSessionsReturnsNoContent(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/auth/sessions/revoke_all", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1193,10 +1137,7 @@ func TestListAdminAuditLogsRequiresAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "alice")
-	req.Header.Set("Remote-Name", "Alice Example")
-	req.Header.Set("Remote-Email", "alice@example.com")
-	req.Header.Set("Remote-Groups", "Users")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1219,10 +1160,7 @@ func TestListAdminAuditLogsRejectsBadLimit(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?limit=999", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1273,10 +1211,7 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?action=device.update&limit=25&offset=50", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("Remote-User", "bob")
-	req.Header.Set("Remote-Name", "Bob Example")
-	req.Header.Set("Remote-Email", "bob@example.com")
-	req.Header.Set("Remote-Groups", "Users, Super-Users")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1582,6 +1517,8 @@ func mustTestConfig(t *testing.T) config.Config {
 			NameHeader:   "Remote-Name",
 			EmailHeader:  "Remote-Email",
 			GroupsHeader: "Remote-Groups",
+			MarkerHeader: "X-Intern-Forward-Auth",
+			MarkerValue:  "authenticated-ingress",
 		},
 		Authorization: config.AuthorizationConfig{
 			AdminGroups: []string{"Super-Users"},
@@ -1621,4 +1558,18 @@ func mintBearerAccessTokenForTest(t *testing.T, cfg config.Config, username stri
 			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	})
+}
+
+func setForwardAuthHeaders(req *http.Request, username, name, email, groups string) {
+	req.Header.Set("Remote-User", username)
+	if name != "" {
+		req.Header.Set("Remote-Name", name)
+	}
+	if email != "" {
+		req.Header.Set("Remote-Email", email)
+	}
+	if groups != "" {
+		req.Header.Set("Remote-Groups", groups)
+	}
+	req.Header.Set("X-Intern-Forward-Auth", "authenticated-ingress")
 }

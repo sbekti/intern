@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	ErrMissingCredentials = errors.New("missing credentials")
-	ErrUntrustedProxy     = errors.New("request did not originate from a trusted proxy")
-	ErrMissingSubject     = errors.New("token missing subject")
+	ErrMissingCredentials   = errors.New("missing credentials")
+	ErrUntrustedProxy       = errors.New("request did not originate from a trusted proxy")
+	ErrMissingTrustedMarker = errors.New("request missing trusted forward auth marker")
+	ErrMissingSubject       = errors.New("token missing subject")
 )
 
 type Authenticator struct {
@@ -25,6 +26,8 @@ type Authenticator struct {
 	nameHeader    string
 	emailHeader   string
 	groupsHeader  string
+	markerHeader  string
+	markerValue   string
 	jwtIssuer     string
 	jwtAudience   string
 	jwtHMACSecret []byte
@@ -49,6 +52,8 @@ func NewAuthenticator(cfg config.Config) *Authenticator {
 		nameHeader:    cfg.TrustedProxy.NameHeader,
 		emailHeader:   cfg.TrustedProxy.EmailHeader,
 		groupsHeader:  cfg.TrustedProxy.GroupsHeader,
+		markerHeader:  cfg.TrustedProxy.MarkerHeader,
+		markerValue:   cfg.TrustedProxy.MarkerValue,
 		jwtIssuer:     cfg.Auth.JWTIssuer,
 		jwtAudience:   cfg.Auth.JWTAudience,
 		jwtHMACSecret: []byte(cfg.Auth.JWTHMACSecret),
@@ -83,6 +88,9 @@ func (a *Authenticator) AuthenticateRequest(r *http.Request) (*Principal, error)
 	if a.hasForwardAuthHeaders(r.Header) {
 		if !a.ipResolver.IsTrustedProxyRequest(r.RemoteAddr) {
 			return nil, ErrUntrustedProxy
+		}
+		if !a.hasTrustedMarker(r.Header) {
+			return nil, ErrMissingTrustedMarker
 		}
 		return a.authenticateForwardHeaders(r.Header)
 	}
@@ -159,6 +167,10 @@ func (a *Authenticator) hasForwardAuthHeaders(header http.Header) bool {
 		strings.TrimSpace(header.Get(a.nameHeader)) != "" ||
 		strings.TrimSpace(header.Get(a.emailHeader)) != "" ||
 		strings.TrimSpace(header.Get(a.groupsHeader)) != ""
+}
+
+func (a *Authenticator) hasTrustedMarker(header http.Header) bool {
+	return strings.TrimSpace(header.Get(a.markerHeader)) == a.markerValue
 }
 
 func splitCommaSeparated(raw string) []string {

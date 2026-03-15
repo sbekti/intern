@@ -84,6 +84,8 @@ services:
       AUTH_REMOTE_NAME_HEADER: Remote-Name
       AUTH_REMOTE_EMAIL_HEADER: Remote-Email
       AUTH_REMOTE_GROUPS_HEADER: Remote-Groups
+      AUTH_FORWARD_AUTH_MARKER_HEADER: X-Intern-Forward-Auth
+      AUTH_FORWARD_AUTH_MARKER_VALUE: authenticated-ingress
       AUTH_ADMIN_GROUPS: Super-Users
     depends_on:
       postgres:
