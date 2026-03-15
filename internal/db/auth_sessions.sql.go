@@ -391,6 +391,7 @@ SET
   revoke_reason = $1,
   updated_at = NOW()
 WHERE id = $2
+  AND revoked_at IS NULL
 RETURNING id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
 `
 

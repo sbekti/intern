@@ -86,6 +86,7 @@ SET
   revoke_reason = sqlc.arg(revoke_reason),
   updated_at = NOW()
 WHERE id = sqlc.arg(id)
+  AND revoked_at IS NULL
 RETURNING *;
 
 -- name: RevokeOtherAuthSessionsForUser :execrows

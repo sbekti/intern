@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -315,6 +317,134 @@ func TestRefreshAccessTokenRotatesSession(t *testing.T) {
 	}
 	if response.RefreshToken == "" || response.AccessToken == "" {
 		t.Fatalf("unexpected response %+v", response)
+	}
+}
+
+func TestRefreshAccessTokenConcurrentReuseRevokesFamily(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	sessionID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	familyID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+
+	var revokeCalls atomic.Int32
+	var createSessionCalls atomic.Int32
+	var familyRevokeCalls atomic.Int32
+	var auditCalls atomic.Int32
+	firstEntered := make(chan struct{})
+	secondEntered := make(chan struct{})
+
+	service := testServiceWithTransactor(fakeQuerier{
+		getSessionByHashFn: func(ctx context.Context, arg db.GetAuthSessionByRefreshTokenHashParams) (db.AuthSession, error) {
+			return db.AuthSession{
+				ID:                   pgUUID(sessionID),
+				UserID:               pgUUID(userID),
+				ClientName:           "internctl",
+				UserAgent:            "internctl",
+				RefreshTokenFamilyID: pgUUID(familyID),
+				ExpiresAt:            timestamptz(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)),
+				IdleExpiresAt:        timestamptz(time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)),
+			}, nil
+		},
+		getUserByIDFn: func(ctx context.Context, arg db.GetUserByIDParams) (db.User, error) {
+			return db.User{
+				ID:       pgUUID(userID),
+				Username: "alice",
+				Name:     "Alice Example",
+				Email:    "alice@example.com",
+				Groups:   []string{"Users"},
+			}, nil
+		},
+		revokeSessionFn: func(ctx context.Context, arg db.RevokeAuthSessionParams) (db.AuthSession, error) {
+			switch revokeCalls.Add(1) {
+			case 1:
+				close(firstEntered)
+				<-secondEntered
+				return db.AuthSession{}, nil
+			case 2:
+				close(secondEntered)
+				return db.AuthSession{}, pgx.ErrNoRows
+			default:
+				t.Fatalf("unexpected extra revoke attempt")
+				return db.AuthSession{}, nil
+			}
+		},
+		createSessionFn: func(ctx context.Context, arg db.CreateAuthSessionParams) (db.AuthSession, error) {
+			createSessionCalls.Add(1)
+			return db.AuthSession{
+				ID:                   pgUUID(uuid.MustParse("55555555-5555-5555-5555-555555555555")),
+				UserID:               arg.UserID,
+				ClientName:           arg.ClientName,
+				UserAgent:            arg.UserAgent,
+				RefreshTokenFamilyID: arg.RefreshTokenFamilyID,
+				ExpiresAt:            arg.ExpiresAt,
+				IdleExpiresAt:        arg.IdleExpiresAt,
+			}, nil
+		},
+		revokeFamilyFn: func(ctx context.Context, arg db.RevokeAuthSessionFamilyParams) (int64, error) {
+			familyRevokeCalls.Add(1)
+			if arg.RevokeReason != "refresh_token_reuse" {
+				t.Fatalf("unexpected revoke family reason %q", arg.RevokeReason)
+			}
+			return 2, nil
+		},
+		createAuditLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
+			auditCalls.Add(1)
+			if arg.Action != "auth.session.family_revoke" {
+				t.Fatalf("unexpected audit action %q", arg.Action)
+			}
+			return db.AuditLog{}, nil
+		},
+	}, strings.NewReader(strings.Repeat("d", 64)))
+
+	type result struct {
+		response *api.TokenResponse
+		err      error
+	}
+
+	results := make(chan result, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	for i := 0; i < 2; i++ {
+		go func() {
+			defer wg.Done()
+			response, err := service.RefreshAccessToken(context.Background(), api.RefreshTokenRequest{RefreshToken: "refresh"}, "internctl")
+			results <- result{response: response, err: err}
+		}()
+	}
+
+	<-firstEntered
+	wg.Wait()
+	close(results)
+
+	successes := 0
+	unauthorized := 0
+	for result := range results {
+		switch {
+		case result.err == nil:
+			successes++
+			if result.response == nil || result.response.RefreshToken == "" || result.response.AccessToken == "" {
+				t.Fatalf("unexpected success response %+v", result.response)
+			}
+		case errors.Is(result.err, ErrUnauthorized):
+			unauthorized++
+		default:
+			t.Fatalf("unexpected refresh result err=%v", result.err)
+		}
+	}
+
+	if successes != 1 || unauthorized != 1 {
+		t.Fatalf("expected 1 success and 1 unauthorized, got %d success and %d unauthorized", successes, unauthorized)
+	}
+	if createSessionCalls.Load() != 1 {
+		t.Fatalf("expected 1 new session, got %d", createSessionCalls.Load())
+	}
+	if familyRevokeCalls.Load() != 1 {
+		t.Fatalf("expected 1 family revoke, got %d", familyRevokeCalls.Load())
+	}
+	if auditCalls.Load() != 1 {
+		t.Fatalf("expected 1 family revoke audit log, got %d", auditCalls.Load())
 	}
 }
 

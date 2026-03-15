@@ -37,6 +37,7 @@ var (
 	ErrUnauthorized          = errors.New("unauthorized")
 	ErrTooManyRequests       = errors.New("too many requests")
 	ErrTransactorNotProvided = errors.New("transactor not configured")
+	errRefreshTokenReuse     = errors.New("refresh token reuse")
 )
 
 type ValidationError struct {
@@ -354,12 +355,7 @@ func (s *Service) RefreshAccessToken(ctx context.Context, request api.RefreshTok
 	now := s.now()
 	if session.RevokedAt.Valid {
 		user, _ := s.lookupAuditActor(ctx, s.queries, session.UserID)
-		_ = s.revokeFamily(ctx, session.RefreshTokenFamilyID, "refresh_token_reuse")
-		_ = s.writeAuditLog(ctx, s.queries, user, "auth.session.family_revoke", "auth_session_family", uuidString(session.RefreshTokenFamilyID), map[string]any{
-			"client_name":   session.ClientName,
-			"revoke_reason": "refresh_token_reuse",
-			"session_id":    uuidString(session.ID),
-		})
+		s.handleRefreshTokenReuse(ctx, session, user)
 		return nil, ErrUnauthorized
 	}
 	if now.After(session.ExpiresAt.Time) || now.After(session.IdleExpiresAt.Time) {
@@ -385,6 +381,9 @@ func (s *Service) RefreshAccessToken(ctx context.Context, request api.RefreshTok
 			RevokeReason: "rotated",
 		})
 		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return errRefreshTokenReuse
+			}
 			return err
 		}
 
@@ -412,10 +411,23 @@ func (s *Service) RefreshAccessToken(ctx context.Context, request api.RefreshTok
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errRefreshTokenReuse) {
+			s.handleRefreshTokenReuse(ctx, session, &user)
+			return nil, ErrUnauthorized
+		}
 		return nil, err
 	}
 
 	return response, nil
+}
+
+func (s *Service) handleRefreshTokenReuse(ctx context.Context, session db.AuthSession, actor *db.User) {
+	_ = s.revokeFamily(ctx, session.RefreshTokenFamilyID, "refresh_token_reuse")
+	_ = s.writeAuditLog(ctx, s.queries, actor, "auth.session.family_revoke", "auth_session_family", uuidString(session.RefreshTokenFamilyID), map[string]any{
+		"client_name":   session.ClientName,
+		"revoke_reason": "refresh_token_reuse",
+		"session_id":    uuidString(session.ID),
+	})
 }
 
 func (s *Service) Logout(ctx context.Context, request api.LogoutRequest) error {
