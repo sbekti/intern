@@ -53,7 +53,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	service := presence.NewService(logger, pool, cfg.Presence, nil)
+	service := presence.NewService(logger, pool, cfg.Presence, nil, nil)
 	runner := presence.NewRunner(logger, cfg.Presence, service)
 	if err := runner.Run(ctx); err != nil {
 		logger.Error("presence worker exited with error", "error", err)

@@ -38,16 +38,21 @@ func (r *Runner) Run(ctx context.Context) error {
 	})
 
 	for _, source := range r.cfg.Sources {
-		if source.Type != config.PresenceSourceTypeUnifi {
-			continue
-		}
-
 		source := source
-		group.Go(func() error {
-			return r.runLoop(ctx, source.Key, source.PollInterval, func(loopCtx context.Context) error {
-				return r.service.SyncUniFiSource(loopCtx, source)
+		switch source.Type {
+		case config.PresenceSourceTypeUnifi:
+			group.Go(func() error {
+				return r.runLoop(ctx, source.Key, source.PollInterval, func(loopCtx context.Context) error {
+					return r.service.SyncUniFiSource(loopCtx, source)
+				})
 			})
-		})
+		case config.PresenceSourceTypeJuniperSNMP:
+			group.Go(func() error {
+				return r.runLoop(ctx, source.Key, source.PollInterval, func(loopCtx context.Context) error {
+					return r.service.SyncJuniperSource(loopCtx, source)
+				})
+			})
+		}
 	}
 
 	return group.Wait()

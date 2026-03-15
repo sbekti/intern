@@ -20,16 +20,19 @@ import (
 const (
 	radiusSourceKey = "radius"
 
-	sourceTypeRadius = "radius"
-	sourceTypeUnifi  = "unifi"
+	sourceTypeRadius      = "radius"
+	sourceTypeUnifi       = "unifi"
+	sourceTypeJuniperSNMP = "juniper-snmp"
 
 	mediumWireless = "wireless"
+	mediumWired    = "wired"
 
 	clientStatusOnline  = "online"
 	clientStatusOffline = "offline"
 
-	workerNameRadiusSync = "wireless-radius-sync"
-	workerNameUnifiSync  = "wireless-unifi-sync"
+	workerNameRadiusSync  = "wireless-radius-sync"
+	workerNameUnifiSync   = "wireless-unifi-sync"
+	workerNameJuniperSync = "wired-juniper-snmp-sync"
 )
 
 type UniFiClient interface {
@@ -41,6 +44,7 @@ type Service struct {
 	pool             *pgxpool.Pool
 	cfg              config.PresenceConfig
 	unifiClient      UniFiClient
+	juniperClient    JuniperClient
 	now              func() time.Time
 	radacctBatchSize int32
 }
@@ -59,12 +63,15 @@ type UniFiActiveClient struct {
 	LastSeen  time.Time
 }
 
-func NewService(logger *slog.Logger, pool *pgxpool.Pool, cfg config.PresenceConfig, unifiClient UniFiClient) *Service {
+func NewService(logger *slog.Logger, pool *pgxpool.Pool, cfg config.PresenceConfig, unifiClient UniFiClient, juniperClient JuniperClient) *Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	if unifiClient == nil {
 		unifiClient = NewUniFiHTTPClient(nil)
+	}
+	if juniperClient == nil {
+		juniperClient = NewJuniperSNMPClient()
 	}
 
 	return &Service{
@@ -72,6 +79,7 @@ func NewService(logger *slog.Logger, pool *pgxpool.Pool, cfg config.PresenceConf
 		pool:             pool,
 		cfg:              cfg,
 		unifiClient:      unifiClient,
+		juniperClient:    juniperClient,
 		now:              time.Now,
 		radacctBatchSize: 250,
 	}
@@ -87,6 +95,19 @@ func (s *Service) SyncWirelessOnce(ctx context.Context) error {
 			continue
 		}
 		if err := s.SyncUniFiSource(ctx, source); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) SyncWiredOnce(ctx context.Context) error {
+	for _, source := range s.cfg.Sources {
+		if source.Type != config.PresenceSourceTypeJuniperSNMP {
+			continue
+		}
+		if err := s.SyncJuniperSource(ctx, source); err != nil {
 			return err
 		}
 	}
@@ -172,44 +193,40 @@ func (s *Service) SyncUniFiSource(ctx context.Context, source config.PresenceSou
 	if err != nil {
 		return err
 	}
+	polledClients := make([]polledPresenceClient, 0, len(activeClients))
+	for _, client := range activeClients {
+		polledClients = append(polledClients, buildUniFiPolledClient(source, client))
+	}
+	return s.syncPolledSource(ctx, source, polledSourceSpec{
+		WorkerName:         workerNameUnifiSync,
+		SourceType:         sourceTypeUnifi,
+		Medium:             mediumWireless,
+		SessionPrefix:      "unifi",
+		SessionOrigin:      "unifi_poll",
+		MoveCloseReason:    "unifi_roam",
+		TimeoutCloseReason: "unifi_poll_timeout",
+	}, polledClients)
+}
 
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return err
+func (s *Service) SyncJuniperSource(ctx context.Context, source config.PresenceSourceConfig) error {
+	if s == nil || s.pool == nil {
+		return fmt.Errorf("presence pool not configured")
 	}
 
 	pollTime := s.now().UTC()
-	txQueries := db.New(tx)
-	seenClientMACs := make(map[string]struct{}, len(activeClients))
-	for _, client := range activeClients {
-		clientMAC, err := s.applyUniFiClient(ctx, txQueries, source, client, pollTime)
-		if err != nil {
-			_ = tx.Rollback(ctx)
-			return err
-		}
-		if clientMAC != "" {
-			seenClientMACs[clientMAC] = struct{}{}
-		}
-	}
-
-	if err := s.reconcileUniFiDisappearances(ctx, txQueries, source, pollTime, seenClientMACs); err != nil {
-		_ = tx.Rollback(ctx)
+	activeClients, err := s.juniperClient.ListActiveClients(ctx, source, pollTime)
+	if err != nil {
 		return err
 	}
-
-	state := map[string]any{"last_client_count": len(activeClients)}
-	if _, err := txQueries.UpsertPresenceWorkerState(ctx, db.UpsertPresenceWorkerStateParams{
-		WorkerName:      workerNameUnifiSync,
-		SourceKey:       source.Key,
-		State:           mustJSON(state),
-		LastPolledAt:    timestamptz(pollTime),
-		LastSucceededAt: timestamptz(pollTime),
-	}); err != nil {
-		_ = tx.Rollback(ctx)
-		return err
-	}
-
-	return tx.Commit(ctx)
+	return s.syncPolledSource(ctx, source, polledSourceSpec{
+		WorkerName:         workerNameJuniperSync,
+		SourceType:         sourceTypeJuniperSNMP,
+		Medium:             mediumWired,
+		SessionPrefix:      "juniper-snmp",
+		SessionOrigin:      "juniper_snmp_poll",
+		MoveCloseReason:    "juniper_port_change",
+		TimeoutCloseReason: "juniper_poll_timeout",
+	}, activeClients)
 }
 
 func (s *Service) applyRadiusRow(ctx context.Context, q db.Querier, row db.Radacct) error {
@@ -301,205 +318,6 @@ func (s *Service) applyRadiusRow(ctx context.Context, q db.Querier, row db.Radac
 	return err
 }
 
-func (s *Service) applyUniFiClient(ctx context.Context, q db.Querier, source config.PresenceSourceConfig, client UniFiActiveClient, pollTime time.Time) (string, error) {
-	clientMAC, err := normalizedColonMAC(client.MAC)
-	if err != nil {
-		s.logger.Warn("skipping unifi client with invalid mac", "source_key", source.Key, "mac", client.MAC, "error", err)
-		return "", nil
-	}
-
-	lastSeen := client.LastSeen.UTC()
-	if lastSeen.IsZero() {
-		lastSeen = client.AssocTime.UTC()
-	}
-	if lastSeen.IsZero() {
-		lastSeen = s.now().UTC()
-	}
-
-	firstSeen := client.AssocTime.UTC()
-	if firstSeen.IsZero() {
-		firstSeen = lastSeen
-	}
-
-	bssid, _ := normalizedOptionalMAC(client.BSSID)
-	apMAC, _ := normalizedOptionalMAC(client.APMAC)
-
-	observationPointID := pgtype.UUID{}
-	observationExternalID := bssid
-	if observationExternalID == "" {
-		observationExternalID = apMAC
-	}
-	observationParentExternalID := ""
-
-	if observationExternalID != "" {
-		if apMAC != "" && apMAC != observationExternalID {
-			observationParentExternalID = apMAC
-		}
-
-		observationPoint, err := q.UpsertPresenceObservationPoint(ctx, db.UpsertPresenceObservationPointParams{
-			SourceKey:        source.Key,
-			SourceType:       sourceTypeUnifi,
-			Medium:           mediumWireless,
-			ExternalID:       observationExternalID,
-			ParentExternalID: observationParentExternalID,
-			DisplayName:      strings.TrimSpace(client.Hostname),
-			Ssid:             nullableString(client.ESSID),
-			Metadata:         mustJSON(buildUniFiMetadata(source.Key, client, bssid, apMAC, firstSeen, lastSeen)),
-			LastSeenAt:       timestamptz(lastSeen),
-		})
-		if err != nil {
-			return "", err
-		}
-		observationPointID = observationPoint.ID
-	}
-
-	clientMetadata := mustJSON(buildUniFiMetadata(source.Key, client, bssid, apMAC, firstSeen, lastSeen))
-	deviceID := s.lookupNetworkDeviceID(ctx, q, clientMAC)
-
-	if err := s.reconcileUniFiActiveSession(ctx, q, source, clientMAC, deviceID, observationPointID, observationExternalID, observationParentExternalID, client.ESSID, firstSeen, lastSeen, pollTime, clientMetadata); err != nil {
-		return "", err
-	}
-
-	_, err = q.UpsertPresenceClient(ctx, db.UpsertPresenceClientParams{
-		MacAddress:             clientMAC,
-		NetworkDeviceID:        deviceID,
-		Status:                 clientStatusOnline,
-		FirstSeenAt:            timestamptz(firstSeen),
-		LastSeenAt:             timestamptz(lastSeen),
-		LastSourceKey:          source.Key,
-		LastSourceType:         sourceTypeUnifi,
-		LastMedium:             mediumWireless,
-		LastObservationPointID: observationPointID,
-		LastSsid:               nullableString(client.ESSID),
-		LastMetadata:           clientMetadata,
-	})
-	return clientMAC, err
-}
-
-func (s *Service) reconcileUniFiActiveSession(
-	ctx context.Context,
-	q db.Querier,
-	source config.PresenceSourceConfig,
-	clientMAC string,
-	deviceID pgtype.UUID,
-	observationPointID pgtype.UUID,
-	observationExternalID string,
-	observationParentExternalID string,
-	ssid string,
-	firstSeen time.Time,
-	lastSeen time.Time,
-	pollTime time.Time,
-	clientMetadata []byte,
-) error {
-	openSession, found, err := s.lookupOpenPresenceSession(ctx, q, clientMAC, mediumWireless)
-	if err != nil {
-		return err
-	}
-
-	if !found {
-		return s.createSyntheticUniFiSession(ctx, q, source, clientMAC, deviceID, observationPointID, ssid, firstSeen, lastSeen, clientMetadata)
-	}
-
-	if sameWirelessObservation(openSession.ObservationExternalID, openSession.ObservationParentExternalID, observationExternalID, observationParentExternalID) {
-		updateObservationPointID := pgtype.UUID{}
-		if !openSession.ObservationPointID.Valid && observationPointID.Valid {
-			updateObservationPointID = observationPointID
-		}
-		_, err := q.UpdatePresenceSessionActivity(ctx, db.UpdatePresenceSessionActivityParams{
-			ID:                 openSession.ID,
-			NetworkDeviceID:    deviceID,
-			ObservationPointID: updateObservationPointID,
-			SourceUpdatedAt:    timestamptz(lastSeen),
-			LastSeenAt:         timestamptz(lastSeen),
-			Ssid:               nullableString(ssid),
-			Metadata:           clientMetadata,
-		})
-		return err
-	}
-
-	closeAt := openSession.LastSeenAt.Time.UTC()
-	if closeAt.IsZero() {
-		closeAt = lastSeen
-	}
-	if err := s.closePresenceSession(ctx, q, openPresenceSessionRecordToSession(openSession), deviceID, pollTime, closeAt, ssid, map[string]any{
-		"ended_by":            "unifi_roam",
-		"inferred_at":         pollTime.Format(time.RFC3339),
-		"inferred_source_key": source.Key,
-		"next_observation_id": observationExternalID,
-	}); err != nil {
-		return err
-	}
-
-	return s.createSyntheticUniFiSession(ctx, q, source, clientMAC, deviceID, observationPointID, ssid, maxTime(firstSeen, closeAt), lastSeen, clientMetadata)
-}
-
-func (s *Service) reconcileUniFiDisappearances(ctx context.Context, q db.Querier, source config.PresenceSourceConfig, pollTime time.Time, seenClientMACs map[string]struct{}) error {
-	cutoff := pollTime.Add(-s.disconnectGrace(source))
-	staleClients, err := q.ListStaleOnlinePresenceClientsBySource(ctx, db.ListStaleOnlinePresenceClientsBySourceParams{
-		SourceKey:  source.Key,
-		SourceType: sourceTypeUnifi,
-		Medium:     mediumWireless,
-		SeenBefore: timestamptz(cutoff),
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, client := range staleClients {
-		if _, seen := seenClientMACs[strings.ToLower(client.MacAddress)]; seen {
-			continue
-		}
-		if err := s.markUniFiClientOffline(ctx, q, source, pollTime, client); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) markUniFiClientOffline(ctx context.Context, q db.Querier, source config.PresenceSourceConfig, pollTime time.Time, client db.PresenceClient) error {
-	openSession, found, err := s.lookupOpenPresenceSession(ctx, q, client.MacAddress, mediumWireless)
-	if err != nil {
-		return err
-	}
-
-	closeAt := client.LastSeenAt.Time.UTC()
-	if closeAt.IsZero() {
-		closeAt = pollTime
-	}
-
-	if found {
-		if err := s.closePresenceSession(ctx, q, openPresenceSessionRecordToSession(openSession), client.NetworkDeviceID, pollTime, closeAt, ptrString(client.LastSsid), map[string]any{
-			"ended_by":            "unifi_poll_timeout",
-			"inferred_at":         pollTime.Format(time.RFC3339),
-			"inferred_source_key": source.Key,
-			"disconnect_grace":    s.disconnectGrace(source).String(),
-		}); err != nil {
-			return err
-		}
-	}
-
-	_, err = q.UpsertPresenceClient(ctx, db.UpsertPresenceClientParams{
-		MacAddress:             client.MacAddress,
-		NetworkDeviceID:        client.NetworkDeviceID,
-		Status:                 clientStatusOffline,
-		FirstSeenAt:            client.FirstSeenAt,
-		LastSeenAt:             client.LastSeenAt,
-		LastSourceKey:          source.Key,
-		LastSourceType:         sourceTypeUnifi,
-		LastMedium:             mediumWireless,
-		LastObservationPointID: client.LastObservationPointID,
-		LastSsid:               client.LastSsid,
-		LastMetadata: mustJSON(map[string]any{
-			"ended_by":            "unifi_poll_timeout",
-			"inferred_at":         pollTime.Format(time.RFC3339),
-			"inferred_source_key": source.Key,
-			"disconnect_grace":    s.disconnectGrace(source).String(),
-		}),
-	})
-	return err
-}
-
 func (s *Service) loadRadiusState(ctx context.Context, q db.Querier) (radiusWorkerState, error) {
 	record, err := q.GetPresenceWorkerState(ctx, db.GetPresenceWorkerStateParams{
 		WorkerName: workerNameRadiusSync,
@@ -542,41 +360,6 @@ func (s *Service) lookupNetworkDeviceID(ctx context.Context, q db.Querier, macAd
 		return pgtype.UUID{}
 	}
 	return device.ID
-}
-
-func (s *Service) createSyntheticUniFiSession(
-	ctx context.Context,
-	q db.Querier,
-	source config.PresenceSourceConfig,
-	clientMAC string,
-	deviceID pgtype.UUID,
-	observationPointID pgtype.UUID,
-	ssid string,
-	firstSeen time.Time,
-	lastSeen time.Time,
-	clientMetadata []byte,
-) error {
-	startedAt := maxTime(firstSeen, time.Time{})
-	if startedAt.IsZero() {
-		startedAt = lastSeen
-	}
-
-	_, err := q.UpsertPresenceSession(ctx, db.UpsertPresenceSessionParams{
-		SourceKey:          source.Key,
-		SourceType:         sourceTypeUnifi,
-		Medium:             mediumWireless,
-		SourceSessionKey:   syntheticPresenceSessionKey("unifi", clientMAC, startedAt),
-		ClientMacAddress:   clientMAC,
-		NetworkDeviceID:    deviceID,
-		ObservationPointID: observationPointID,
-		StartedAt:          timestamptz(startedAt),
-		SourceUpdatedAt:    timestamptz(lastSeen),
-		LastSeenAt:         timestamptz(lastSeen),
-		EndedAt:            pgtype.Timestamptz{},
-		Ssid:               nullableString(ssid),
-		Metadata:           mergeSyntheticSessionMetadata(clientMetadata, "unifi_poll"),
-	})
-	return err
 }
 
 func (s *Service) closePresenceSession(
@@ -678,6 +461,43 @@ func buildUniFiMetadata(sourceKey string, client UniFiActiveClient, bssid string
 	}
 }
 
+func buildUniFiPolledClient(source config.PresenceSourceConfig, client UniFiActiveClient) polledPresenceClient {
+	lastSeen := client.LastSeen.UTC()
+	if lastSeen.IsZero() {
+		lastSeen = client.AssocTime.UTC()
+	}
+	if lastSeen.IsZero() {
+		lastSeen = time.Now().UTC()
+	}
+
+	firstSeen := client.AssocTime.UTC()
+	if firstSeen.IsZero() {
+		firstSeen = lastSeen
+	}
+
+	bssid, _ := normalizedOptionalMAC(client.BSSID)
+	apMAC, _ := normalizedOptionalMAC(client.APMAC)
+	observationExternalID := bssid
+	if observationExternalID == "" {
+		observationExternalID = apMAC
+	}
+	observationParentExternalID := ""
+	if apMAC != "" && apMAC != observationExternalID {
+		observationParentExternalID = apMAC
+	}
+
+	return polledPresenceClient{
+		MAC:                         client.MAC,
+		DisplayName:                 strings.TrimSpace(client.Hostname),
+		ObservationExternalID:       observationExternalID,
+		ObservationParentExternalID: observationParentExternalID,
+		SSID:                        client.ESSID,
+		FirstSeen:                   firstSeen,
+		LastSeen:                    lastSeen,
+		Metadata:                    buildUniFiMetadata(source.Key, client, bssid, apMAC, firstSeen, lastSeen),
+	}
+}
+
 func mergeSyntheticSessionMetadata(clientMetadata []byte, sessionOrigin string) []byte {
 	payload := map[string]any{
 		"session_origin":    sessionOrigin,
@@ -694,7 +514,7 @@ func mergeSyntheticSessionMetadata(clientMetadata []byte, sessionOrigin string) 
 	return mustJSON(payload)
 }
 
-func sameWirelessObservation(existingExternalID string, existingParentExternalID string, currentExternalID string, currentParentExternalID string) bool {
+func sameObservationIdentity(existingExternalID string, existingParentExternalID string, currentExternalID string, currentParentExternalID string) bool {
 	existingIDs := []string{strings.TrimSpace(existingExternalID), strings.TrimSpace(existingParentExternalID)}
 	currentIDs := []string{strings.TrimSpace(currentExternalID), strings.TrimSpace(currentParentExternalID)}
 

@@ -59,8 +59,8 @@ func NewUniFiHTTPClient(httpClient HTTPEr) *UniFiHTTPClient {
 func (c *UniFiHTTPClient) ListActiveClients(ctx context.Context, source config.PresenceSourceConfig) ([]UniFiActiveClient, error) {
 	baseURL := unifiBaseURL(source)
 	loginPayload := mustJSON(unifiLoginRequest{
-		Username:   source.CredentialEnv.Username,
-		Password:   source.CredentialEnv.Password,
+		Username:   resolveCredentialValue(source.CredentialEnv.Username),
+		Password:   resolveCredentialValue(source.CredentialEnv.Password),
 		RememberMe: true,
 		Token:      "",
 	})

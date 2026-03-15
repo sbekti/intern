@@ -31,6 +31,14 @@ func (f *scriptedUniFiClient) ListActiveClients(ctx context.Context, source conf
 	return append([]UniFiActiveClient(nil), f.clients...), nil
 }
 
+type fakeJuniperClient struct {
+	clients []polledPresenceClient
+}
+
+func (f fakeJuniperClient) ListActiveClients(ctx context.Context, source config.PresenceSourceConfig, pollTime time.Time) ([]polledPresenceClient, error) {
+	return append([]polledPresenceClient(nil), f.clients...), nil
+}
+
 func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	t.Parallel()
 
@@ -115,7 +123,7 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 				LastSeen:  lastSeenAt,
 			},
 		},
-	})
+	}, fakeJuniperClient{})
 	service.now = func() time.Time { return lastSeenAt }
 
 	if err := service.SyncWirelessOnce(ctx); err != nil {
@@ -236,7 +244,7 @@ func TestServiceSyncUniFiSourceClosesSyntheticSessionsAfterGrace(t *testing.T) {
 		PollIntervalDefault:    5 * time.Minute,
 		DisconnectGraceDefault: 15 * time.Minute,
 		Sources:                []config.PresenceSourceConfig{unifiSource},
-	}, activeClient)
+	}, activeClient, fakeJuniperClient{})
 	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC) }
 
 	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
@@ -334,7 +342,7 @@ func TestServiceSyncUniFiSourceClosesRadiusSessionsAfterGrace(t *testing.T) {
 		PollIntervalDefault:    5 * time.Minute,
 		DisconnectGraceDefault: 15 * time.Minute,
 		Sources:                []config.PresenceSourceConfig{unifiSource},
-	}, activeClient)
+	}, activeClient, fakeJuniperClient{})
 	service.now = func() time.Time { return startedAt.Add(5 * time.Minute) }
 
 	if err := service.SyncRadius(ctx); err != nil {
@@ -429,7 +437,7 @@ func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) 
 		PollIntervalDefault:    5 * time.Minute,
 		DisconnectGraceDefault: 15 * time.Minute,
 		Sources:                []config.PresenceSourceConfig{unifiSource},
-	}, activeClient)
+	}, activeClient, fakeJuniperClient{})
 	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC) }
 
 	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
@@ -487,5 +495,169 @@ func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) 
 	}
 	if endedAts[1].Valid {
 		t.Fatalf("expected second session to remain open after roam")
+	}
+}
+
+func TestServiceSyncJuniperSourceCreatesAndClosesSyntheticWiredSessions(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	juniperSource := config.PresenceSourceConfig{
+		Key:             "juniper-switch-a",
+		Type:            config.PresenceSourceTypeJuniperSNMP,
+		DisplayName:     "switch-a",
+		Host:            "192.0.2.10",
+		Port:            161,
+		PollInterval:    5 * time.Minute,
+		DisconnectGrace: 15 * time.Minute,
+	}
+	activeClient := &fakeJuniperClient{
+		clients: []polledPresenceClient{
+			{
+				MAC:                   "EC-B5-FA-B0-C2-00",
+				DisplayName:           "ge-0/0/4",
+				ObservationExternalID: "ge-0/0/4",
+				FirstSeen:             time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+				LastSeen:              time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+				Metadata: map[string]any{
+					"interface_name":   "ge-0/0/4",
+					"selection_reason": "single_mac_non_lldp_port",
+				},
+			},
+		},
+	}
+
+	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
+		Sources:                []config.PresenceSourceConfig{juniperSource},
+	}, fakeUniFiClient{}, activeClient)
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC) }
+
+	if err := service.SyncJuniperSource(ctx, juniperSource); err != nil {
+		t.Fatalf("expected initial juniper sync to succeed, got %v", err)
+	}
+
+	activeClient.clients = nil
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 19, 20, 0, 0, time.UTC) }
+	if err := service.SyncJuniperSource(ctx, juniperSource); err != nil {
+		t.Fatalf("expected stale juniper sync to succeed, got %v", err)
+	}
+
+	var status string
+	var sourceType string
+	var medium string
+	var endedAt time.Time
+	if err := pg.Pool.QueryRow(ctx, `
+		SELECT c.status, s.source_type, s.medium, s.ended_at
+		FROM presence_clients c
+		JOIN presence_sessions s ON lower(s.client_mac_address) = lower(c.mac_address)
+		WHERE lower(c.mac_address) = 'ec:b5:fa:b0:c2:00'
+		ORDER BY s.started_at DESC
+		LIMIT 1
+	`).Scan(&status, &sourceType, &medium, &endedAt); err != nil {
+		t.Fatalf("failed to load juniper-backed session: %v", err)
+	}
+
+	if status != clientStatusOffline {
+		t.Fatalf("expected client to be offline, got %q", status)
+	}
+	if sourceType != sourceTypeJuniperSNMP || medium != mediumWired {
+		t.Fatalf("expected juniper wired session, got source_type=%q medium=%q", sourceType, medium)
+	}
+	expectedEndedAt := time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC)
+	if !endedAt.Equal(expectedEndedAt) {
+		t.Fatalf("expected wired session to end at %s, got %s", expectedEndedAt, endedAt)
+	}
+}
+
+func TestServiceSyncJuniperSourceSplitsSessionsWhenPortChanges(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	juniperSource := config.PresenceSourceConfig{
+		Key:             "juniper-switch-a",
+		Type:            config.PresenceSourceTypeJuniperSNMP,
+		DisplayName:     "switch-a",
+		Host:            "192.0.2.10",
+		Port:            161,
+		PollInterval:    5 * time.Minute,
+		DisconnectGrace: 15 * time.Minute,
+	}
+	activeClient := &fakeJuniperClient{
+		clients: []polledPresenceClient{
+			{
+				MAC:                   "EC-B5-FA-B0-C2-00",
+				DisplayName:           "ge-0/0/4",
+				ObservationExternalID: "ge-0/0/4",
+				FirstSeen:             time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+				LastSeen:              time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC),
+				Metadata:              map[string]any{"interface_name": "ge-0/0/4"},
+			},
+		},
+	}
+
+	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
+		Sources:                []config.PresenceSourceConfig{juniperSource},
+	}, fakeUniFiClient{}, activeClient)
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 19, 0, 0, 0, time.UTC) }
+
+	if err := service.SyncJuniperSource(ctx, juniperSource); err != nil {
+		t.Fatalf("expected first juniper sync to succeed, got %v", err)
+	}
+
+	activeClient.clients = []polledPresenceClient{
+		{
+			MAC:                   "EC-B5-FA-B0-C2-00",
+			DisplayName:           "ge-0/0/5",
+			ObservationExternalID: "ge-0/0/5",
+			FirstSeen:             time.Date(2026, 3, 15, 19, 5, 0, 0, time.UTC),
+			LastSeen:              time.Date(2026, 3, 15, 19, 5, 0, 0, time.UTC),
+			Metadata:              map[string]any{"interface_name": "ge-0/0/5"},
+		},
+	}
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 19, 5, 0, 0, time.UTC) }
+	if err := service.SyncJuniperSource(ctx, juniperSource); err != nil {
+		t.Fatalf("expected moved juniper sync to succeed, got %v", err)
+	}
+
+	rows, err := pg.Pool.Query(ctx, `
+		SELECT source_session_key, ended_at
+		FROM presence_sessions
+		WHERE lower(client_mac_address) = 'ec:b5:fa:b0:c2:00'
+		ORDER BY started_at ASC
+	`)
+	if err != nil {
+		t.Fatalf("failed to list juniper sessions: %v", err)
+	}
+	defer rows.Close()
+
+	var endedAts []pgtype.Timestamptz
+	for rows.Next() {
+		var key string
+		var endedAt pgtype.Timestamptz
+		if err := rows.Scan(&key, &endedAt); err != nil {
+			t.Fatalf("failed to scan juniper session: %v", err)
+		}
+		endedAts = append(endedAts, endedAt)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("failed to iterate juniper sessions: %v", err)
+	}
+
+	if len(endedAts) != 2 {
+		t.Fatalf("expected two split wired sessions, got %d", len(endedAts))
+	}
+	if !endedAts[0].Valid {
+		t.Fatalf("expected first wired session to be closed after port move")
+	}
+	if endedAts[1].Valid {
+		t.Fatalf("expected second wired session to remain open after port move")
 	}
 }
