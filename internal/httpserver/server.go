@@ -24,6 +24,7 @@ import (
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/identity"
+	"github.com/sbekti/intern-api/internal/presence"
 	"github.com/sbekti/intern-api/internal/requestmeta"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
@@ -40,6 +41,7 @@ type Dependencies struct {
 	WeatherService    dashboard.WeatherService
 	VLANService       VLANService
 	DeviceService     DeviceService
+	PresenceService   PresenceService
 	ClientAuthService ClientAuthService
 	AuthSpamService   AuthSpamService
 	SessionService    SessionService
@@ -60,6 +62,14 @@ type DeviceService interface {
 	Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
 	Update(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error)
 	Delete(ctx context.Context, actor db.User, id uuid.UUID) error
+}
+
+type PresenceService interface {
+	ListManagedPresence(ctx context.Context) (map[uuid.UUID]presence.ManagedPresenceSummary, error)
+	GetManagedPresence(ctx context.Context, deviceID uuid.UUID) (*presence.ManagedPresenceSummary, error)
+	ListObservedClients(ctx context.Context, filter presence.ObservedClientFilter) (*presence.ObservedClientPage, error)
+	ListObservationPoints(ctx context.Context, filter presence.ObservationPointFilter) (*presence.ObservationPointPage, error)
+	UpdateObservationPoint(ctx context.Context, actor db.User, id uuid.UUID, patch api.PresenceObservationPointPatch) (presence.ObservationPointRecord, error)
 }
 
 type ClientAuthService interface {
@@ -96,9 +106,16 @@ type AuditLogService interface {
 const (
 	defaultAuthSessionLimit int32 = 25
 	maxAuthSessionLimit     int32 = 200
+	defaultPresenceLimit    int32 = 25
+	maxPresenceLimit        int32 = 200
 )
 
 type authSessionPageParams struct {
+	Limit  *int32
+	Offset *int32
+}
+
+type presencePageParams struct {
 	Limit  *int32
 	Offset *int32
 }
@@ -115,10 +132,15 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	dashboardService := dashboard.NewService(deps.DashboardStore, deps.WeatherService)
 	vlanService := deps.VLANService
 	deviceService := deps.DeviceService
+	presenceService := deps.PresenceService
 	clientAuthService := deps.ClientAuthService
 	authSpamService := deps.AuthSpamService
 	sessionService := deps.SessionService
 	auditLogService := deps.AuditLogService
+
+	if presenceService == nil {
+		presenceService = noopPresenceService{}
+	}
 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -504,9 +526,21 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
+			managedPresence, err := presenceService.ListManagedPresence(r.Context())
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list device presence")
+				return
+			}
+
 			responseItems := make([]api.NetworkDevice, 0, len(items))
 			for _, item := range items {
-				responseItems = append(responseItems, toAPINetworkDevice(item))
+				deviceID := uuid.UUID(item.Device.ID.Bytes)
+				presenceSummary, ok := managedPresence[deviceID]
+				if ok {
+					responseItems = append(responseItems, toAPINetworkDevice(item, &presenceSummary))
+					continue
+				}
+				responseItems = append(responseItems, toAPINetworkDevice(item, nil))
 			}
 
 			writeJSON(w, http.StatusOK, api.NetworkDeviceList{Items: responseItems})
@@ -530,7 +564,13 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			writeJSON(w, http.StatusOK, toAPINetworkDevice(record))
+			managedPresence, err := presenceService.GetManagedPresence(r.Context(), id)
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to get device presence")
+				return
+			}
+
+			writeJSON(w, http.StatusOK, toAPINetworkDevice(record, managedPresence))
 		})
 
 		r.With(authorizer.RequireAdmin()).Post("/networks/devices", func(w http.ResponseWriter, r *http.Request) {
@@ -557,7 +597,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			writeJSON(w, http.StatusCreated, toAPINetworkDevice(record))
+			writeJSON(w, http.StatusCreated, toAPINetworkDevice(record, nil))
 		})
 
 		r.With(authorizer.RequireAdmin()).Patch("/networks/devices/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -590,7 +630,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 				return
 			}
 
-			writeJSON(w, http.StatusOK, toAPINetworkDevice(record))
+			writeJSON(w, http.StatusOK, toAPINetworkDevice(record, nil))
 		})
 
 		r.With(authorizer.RequireAdmin()).Delete("/networks/devices/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -617,6 +657,104 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			}
 
 			w.WriteHeader(http.StatusNoContent)
+		})
+
+		r.With(authorizer.RequireAdmin()).Get("/networks/presence/clients", func(w http.ResponseWriter, r *http.Request) {
+			params, err := decodePresencePageParams(r)
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", err.Error())
+				return
+			}
+
+			page, err := presenceService.ListObservedClients(r.Context(), presence.ObservedClientFilter{
+				Query:         strings.TrimSpace(r.URL.Query().Get("q")),
+				Status:        strings.TrimSpace(r.URL.Query().Get("status")),
+				SourceType:    strings.TrimSpace(r.URL.Query().Get("source_type")),
+				SourceKey:     strings.TrimSpace(r.URL.Query().Get("source_key")),
+				Medium:        strings.TrimSpace(r.URL.Query().Get("medium")),
+				LocationQuery: strings.TrimSpace(r.URL.Query().Get("location")),
+				Limit:         int32Value(params.Limit, defaultPresenceLimit),
+				Offset:        int32Value(params.Offset, 0),
+			})
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list observed clients")
+				return
+			}
+
+			items := make([]api.ObservedPresenceClient, 0, len(page.Items))
+			for _, item := range page.Items {
+				items = append(items, toAPIObservedPresenceClient(item))
+			}
+			writeJSON(w, http.StatusOK, api.ObservedPresenceClientList{
+				Items: items,
+				Pagination: api.PresencePagination{
+					Limit:  page.Pagination.Limit,
+					Offset: page.Pagination.Offset,
+					Total:  page.Pagination.Total,
+				},
+			})
+		})
+
+		r.With(authorizer.RequireAdmin()).Get("/networks/presence/observation_points", func(w http.ResponseWriter, r *http.Request) {
+			params, err := decodePresencePageParams(r)
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", err.Error())
+				return
+			}
+
+			page, err := presenceService.ListObservationPoints(r.Context(), presence.ObservationPointFilter{
+				Query:      strings.TrimSpace(r.URL.Query().Get("q")),
+				SourceType: strings.TrimSpace(r.URL.Query().Get("source_type")),
+				SourceKey:  strings.TrimSpace(r.URL.Query().Get("source_key")),
+				Medium:     strings.TrimSpace(r.URL.Query().Get("medium")),
+				Limit:      int32Value(params.Limit, defaultPresenceLimit),
+				Offset:     int32Value(params.Offset, 0),
+			})
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list observation points")
+				return
+			}
+
+			items := make([]api.PresenceObservationPoint, 0, len(page.Items))
+			for _, item := range page.Items {
+				items = append(items, toAPIPresenceObservationPoint(item))
+			}
+			writeJSON(w, http.StatusOK, api.PresenceObservationPointList{
+				Items: items,
+				Pagination: api.PresencePagination{
+					Limit:  page.Pagination.Limit,
+					Offset: page.Pagination.Offset,
+					Total:  page.Pagination.Total,
+				},
+			})
+		})
+
+		r.With(authorizer.RequireAdmin()).Patch("/networks/presence/observation_points/{id}", func(w http.ResponseWriter, r *http.Request) {
+			actor, ok := identity.FromContext(r.Context())
+			if !ok {
+				writeAPIError(w, http.StatusInternalServerError, "internal_error", "current user missing")
+				return
+			}
+
+			id, err := decodeUUIDPathParam(r, "id")
+			if err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid observation point id")
+				return
+			}
+
+			var body api.PresenceObservationPointPatch
+			if err := decodeJSON(r, &body); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "bad_request", "invalid request body")
+				return
+			}
+
+			record, err := presenceService.UpdateObservationPoint(r.Context(), actor, id, body)
+			if err != nil {
+				handlePresenceError(w, err)
+				return
+			}
+
+			writeJSON(w, http.StatusOK, toAPIPresenceObservationPoint(record))
 		})
 
 		r.Post("/auth/device_codes", func(w http.ResponseWriter, r *http.Request) {
@@ -879,6 +1017,30 @@ func decodeAuthSessionPageParams(r *http.Request) (authSessionPageParams, error)
 	return params, nil
 }
 
+func decodePresencePageParams(r *http.Request) (presencePageParams, error) {
+	query := r.URL.Query()
+	params := presencePageParams{}
+
+	if raw := query.Get("limit"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || parsed < 1 || parsed > int64(maxPresenceLimit) {
+			return presencePageParams{}, errors.New("invalid limit")
+		}
+		value := int32(parsed)
+		params.Limit = &value
+	}
+	if raw := query.Get("offset"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || parsed < 0 {
+			return presencePageParams{}, errors.New("invalid offset")
+		}
+		value := int32(parsed)
+		params.Offset = &value
+	}
+
+	return params, nil
+}
+
 func currentSessionID(principal *auth.Principal) string {
 	if principal == nil {
 		return ""
@@ -940,7 +1102,19 @@ func handleDeviceError(w http.ResponseWriter, err error) {
 	}
 }
 
-func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
+func handlePresenceError(w http.ResponseWriter, err error) {
+	var validationErr presence.ValidationError
+	switch {
+	case errors.As(err, &validationErr):
+		writeAPIError(w, http.StatusBadRequest, "bad_request", validationErr.Error())
+	case errors.Is(err, presence.ErrObservationPointNotFound):
+		writeAPIError(w, http.StatusNotFound, "not_found", "observation point not found")
+	default:
+		writeAPIError(w, http.StatusInternalServerError, "internal_error", "presence operation failed")
+	}
+}
+
+func toAPINetworkDevice(record devices.DeviceRecord, managedPresence *presence.ManagedPresenceSummary) api.NetworkDevice {
 	result := api.NetworkDevice{
 		Id:          openapi_types.UUID(record.Device.ID.Bytes),
 		MacAddress:  record.Device.MacAddress,
@@ -961,7 +1135,66 @@ func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 		value := openapi_types.UUID(record.Device.UpdatedByUserID.Bytes)
 		result.UpdatedByUserId = &value
 	}
+	if managedPresence != nil {
+		result.Presence = &api.PresenceSummary{
+			Status:                api.PresenceSummaryStatus(managedPresence.Status),
+			LastSeenAt:            managedPresence.LastSeenAt,
+			SourceKey:             managedPresence.SourceKey,
+			SourceType:            api.PresenceSummarySourceType(managedPresence.SourceType),
+			Medium:                api.PresenceSummaryMedium(managedPresence.Medium),
+			ObservationExternalId: stringPtrIfNotEmpty(managedPresence.ObservationExternalID),
+			ObservationDisplayName: stringPtrIfNotEmpty(managedPresence.ObservationDisplayName),
+			LocationLabel:         stringPtrIfNotEmpty(managedPresence.LocationLabel),
+			Ssid:                  stringPtrIfNotEmpty(managedPresence.SSID),
+		}
+	}
 
+	return result
+}
+
+func toAPIObservedPresenceClient(record presence.ObservedClientRecord) api.ObservedPresenceClient {
+	result := api.ObservedPresenceClient{
+		Id:         openapi_types.UUID(record.ID),
+		MacAddress: record.MacAddress,
+		Status:     api.ObservedPresenceClientStatus(record.Status),
+		FirstSeenAt: record.FirstSeenAt,
+		LastSeenAt:  record.LastSeenAt,
+		SourceKey:   record.SourceKey,
+		SourceType:  api.ObservedPresenceClientSourceType(record.SourceType),
+		Medium:      api.ObservedPresenceClientMedium(record.Medium),
+		ManagedDeviceName:     stringPtrIfNotEmpty(record.ManagedDeviceName),
+		ObservationExternalId: stringPtrIfNotEmpty(record.ObservationExternalID),
+		LocationLabel:         stringPtrIfNotEmpty(record.LocationLabel),
+		Ssid:                  stringPtrIfNotEmpty(record.SSID),
+	}
+	result.ObservationDisplayName = stringPtrIfNotEmpty(record.ObservationDisplayName)
+	if record.ManagedDeviceID != nil {
+		value := openapi_types.UUID(*record.ManagedDeviceID)
+		result.ManagedDeviceId = &value
+	}
+	if record.ObservationPointID != nil {
+		value := openapi_types.UUID(*record.ObservationPointID)
+		result.ObservationPointId = &value
+	}
+	return result
+}
+
+func toAPIPresenceObservationPoint(record presence.ObservationPointRecord) api.PresenceObservationPoint {
+	result := api.PresenceObservationPoint{
+		Id:               openapi_types.UUID(record.ID),
+		SourceKey:        record.SourceKey,
+		SourceType:       api.PresenceObservationPointSourceType(record.SourceType),
+		Medium:           api.PresenceObservationPointMedium(record.Medium),
+		ExternalId:       record.ExternalID,
+		ParentExternalId: record.ParentExternalID,
+		DisplayName:      record.DisplayName,
+		LocationLabel:    record.LocationLabel,
+		Notes:            record.Notes,
+		Ssid:             stringPtrIfNotEmpty(record.SSID),
+	}
+	if record.LastSeenAt != nil {
+		result.LastSeenAt = record.LastSeenAt
+	}
 	return result
 }
 
@@ -1006,6 +1239,35 @@ func handleClientAuthError(w http.ResponseWriter, err error) {
 	default:
 		writeAPIError(w, http.StatusInternalServerError, "internal_error", "client auth operation failed")
 	}
+}
+
+func stringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+type noopPresenceService struct{}
+
+func (noopPresenceService) ListManagedPresence(context.Context) (map[uuid.UUID]presence.ManagedPresenceSummary, error) {
+	return map[uuid.UUID]presence.ManagedPresenceSummary{}, nil
+}
+
+func (noopPresenceService) GetManagedPresence(context.Context, uuid.UUID) (*presence.ManagedPresenceSummary, error) {
+	return nil, nil
+}
+
+func (noopPresenceService) ListObservedClients(context.Context, presence.ObservedClientFilter) (*presence.ObservedClientPage, error) {
+	return &presence.ObservedClientPage{Items: []presence.ObservedClientRecord{}, Pagination: presence.Page{}}, nil
+}
+
+func (noopPresenceService) ListObservationPoints(context.Context, presence.ObservationPointFilter) (*presence.ObservationPointPage, error) {
+	return &presence.ObservationPointPage{Items: []presence.ObservationPointRecord{}, Pagination: presence.Page{}}, nil
+}
+
+func (noopPresenceService) UpdateObservationPoint(context.Context, db.User, uuid.UUID, api.PresenceObservationPointPatch) (presence.ObservationPointRecord, error) {
+	return presence.ObservationPointRecord{}, presence.ErrObservationPointNotFound
 }
 
 type deviceFlowRateLimitScope string

@@ -19,6 +19,7 @@ import (
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
 	"github.com/sbekti/intern-api/internal/httpserver"
+	"github.com/sbekti/intern-api/internal/presence"
 	"github.com/sbekti/intern-api/internal/sessions"
 	"github.com/sbekti/intern-api/internal/vlans"
 	"github.com/sbekti/intern-api/internal/weather"
@@ -79,6 +80,7 @@ func main() {
 	authSpamService := authspam.NewService(redisClient, cfg.Auth.RateLimit)
 	auditLogService := auditlogs.NewService(queries)
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
+	presenceService := presence.NewCatalogService(queries, pool)
 	sessionService := sessions.NewService(queries)
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
@@ -90,6 +92,7 @@ func main() {
 			WeatherService:    weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
 			VLANService:       vlanService,
 			DeviceService:     deviceService,
+			PresenceService:   presenceService,
 			ClientAuthService: clientAuthService,
 			AuthSpamService:   authSpamService,
 			SessionService:    sessionService,

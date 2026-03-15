@@ -453,7 +453,7 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/ObservationPointId'
       responses:
         '200':
           description: Device record.
@@ -517,6 +517,163 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/networks/presence/clients:
+    get:
+      operationId: listObservedPresenceClients
+      tags: [Networks]
+      summary: List observed presence clients.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [online, offline]
+        - name: source_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [radius, unifi, juniper-snmp, juniper-ssh]
+        - name: source_key
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: medium
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [wireless, wired]
+        - name: location
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 25
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Observed presence clients.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ObservedPresenceClientList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/networks/presence/observation_points:
+    get:
+      operationId: listPresenceObservationPoints
+      tags: [Networks]
+      summary: List observation point mappings.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: source_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [radius, unifi, juniper-snmp, juniper-ssh]
+        - name: source_key
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: medium
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [wireless, wired]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 200
+            default: 25
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Observation point mappings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceObservationPointList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/networks/presence/observation_points/{id}:
+    patch:
+      operationId: patchPresenceObservationPoint
+      tags: [Networks]
+      summary: Update an observation point mapping.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresenceObservationPointPatch'
+      responses:
+        '200':
+          description: Updated observation point.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresenceObservationPoint'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/auth/device_codes:
     post:
       operationId: createDeviceCode
@@ -665,6 +822,13 @@ components:
       bearerFormat: JWT
   parameters:
     DeviceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ObservationPointId:
       name: id
       in: path
       required: true
@@ -1030,6 +1194,8 @@ components:
         updated_at:
           type: string
           format: date-time
+        presence:
+          $ref: '#/components/schemas/PresenceSummary'
     NetworkDeviceList:
       type: object
       required: [items]
@@ -1038,6 +1204,170 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NetworkDevice'
+    PresenceSummary:
+      type: object
+      required:
+        - status
+        - last_seen_at
+        - source_key
+        - source_type
+        - medium
+      properties:
+        status:
+          type: string
+          enum: [online, offline]
+        last_seen_at:
+          type: string
+          format: date-time
+        source_key:
+          type: string
+        source_type:
+          type: string
+          enum: [radius, unifi, juniper-snmp, juniper-ssh]
+        medium:
+          type: string
+          enum: [wireless, wired]
+        observation_external_id:
+          type: string
+        observation_display_name:
+          type: string
+        location_label:
+          type: string
+        ssid:
+          type: string
+    ObservedPresenceClient:
+      type: object
+      required:
+        - id
+        - mac_address
+        - status
+        - first_seen_at
+        - last_seen_at
+        - source_key
+        - source_type
+        - medium
+      properties:
+        id:
+          type: string
+          format: uuid
+        mac_address:
+          type: string
+          example: aa:bb:cc:dd:ee:ff
+        managed_device_id:
+          type: string
+          format: uuid
+          nullable: true
+        managed_device_name:
+          type: string
+        status:
+          type: string
+          enum: [online, offline]
+        first_seen_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        source_key:
+          type: string
+        source_type:
+          type: string
+          enum: [radius, unifi, juniper-snmp, juniper-ssh]
+        medium:
+          type: string
+          enum: [wireless, wired]
+        observation_point_id:
+          type: string
+          format: uuid
+          nullable: true
+        observation_external_id:
+          type: string
+        observation_display_name:
+          type: string
+        location_label:
+          type: string
+        ssid:
+          type: string
+    PresencePagination:
+      type: object
+      required: [limit, offset, total]
+      properties:
+        limit:
+          type: integer
+          format: int32
+        offset:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int64
+    ObservedPresenceClientList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObservedPresenceClient'
+        pagination:
+          $ref: '#/components/schemas/PresencePagination'
+    PresenceObservationPoint:
+      type: object
+      required:
+        - id
+        - source_key
+        - source_type
+        - medium
+        - external_id
+        - parent_external_id
+        - display_name
+        - location_label
+        - notes
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_key:
+          type: string
+        source_type:
+          type: string
+          enum: [radius, unifi, juniper-snmp, juniper-ssh]
+        medium:
+          type: string
+          enum: [wireless, wired]
+        external_id:
+          type: string
+        parent_external_id:
+          type: string
+        display_name:
+          type: string
+        location_label:
+          type: string
+        notes:
+          type: string
+        ssid:
+          type: string
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+    PresenceObservationPointList:
+      type: object
+      required: [items, pagination]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresenceObservationPoint'
+        pagination:
+          $ref: '#/components/schemas/PresencePagination'
+    PresenceObservationPointPatch:
+      type: object
+      properties:
+        location_label:
+          type: string
+        notes:
+          type: string
     NetworkDeviceWrite:
       type: object
       required: [mac_address, display_name, vlan_id]

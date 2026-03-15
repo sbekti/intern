@@ -54,6 +54,270 @@ func (e ClientAuthErrorError) Valid() bool {
 	}
 }
 
+// Defines values for ObservedPresenceClientMedium.
+const (
+	ObservedPresenceClientMediumWired    ObservedPresenceClientMedium = "wired"
+	ObservedPresenceClientMediumWireless ObservedPresenceClientMedium = "wireless"
+)
+
+// Valid indicates whether the value is a known member of the ObservedPresenceClientMedium enum.
+func (e ObservedPresenceClientMedium) Valid() bool {
+	switch e {
+	case ObservedPresenceClientMediumWired:
+		return true
+	case ObservedPresenceClientMediumWireless:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ObservedPresenceClientSourceType.
+const (
+	ObservedPresenceClientSourceTypeJuniperSnmp ObservedPresenceClientSourceType = "juniper-snmp"
+	ObservedPresenceClientSourceTypeJuniperSsh  ObservedPresenceClientSourceType = "juniper-ssh"
+	ObservedPresenceClientSourceTypeRadius      ObservedPresenceClientSourceType = "radius"
+	ObservedPresenceClientSourceTypeUnifi       ObservedPresenceClientSourceType = "unifi"
+)
+
+// Valid indicates whether the value is a known member of the ObservedPresenceClientSourceType enum.
+func (e ObservedPresenceClientSourceType) Valid() bool {
+	switch e {
+	case ObservedPresenceClientSourceTypeJuniperSnmp:
+		return true
+	case ObservedPresenceClientSourceTypeJuniperSsh:
+		return true
+	case ObservedPresenceClientSourceTypeRadius:
+		return true
+	case ObservedPresenceClientSourceTypeUnifi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ObservedPresenceClientStatus.
+const (
+	ObservedPresenceClientStatusOffline ObservedPresenceClientStatus = "offline"
+	ObservedPresenceClientStatusOnline  ObservedPresenceClientStatus = "online"
+)
+
+// Valid indicates whether the value is a known member of the ObservedPresenceClientStatus enum.
+func (e ObservedPresenceClientStatus) Valid() bool {
+	switch e {
+	case ObservedPresenceClientStatusOffline:
+		return true
+	case ObservedPresenceClientStatusOnline:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresenceObservationPointMedium.
+const (
+	PresenceObservationPointMediumWired    PresenceObservationPointMedium = "wired"
+	PresenceObservationPointMediumWireless PresenceObservationPointMedium = "wireless"
+)
+
+// Valid indicates whether the value is a known member of the PresenceObservationPointMedium enum.
+func (e PresenceObservationPointMedium) Valid() bool {
+	switch e {
+	case PresenceObservationPointMediumWired:
+		return true
+	case PresenceObservationPointMediumWireless:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresenceObservationPointSourceType.
+const (
+	PresenceObservationPointSourceTypeJuniperSnmp PresenceObservationPointSourceType = "juniper-snmp"
+	PresenceObservationPointSourceTypeJuniperSsh  PresenceObservationPointSourceType = "juniper-ssh"
+	PresenceObservationPointSourceTypeRadius      PresenceObservationPointSourceType = "radius"
+	PresenceObservationPointSourceTypeUnifi       PresenceObservationPointSourceType = "unifi"
+)
+
+// Valid indicates whether the value is a known member of the PresenceObservationPointSourceType enum.
+func (e PresenceObservationPointSourceType) Valid() bool {
+	switch e {
+	case PresenceObservationPointSourceTypeJuniperSnmp:
+		return true
+	case PresenceObservationPointSourceTypeJuniperSsh:
+		return true
+	case PresenceObservationPointSourceTypeRadius:
+		return true
+	case PresenceObservationPointSourceTypeUnifi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresenceSummaryMedium.
+const (
+	PresenceSummaryMediumWired    PresenceSummaryMedium = "wired"
+	PresenceSummaryMediumWireless PresenceSummaryMedium = "wireless"
+)
+
+// Valid indicates whether the value is a known member of the PresenceSummaryMedium enum.
+func (e PresenceSummaryMedium) Valid() bool {
+	switch e {
+	case PresenceSummaryMediumWired:
+		return true
+	case PresenceSummaryMediumWireless:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresenceSummarySourceType.
+const (
+	PresenceSummarySourceTypeJuniperSnmp PresenceSummarySourceType = "juniper-snmp"
+	PresenceSummarySourceTypeJuniperSsh  PresenceSummarySourceType = "juniper-ssh"
+	PresenceSummarySourceTypeRadius      PresenceSummarySourceType = "radius"
+	PresenceSummarySourceTypeUnifi       PresenceSummarySourceType = "unifi"
+)
+
+// Valid indicates whether the value is a known member of the PresenceSummarySourceType enum.
+func (e PresenceSummarySourceType) Valid() bool {
+	switch e {
+	case PresenceSummarySourceTypeJuniperSnmp:
+		return true
+	case PresenceSummarySourceTypeJuniperSsh:
+		return true
+	case PresenceSummarySourceTypeRadius:
+		return true
+	case PresenceSummarySourceTypeUnifi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PresenceSummaryStatus.
+const (
+	PresenceSummaryStatusOffline PresenceSummaryStatus = "offline"
+	PresenceSummaryStatusOnline  PresenceSummaryStatus = "online"
+)
+
+// Valid indicates whether the value is a known member of the PresenceSummaryStatus enum.
+func (e PresenceSummaryStatus) Valid() bool {
+	switch e {
+	case PresenceSummaryStatusOffline:
+		return true
+	case PresenceSummaryStatusOnline:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListObservedPresenceClientsParamsStatus.
+const (
+	Offline ListObservedPresenceClientsParamsStatus = "offline"
+	Online  ListObservedPresenceClientsParamsStatus = "online"
+)
+
+// Valid indicates whether the value is a known member of the ListObservedPresenceClientsParamsStatus enum.
+func (e ListObservedPresenceClientsParamsStatus) Valid() bool {
+	switch e {
+	case Offline:
+		return true
+	case Online:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListObservedPresenceClientsParamsSourceType.
+const (
+	ListObservedPresenceClientsParamsSourceTypeJuniperSnmp ListObservedPresenceClientsParamsSourceType = "juniper-snmp"
+	ListObservedPresenceClientsParamsSourceTypeJuniperSsh  ListObservedPresenceClientsParamsSourceType = "juniper-ssh"
+	ListObservedPresenceClientsParamsSourceTypeRadius      ListObservedPresenceClientsParamsSourceType = "radius"
+	ListObservedPresenceClientsParamsSourceTypeUnifi       ListObservedPresenceClientsParamsSourceType = "unifi"
+)
+
+// Valid indicates whether the value is a known member of the ListObservedPresenceClientsParamsSourceType enum.
+func (e ListObservedPresenceClientsParamsSourceType) Valid() bool {
+	switch e {
+	case ListObservedPresenceClientsParamsSourceTypeJuniperSnmp:
+		return true
+	case ListObservedPresenceClientsParamsSourceTypeJuniperSsh:
+		return true
+	case ListObservedPresenceClientsParamsSourceTypeRadius:
+		return true
+	case ListObservedPresenceClientsParamsSourceTypeUnifi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListObservedPresenceClientsParamsMedium.
+const (
+	ListObservedPresenceClientsParamsMediumWired    ListObservedPresenceClientsParamsMedium = "wired"
+	ListObservedPresenceClientsParamsMediumWireless ListObservedPresenceClientsParamsMedium = "wireless"
+)
+
+// Valid indicates whether the value is a known member of the ListObservedPresenceClientsParamsMedium enum.
+func (e ListObservedPresenceClientsParamsMedium) Valid() bool {
+	switch e {
+	case ListObservedPresenceClientsParamsMediumWired:
+		return true
+	case ListObservedPresenceClientsParamsMediumWireless:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPresenceObservationPointsParamsSourceType.
+const (
+	JuniperSnmp ListPresenceObservationPointsParamsSourceType = "juniper-snmp"
+	JuniperSsh  ListPresenceObservationPointsParamsSourceType = "juniper-ssh"
+	Radius      ListPresenceObservationPointsParamsSourceType = "radius"
+	Unifi       ListPresenceObservationPointsParamsSourceType = "unifi"
+)
+
+// Valid indicates whether the value is a known member of the ListPresenceObservationPointsParamsSourceType enum.
+func (e ListPresenceObservationPointsParamsSourceType) Valid() bool {
+	switch e {
+	case JuniperSnmp:
+		return true
+	case JuniperSsh:
+		return true
+	case Radius:
+		return true
+	case Unifi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPresenceObservationPointsParamsMedium.
+const (
+	Wired    ListPresenceObservationPointsParamsMedium = "wired"
+	Wireless ListPresenceObservationPointsParamsMedium = "wireless"
+)
+
+// Valid indicates whether the value is a known member of the ListPresenceObservationPointsParamsMedium enum.
+func (e ListPresenceObservationPointsParamsMedium) Valid() bool {
+	switch e {
+	case Wired:
+		return true
+	case Wireless:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuditLogEntry defines model for AuditLogEntry.
 type AuditLogEntry struct {
 	Action        string                 `json:"action"`
@@ -158,6 +422,7 @@ type NetworkDevice struct {
 	DisplayName     string              `json:"display_name"`
 	Id              openapi_types.UUID  `json:"id"`
 	MacAddress      string              `json:"mac_address"`
+	Presence        *PresenceSummary    `json:"presence,omitempty"`
 	UpdatedAt       time.Time           `json:"updated_at"`
 	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id,omitempty"`
 	Vlan            VlanRef             `json:"vlan"`
@@ -187,6 +452,102 @@ type NetworkSummary struct {
 	DeviceCount int64 `json:"device_count"`
 	VlanCount   int64 `json:"vlan_count"`
 }
+
+// ObservedPresenceClient defines model for ObservedPresenceClient.
+type ObservedPresenceClient struct {
+	FirstSeenAt            time.Time                        `json:"first_seen_at"`
+	Id                     openapi_types.UUID               `json:"id"`
+	LastSeenAt             time.Time                        `json:"last_seen_at"`
+	LocationLabel          *string                          `json:"location_label,omitempty"`
+	MacAddress             string                           `json:"mac_address"`
+	ManagedDeviceId        *openapi_types.UUID              `json:"managed_device_id,omitempty"`
+	ManagedDeviceName      *string                          `json:"managed_device_name,omitempty"`
+	Medium                 ObservedPresenceClientMedium     `json:"medium"`
+	ObservationDisplayName *string                          `json:"observation_display_name,omitempty"`
+	ObservationExternalId  *string                          `json:"observation_external_id,omitempty"`
+	ObservationPointId     *openapi_types.UUID              `json:"observation_point_id,omitempty"`
+	SourceKey              string                           `json:"source_key"`
+	SourceType             ObservedPresenceClientSourceType `json:"source_type"`
+	Ssid                   *string                          `json:"ssid,omitempty"`
+	Status                 ObservedPresenceClientStatus     `json:"status"`
+}
+
+// ObservedPresenceClientMedium defines model for ObservedPresenceClient.Medium.
+type ObservedPresenceClientMedium string
+
+// ObservedPresenceClientSourceType defines model for ObservedPresenceClient.SourceType.
+type ObservedPresenceClientSourceType string
+
+// ObservedPresenceClientStatus defines model for ObservedPresenceClient.Status.
+type ObservedPresenceClientStatus string
+
+// ObservedPresenceClientList defines model for ObservedPresenceClientList.
+type ObservedPresenceClientList struct {
+	Items      []ObservedPresenceClient `json:"items"`
+	Pagination PresencePagination       `json:"pagination"`
+}
+
+// PresenceObservationPoint defines model for PresenceObservationPoint.
+type PresenceObservationPoint struct {
+	DisplayName      string                             `json:"display_name"`
+	ExternalId       string                             `json:"external_id"`
+	Id               openapi_types.UUID                 `json:"id"`
+	LastSeenAt       *time.Time                         `json:"last_seen_at,omitempty"`
+	LocationLabel    string                             `json:"location_label"`
+	Medium           PresenceObservationPointMedium     `json:"medium"`
+	Notes            string                             `json:"notes"`
+	ParentExternalId string                             `json:"parent_external_id"`
+	SourceKey        string                             `json:"source_key"`
+	SourceType       PresenceObservationPointSourceType `json:"source_type"`
+	Ssid             *string                            `json:"ssid,omitempty"`
+}
+
+// PresenceObservationPointMedium defines model for PresenceObservationPoint.Medium.
+type PresenceObservationPointMedium string
+
+// PresenceObservationPointSourceType defines model for PresenceObservationPoint.SourceType.
+type PresenceObservationPointSourceType string
+
+// PresenceObservationPointList defines model for PresenceObservationPointList.
+type PresenceObservationPointList struct {
+	Items      []PresenceObservationPoint `json:"items"`
+	Pagination PresencePagination         `json:"pagination"`
+}
+
+// PresenceObservationPointPatch defines model for PresenceObservationPointPatch.
+type PresenceObservationPointPatch struct {
+	LocationLabel *string `json:"location_label,omitempty"`
+	Notes         *string `json:"notes,omitempty"`
+}
+
+// PresencePagination defines model for PresencePagination.
+type PresencePagination struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+	Total  int64 `json:"total"`
+}
+
+// PresenceSummary defines model for PresenceSummary.
+type PresenceSummary struct {
+	LastSeenAt             time.Time                 `json:"last_seen_at"`
+	LocationLabel          *string                   `json:"location_label,omitempty"`
+	Medium                 PresenceSummaryMedium     `json:"medium"`
+	ObservationDisplayName *string                   `json:"observation_display_name,omitempty"`
+	ObservationExternalId  *string                   `json:"observation_external_id,omitempty"`
+	SourceKey              string                    `json:"source_key"`
+	SourceType             PresenceSummarySourceType `json:"source_type"`
+	Ssid                   *string                   `json:"ssid,omitempty"`
+	Status                 PresenceSummaryStatus     `json:"status"`
+}
+
+// PresenceSummaryMedium defines model for PresenceSummary.Medium.
+type PresenceSummaryMedium string
+
+// PresenceSummarySourceType defines model for PresenceSummary.SourceType.
+type PresenceSummarySourceType string
+
+// PresenceSummaryStatus defines model for PresenceSummary.Status.
+type PresenceSummaryStatus string
 
 // Profile defines model for Profile.
 type Profile struct {
@@ -273,6 +634,9 @@ type WeatherSummary struct {
 // DeviceId defines model for DeviceId.
 type DeviceId = openapi_types.UUID
 
+// ObservationPointId defines model for ObservationPointId.
+type ObservationPointId = openapi_types.UUID
+
 // SessionId defines model for SessionId.
 type SessionId = openapi_types.UUID
 
@@ -316,6 +680,43 @@ type ListAdminAuthSessionsParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListObservedPresenceClientsParams defines parameters for ListObservedPresenceClients.
+type ListObservedPresenceClientsParams struct {
+	Q          *string                                      `form:"q,omitempty" json:"q,omitempty"`
+	Status     *ListObservedPresenceClientsParamsStatus     `form:"status,omitempty" json:"status,omitempty"`
+	SourceType *ListObservedPresenceClientsParamsSourceType `form:"source_type,omitempty" json:"source_type,omitempty"`
+	SourceKey  *string                                      `form:"source_key,omitempty" json:"source_key,omitempty"`
+	Medium     *ListObservedPresenceClientsParamsMedium     `form:"medium,omitempty" json:"medium,omitempty"`
+	Location   *string                                      `form:"location,omitempty" json:"location,omitempty"`
+	Limit      *int32                                       `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *int32                                       `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListObservedPresenceClientsParamsStatus defines parameters for ListObservedPresenceClients.
+type ListObservedPresenceClientsParamsStatus string
+
+// ListObservedPresenceClientsParamsSourceType defines parameters for ListObservedPresenceClients.
+type ListObservedPresenceClientsParamsSourceType string
+
+// ListObservedPresenceClientsParamsMedium defines parameters for ListObservedPresenceClients.
+type ListObservedPresenceClientsParamsMedium string
+
+// ListPresenceObservationPointsParams defines parameters for ListPresenceObservationPoints.
+type ListPresenceObservationPointsParams struct {
+	Q          *string                                        `form:"q,omitempty" json:"q,omitempty"`
+	SourceType *ListPresenceObservationPointsParamsSourceType `form:"source_type,omitempty" json:"source_type,omitempty"`
+	SourceKey  *string                                        `form:"source_key,omitempty" json:"source_key,omitempty"`
+	Medium     *ListPresenceObservationPointsParamsMedium     `form:"medium,omitempty" json:"medium,omitempty"`
+	Limit      *int32                                         `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *int32                                         `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListPresenceObservationPointsParamsSourceType defines parameters for ListPresenceObservationPoints.
+type ListPresenceObservationPointsParamsSourceType string
+
+// ListPresenceObservationPointsParamsMedium defines parameters for ListPresenceObservationPoints.
+type ListPresenceObservationPointsParamsMedium string
+
 // ListProfileSessionsParams defines parameters for ListProfileSessions.
 type ListProfileSessionsParams struct {
 	Limit  *int32 `form:"limit,omitempty" json:"limit,omitempty"`
@@ -339,6 +740,9 @@ type CreateNetworkDeviceJSONRequestBody = NetworkDeviceWrite
 
 // PatchNetworkDeviceJSONRequestBody defines body for PatchNetworkDevice for application/json ContentType.
 type PatchNetworkDeviceJSONRequestBody = NetworkDevicePatch
+
+// PatchPresenceObservationPointJSONRequestBody defines body for PatchPresenceObservationPoint for application/json ContentType.
+type PatchPresenceObservationPointJSONRequestBody = PresenceObservationPointPatch
 
 // CreateVlanJSONRequestBody defines body for CreateVlan for application/json ContentType.
 type CreateVlanJSONRequestBody = VlanWrite
@@ -475,12 +879,23 @@ type ClientInterface interface {
 	DeleteNetworkDevice(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetNetworkDevice request
-	GetNetworkDevice(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetNetworkDevice(ctx context.Context, id ObservationPointId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PatchNetworkDeviceWithBody request with any body
 	PatchNetworkDeviceWithBody(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PatchNetworkDevice(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListObservedPresenceClients request
+	ListObservedPresenceClients(ctx context.Context, params *ListObservedPresenceClientsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListPresenceObservationPoints request
+	ListPresenceObservationPoints(ctx context.Context, params *ListPresenceObservationPointsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchPresenceObservationPointWithBody request with any body
+	PatchPresenceObservationPointWithBody(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PatchPresenceObservationPoint(ctx context.Context, id DeviceId, body PatchPresenceObservationPointJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListVlans request
 	ListVlans(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -747,7 +1162,7 @@ func (c *Client) DeleteNetworkDevice(ctx context.Context, id DeviceId, reqEditor
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetNetworkDevice(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+func (c *Client) GetNetworkDevice(ctx context.Context, id ObservationPointId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetNetworkDeviceRequest(c.Server, id)
 	if err != nil {
 		return nil, err
@@ -773,6 +1188,54 @@ func (c *Client) PatchNetworkDeviceWithBody(ctx context.Context, id DeviceId, co
 
 func (c *Client) PatchNetworkDevice(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchNetworkDeviceRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListObservedPresenceClients(ctx context.Context, params *ListObservedPresenceClientsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListObservedPresenceClientsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListPresenceObservationPoints(ctx context.Context, params *ListPresenceObservationPointsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListPresenceObservationPointsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchPresenceObservationPointWithBody(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchPresenceObservationPointRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) PatchPresenceObservationPoint(ctx context.Context, id DeviceId, body PatchPresenceObservationPointJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchPresenceObservationPointRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1551,7 +2014,7 @@ func NewDeleteNetworkDeviceRequest(server string, id DeviceId) (*http.Request, e
 }
 
 // NewGetNetworkDeviceRequest generates requests for GetNetworkDevice
-func NewGetNetworkDeviceRequest(server string, id DeviceId) (*http.Request, error) {
+func NewGetNetworkDeviceRequest(server string, id ObservationPointId) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -1612,6 +2075,343 @@ func NewPatchNetworkDeviceRequestWithBody(server string, id DeviceId, contentTyp
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/networks/devices/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListObservedPresenceClientsRequest generates requests for ListObservedPresenceClients
+func NewListObservedPresenceClientsRequest(server string, params *ListObservedPresenceClientsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/networks/presence/clients")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "source_type", *params.SourceType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "source_key", *params.SourceKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Medium != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "medium", *params.Medium, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Location != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "location", *params.Location, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListPresenceObservationPointsRequest generates requests for ListPresenceObservationPoints
+func NewListPresenceObservationPointsRequest(server string, params *ListPresenceObservationPointsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/networks/presence/observation_points")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceType != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "source_type", *params.SourceType, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.SourceKey != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "source_key", *params.SourceKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Medium != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "medium", *params.Medium, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int32"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPatchPresenceObservationPointRequest calls the generic PatchPresenceObservationPoint builder with application/json body
+func NewPatchPresenceObservationPointRequest(server string, id DeviceId, body PatchPresenceObservationPointJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchPresenceObservationPointRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewPatchPresenceObservationPointRequestWithBody generates requests for PatchPresenceObservationPoint with any type of body
+func NewPatchPresenceObservationPointRequestWithBody(server string, id DeviceId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/networks/presence/observation_points/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2102,12 +2902,23 @@ type ClientWithResponsesInterface interface {
 	DeleteNetworkDeviceWithResponse(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*DeleteNetworkDeviceResponse, error)
 
 	// GetNetworkDeviceWithResponse request
-	GetNetworkDeviceWithResponse(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*GetNetworkDeviceResponse, error)
+	GetNetworkDeviceWithResponse(ctx context.Context, id ObservationPointId, reqEditors ...RequestEditorFn) (*GetNetworkDeviceResponse, error)
 
 	// PatchNetworkDeviceWithBodyWithResponse request with any body
 	PatchNetworkDeviceWithBodyWithResponse(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchNetworkDeviceResponse, error)
 
 	PatchNetworkDeviceWithResponse(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchNetworkDeviceResponse, error)
+
+	// ListObservedPresenceClientsWithResponse request
+	ListObservedPresenceClientsWithResponse(ctx context.Context, params *ListObservedPresenceClientsParams, reqEditors ...RequestEditorFn) (*ListObservedPresenceClientsResponse, error)
+
+	// ListPresenceObservationPointsWithResponse request
+	ListPresenceObservationPointsWithResponse(ctx context.Context, params *ListPresenceObservationPointsParams, reqEditors ...RequestEditorFn) (*ListPresenceObservationPointsResponse, error)
+
+	// PatchPresenceObservationPointWithBodyWithResponse request with any body
+	PatchPresenceObservationPointWithBodyWithResponse(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchPresenceObservationPointResponse, error)
+
+	PatchPresenceObservationPointWithResponse(ctx context.Context, id DeviceId, body PatchPresenceObservationPointJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchPresenceObservationPointResponse, error)
 
 	// ListVlansWithResponse request
 	ListVlansWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListVlansResponse, error)
@@ -2539,6 +3350,80 @@ func (r PatchNetworkDeviceResponse) StatusCode() int {
 	return 0
 }
 
+type ListObservedPresenceClientsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ObservedPresenceClientList
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+}
+
+// Status returns HTTPResponse.Status
+func (r ListObservedPresenceClientsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListObservedPresenceClientsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListPresenceObservationPointsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PresenceObservationPointList
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+}
+
+// Status returns HTTPResponse.Status
+func (r ListPresenceObservationPointsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListPresenceObservationPointsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type PatchPresenceObservationPointResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PresenceObservationPoint
+	JSON400      *BadRequest
+	JSON401      *Unauthorized
+	JSON403      *Forbidden
+	JSON404      *NotFound
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchPresenceObservationPointResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchPresenceObservationPointResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListVlansResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -2950,7 +3835,7 @@ func (c *ClientWithResponses) DeleteNetworkDeviceWithResponse(ctx context.Contex
 }
 
 // GetNetworkDeviceWithResponse request returning *GetNetworkDeviceResponse
-func (c *ClientWithResponses) GetNetworkDeviceWithResponse(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*GetNetworkDeviceResponse, error) {
+func (c *ClientWithResponses) GetNetworkDeviceWithResponse(ctx context.Context, id ObservationPointId, reqEditors ...RequestEditorFn) (*GetNetworkDeviceResponse, error) {
 	rsp, err := c.GetNetworkDevice(ctx, id, reqEditors...)
 	if err != nil {
 		return nil, err
@@ -2973,6 +3858,41 @@ func (c *ClientWithResponses) PatchNetworkDeviceWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePatchNetworkDeviceResponse(rsp)
+}
+
+// ListObservedPresenceClientsWithResponse request returning *ListObservedPresenceClientsResponse
+func (c *ClientWithResponses) ListObservedPresenceClientsWithResponse(ctx context.Context, params *ListObservedPresenceClientsParams, reqEditors ...RequestEditorFn) (*ListObservedPresenceClientsResponse, error) {
+	rsp, err := c.ListObservedPresenceClients(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListObservedPresenceClientsResponse(rsp)
+}
+
+// ListPresenceObservationPointsWithResponse request returning *ListPresenceObservationPointsResponse
+func (c *ClientWithResponses) ListPresenceObservationPointsWithResponse(ctx context.Context, params *ListPresenceObservationPointsParams, reqEditors ...RequestEditorFn) (*ListPresenceObservationPointsResponse, error) {
+	rsp, err := c.ListPresenceObservationPoints(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListPresenceObservationPointsResponse(rsp)
+}
+
+// PatchPresenceObservationPointWithBodyWithResponse request with arbitrary body returning *PatchPresenceObservationPointResponse
+func (c *ClientWithResponses) PatchPresenceObservationPointWithBodyWithResponse(ctx context.Context, id DeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchPresenceObservationPointResponse, error) {
+	rsp, err := c.PatchPresenceObservationPointWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchPresenceObservationPointResponse(rsp)
+}
+
+func (c *ClientWithResponses) PatchPresenceObservationPointWithResponse(ctx context.Context, id DeviceId, body PatchPresenceObservationPointJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchPresenceObservationPointResponse, error) {
+	rsp, err := c.PatchPresenceObservationPoint(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchPresenceObservationPointResponse(rsp)
 }
 
 // ListVlansWithResponse request returning *ListVlansResponse
@@ -3792,6 +4712,140 @@ func ParsePatchNetworkDeviceResponse(rsp *http.Response) (*PatchNetworkDeviceRes
 	return response, nil
 }
 
+// ParseListObservedPresenceClientsResponse parses an HTTP response from a ListObservedPresenceClientsWithResponse call
+func ParseListObservedPresenceClientsResponse(rsp *http.Response) (*ListObservedPresenceClientsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListObservedPresenceClientsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ObservedPresenceClientList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListPresenceObservationPointsResponse parses an HTTP response from a ListPresenceObservationPointsWithResponse call
+func ParseListPresenceObservationPointsResponse(rsp *http.Response) (*ListPresenceObservationPointsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListPresenceObservationPointsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PresenceObservationPointList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchPresenceObservationPointResponse parses an HTTP response from a PatchPresenceObservationPointWithResponse call
+func ParsePatchPresenceObservationPointResponse(rsp *http.Response) (*PatchPresenceObservationPointResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchPresenceObservationPointResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PresenceObservationPoint
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListVlansResponse parses an HTTP response from a ListVlansWithResponse call
 func ParseListVlansResponse(rsp *http.Response) (*ListVlansResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4266,10 +5320,19 @@ type ServerInterface interface {
 	DeleteNetworkDevice(w http.ResponseWriter, r *http.Request, id DeviceId)
 	// Get one network device.
 	// (GET /api/v1/networks/devices/{id})
-	GetNetworkDevice(w http.ResponseWriter, r *http.Request, id DeviceId)
+	GetNetworkDevice(w http.ResponseWriter, r *http.Request, id ObservationPointId)
 	// Update a network device.
 	// (PATCH /api/v1/networks/devices/{id})
 	PatchNetworkDevice(w http.ResponseWriter, r *http.Request, id DeviceId)
+	// List observed presence clients.
+	// (GET /api/v1/networks/presence/clients)
+	ListObservedPresenceClients(w http.ResponseWriter, r *http.Request, params ListObservedPresenceClientsParams)
+	// List observation point mappings.
+	// (GET /api/v1/networks/presence/observation_points)
+	ListPresenceObservationPoints(w http.ResponseWriter, r *http.Request, params ListPresenceObservationPointsParams)
+	// Update an observation point mapping.
+	// (PATCH /api/v1/networks/presence/observation_points/{id})
+	PatchPresenceObservationPoint(w http.ResponseWriter, r *http.Request, id DeviceId)
 	// List VLAN definitions.
 	// (GET /api/v1/networks/vlans)
 	ListVlans(w http.ResponseWriter, r *http.Request)
@@ -4392,13 +5455,31 @@ func (_ Unimplemented) DeleteNetworkDevice(w http.ResponseWriter, r *http.Reques
 
 // Get one network device.
 // (GET /api/v1/networks/devices/{id})
-func (_ Unimplemented) GetNetworkDevice(w http.ResponseWriter, r *http.Request, id DeviceId) {
+func (_ Unimplemented) GetNetworkDevice(w http.ResponseWriter, r *http.Request, id ObservationPointId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // Update a network device.
 // (PATCH /api/v1/networks/devices/{id})
 func (_ Unimplemented) PatchNetworkDevice(w http.ResponseWriter, r *http.Request, id DeviceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List observed presence clients.
+// (GET /api/v1/networks/presence/clients)
+func (_ Unimplemented) ListObservedPresenceClients(w http.ResponseWriter, r *http.Request, params ListObservedPresenceClientsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List observation point mappings.
+// (GET /api/v1/networks/presence/observation_points)
+func (_ Unimplemented) ListPresenceObservationPoints(w http.ResponseWriter, r *http.Request, params ListPresenceObservationPointsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update an observation point mapping.
+// (PATCH /api/v1/networks/presence/observation_points/{id})
+func (_ Unimplemented) PatchPresenceObservationPoint(w http.ResponseWriter, r *http.Request, id DeviceId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4851,7 +5932,7 @@ func (siw *ServerInterfaceWrapper) GetNetworkDevice(w http.ResponseWriter, r *ht
 	var err error
 
 	// ------------- Path parameter "id" -------------
-	var id DeviceId
+	var id ObservationPointId
 
 	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
 	if err != nil {
@@ -4898,6 +5979,199 @@ func (siw *ServerInterfaceWrapper) PatchNetworkDevice(w http.ResponseWriter, r *
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PatchNetworkDevice(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListObservedPresenceClients operation middleware
+func (siw *ServerInterfaceWrapper) ListObservedPresenceClients(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListObservedPresenceClientsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "status", r.URL.Query(), &params.Status, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_type", r.URL.Query(), &params.SourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_type", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_key", r.URL.Query(), &params.SourceKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_key", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "medium" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "medium", r.URL.Query(), &params.Medium, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "medium", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "location", r.URL.Query(), &params.Location, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListObservedPresenceClients(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPresenceObservationPoints operation middleware
+func (siw *ServerInterfaceWrapper) ListPresenceObservationPoints(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPresenceObservationPointsParams
+
+	// ------------- Optional query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_type", r.URL.Query(), &params.SourceType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_type", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source_key" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_key", r.URL.Query(), &params.SourceKey, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_key", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "medium" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "medium", r.URL.Query(), &params.Medium, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "medium", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "offset" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "offset", r.URL.Query(), &params.Offset, runtime.BindQueryParameterOptions{Type: "integer", Format: "int32"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "offset", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPresenceObservationPoints(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchPresenceObservationPoint operation middleware
+func (siw *ServerInterfaceWrapper) PatchPresenceObservationPoint(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id DeviceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid"})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, BearerAuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchPresenceObservationPoint(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5334,6 +6608,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/api/v1/networks/devices/{id}", wrapper.PatchNetworkDevice)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/networks/presence/clients", wrapper.ListObservedPresenceClients)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/api/v1/networks/presence/observation_points", wrapper.ListPresenceObservationPoints)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/api/v1/networks/presence/observation_points/{id}", wrapper.PatchPresenceObservationPoint)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/api/v1/networks/vlans", wrapper.ListVlans)
 	})
 	r.Group(func(r chi.Router) {
@@ -5370,66 +6653,75 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"LuFrdwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

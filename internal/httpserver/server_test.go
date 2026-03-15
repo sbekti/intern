@@ -27,6 +27,7 @@ import (
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/db"
 	"github.com/sbekti/intern-api/internal/devices"
+	"github.com/sbekti/intern-api/internal/presence"
 	"github.com/sbekti/intern-api/internal/requestmeta"
 	"github.com/sbekti/intern-api/internal/vlans"
 )
@@ -569,6 +570,192 @@ func TestGetDeviceReturnsNotFound(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected status %d, got %d", http.StatusNotFound, rec.Code)
+	}
+}
+
+func TestListDevicesReturnsPresenceSummary(t *testing.T) {
+	t.Parallel()
+
+	deviceID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		DeviceService: fakeDeviceService{
+			listFn: func(ctx context.Context) ([]devices.DeviceRecord, error) {
+				return []devices.DeviceRecord{{
+					Device: db.NetworkDevice{
+						ID:          pgtype.UUID{Bytes: [16]byte(deviceID), Valid: true},
+						MacAddress:  "aa:bb:cc:dd:ee:ff",
+						DisplayName: "Managed Handset",
+						VlanID:      20,
+						CreatedAt:   testTimestamp(),
+						UpdatedAt:   testTimestamp(),
+					},
+					VLAN: db.Vlan{
+						Name:   "iot",
+						VlanID: 20,
+					},
+				}}, nil
+			},
+		},
+		PresenceService: fakePresenceService{
+			listManagedFn: func(ctx context.Context) (map[uuid.UUID]presence.ManagedPresenceSummary, error) {
+				return map[uuid.UUID]presence.ManagedPresenceSummary{
+					deviceID: {
+						DeviceID:               deviceID,
+						Status:                 "online",
+						LastSeenAt:             time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+						SourceKey:              "unifi-site-a",
+						SourceType:             "unifi",
+						Medium:                 "wireless",
+						ObservationExternalID:  "aa:bb:cc:dd:ee:00",
+						ObservationDisplayName: "AP Lobby",
+						LocationLabel:          "Front lobby",
+						SSID:                   "corp-wifi",
+					},
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var payload api.NetworkDeviceList
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(payload.Items) != 1 || payload.Items[0].Presence == nil {
+		t.Fatalf("expected one device with presence, got %#v", payload.Items)
+	}
+	if payload.Items[0].Presence.Status != api.PresenceSummaryStatus("online") {
+		t.Fatalf("expected online status, got %#v", payload.Items[0].Presence)
+	}
+	if payload.Items[0].Presence.LocationLabel == nil || *payload.Items[0].Presence.LocationLabel != "Front lobby" {
+		t.Fatalf("expected location label, got %#v", payload.Items[0].Presence)
+	}
+}
+
+func TestListObservedPresenceClientsReturnsPage(t *testing.T) {
+	t.Parallel()
+
+	clientID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		PresenceService: fakePresenceService{
+			listObservedFn: func(ctx context.Context, filter presence.ObservedClientFilter) (*presence.ObservedClientPage, error) {
+				if filter.Status != "online" {
+					t.Fatalf("expected status filter to propagate, got %#v", filter)
+				}
+				return &presence.ObservedClientPage{
+					Items: []presence.ObservedClientRecord{{
+						ID:                clientID,
+						MacAddress:        "aa:bb:cc:dd:ee:ff",
+						ManagedDeviceName: "Managed Handset",
+						Status:            "online",
+						FirstSeenAt:       time.Date(2026, 3, 15, 9, 0, 0, 0, time.UTC),
+						LastSeenAt:        time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
+						SourceKey:         "unifi-site-a",
+						SourceType:        "unifi",
+						Medium:            "wireless",
+						LocationLabel:     "Front lobby",
+						SSID:              "corp-wifi",
+					}},
+					Pagination: presence.Page{
+						Limit:  25,
+						Offset: 0,
+						Total:  1,
+					},
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/presence/clients?status=online", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var payload api.ObservedPresenceClientList
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(payload.Items) != 1 || payload.Pagination.Total != 1 {
+		t.Fatalf("expected one observed client, got %#v", payload)
+	}
+	if payload.Items[0].Ssid == nil || *payload.Items[0].Ssid != "corp-wifi" {
+		t.Fatalf("expected ssid, got %#v", payload.Items[0])
+	}
+}
+
+func TestPatchPresenceObservationPointReturnsUpdated(t *testing.T) {
+	t.Parallel()
+
+	observationPointID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		UserStore: fakeProfileUserStore{
+			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
+				return db.User{Username: arg.Username, Name: arg.Name, Email: arg.Email, Groups: arg.Groups}, nil
+			},
+		},
+		PresenceService: fakePresenceService{
+			updateObservationPointFn: func(ctx context.Context, actor db.User, id uuid.UUID, patch api.PresenceObservationPointPatch) (presence.ObservationPointRecord, error) {
+				if id != observationPointID {
+					t.Fatalf("expected observation point id %s, got %s", observationPointID, id)
+				}
+				if patch.LocationLabel == nil || *patch.LocationLabel != "Front lobby" {
+					t.Fatalf("expected location label patch, got %#v", patch)
+				}
+				return presence.ObservationPointRecord{
+					ID:            observationPointID,
+					SourceKey:     "unifi-site-a",
+					SourceType:    "unifi",
+					Medium:        "wireless",
+					ExternalID:    "aa:bb:cc:dd:ee:00",
+					DisplayName:   "AP Lobby",
+					LocationLabel: "Front lobby",
+					Notes:         "Desk cluster",
+				}, nil
+			},
+		},
+	})
+
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/networks/presence/observation_points/"+observationPointID.String(), strings.NewReader(`{"location_label":"Front lobby","notes":"Desk cluster"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	var payload api.PresenceObservationPoint
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if payload.LocationLabel != "Front lobby" || payload.Notes != "Desk cluster" {
+		t.Fatalf("expected updated observation point, got %#v", payload)
 	}
 }
 
@@ -1318,6 +1505,49 @@ func (f fakeDeviceService) Update(ctx context.Context, actor db.User, id uuid.UU
 
 func (f fakeDeviceService) Delete(ctx context.Context, actor db.User, id uuid.UUID) error {
 	return f.deleteFn(ctx, actor, id)
+}
+
+type fakePresenceService struct {
+	listManagedFn            func(ctx context.Context) (map[uuid.UUID]presence.ManagedPresenceSummary, error)
+	getManagedFn             func(ctx context.Context, deviceID uuid.UUID) (*presence.ManagedPresenceSummary, error)
+	listObservedFn           func(ctx context.Context, filter presence.ObservedClientFilter) (*presence.ObservedClientPage, error)
+	listObservationPointsFn  func(ctx context.Context, filter presence.ObservationPointFilter) (*presence.ObservationPointPage, error)
+	updateObservationPointFn func(ctx context.Context, actor db.User, id uuid.UUID, patch api.PresenceObservationPointPatch) (presence.ObservationPointRecord, error)
+}
+
+func (f fakePresenceService) ListManagedPresence(ctx context.Context) (map[uuid.UUID]presence.ManagedPresenceSummary, error) {
+	if f.listManagedFn == nil {
+		return map[uuid.UUID]presence.ManagedPresenceSummary{}, nil
+	}
+	return f.listManagedFn(ctx)
+}
+
+func (f fakePresenceService) GetManagedPresence(ctx context.Context, deviceID uuid.UUID) (*presence.ManagedPresenceSummary, error) {
+	if f.getManagedFn == nil {
+		return nil, nil
+	}
+	return f.getManagedFn(ctx, deviceID)
+}
+
+func (f fakePresenceService) ListObservedClients(ctx context.Context, filter presence.ObservedClientFilter) (*presence.ObservedClientPage, error) {
+	if f.listObservedFn == nil {
+		return &presence.ObservedClientPage{Items: []presence.ObservedClientRecord{}, Pagination: presence.Page{}}, nil
+	}
+	return f.listObservedFn(ctx, filter)
+}
+
+func (f fakePresenceService) ListObservationPoints(ctx context.Context, filter presence.ObservationPointFilter) (*presence.ObservationPointPage, error) {
+	if f.listObservationPointsFn == nil {
+		return &presence.ObservationPointPage{Items: []presence.ObservationPointRecord{}, Pagination: presence.Page{}}, nil
+	}
+	return f.listObservationPointsFn(ctx, filter)
+}
+
+func (f fakePresenceService) UpdateObservationPoint(ctx context.Context, actor db.User, id uuid.UUID, patch api.PresenceObservationPointPatch) (presence.ObservationPointRecord, error) {
+	if f.updateObservationPointFn == nil {
+		return presence.ObservationPointRecord{}, presence.ErrObservationPointNotFound
+	}
+	return f.updateObservationPointFn(ctx, actor, id, patch)
 }
 
 type fakeClientAuthService struct {
