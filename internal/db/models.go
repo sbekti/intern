@@ -82,6 +82,69 @@ type NetworkDevice struct {
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type PresenceClient struct {
+	ID                     pgtype.UUID        `db:"id" json:"id"`
+	MacAddress             string             `db:"mac_address" json:"mac_address"`
+	NetworkDeviceID        pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	Status                 string             `db:"status" json:"status"`
+	FirstSeenAt            pgtype.Timestamptz `db:"first_seen_at" json:"first_seen_at"`
+	LastSeenAt             pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	LastSourceKey          string             `db:"last_source_key" json:"last_source_key"`
+	LastSourceType         string             `db:"last_source_type" json:"last_source_type"`
+	LastMedium             string             `db:"last_medium" json:"last_medium"`
+	LastObservationPointID pgtype.UUID        `db:"last_observation_point_id" json:"last_observation_point_id"`
+	LastSsid               *string            `db:"last_ssid" json:"last_ssid"`
+	LastMetadata           []byte             `db:"last_metadata" json:"last_metadata"`
+	CreatedAt              pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PresenceObservationPoint struct {
+	ID               pgtype.UUID        `db:"id" json:"id"`
+	SourceKey        string             `db:"source_key" json:"source_key"`
+	SourceType       string             `db:"source_type" json:"source_type"`
+	Medium           string             `db:"medium" json:"medium"`
+	ExternalID       string             `db:"external_id" json:"external_id"`
+	ParentExternalID string             `db:"parent_external_id" json:"parent_external_id"`
+	DisplayName      string             `db:"display_name" json:"display_name"`
+	LocationLabel    string             `db:"location_label" json:"location_label"`
+	Notes            string             `db:"notes" json:"notes"`
+	Ssid             *string            `db:"ssid" json:"ssid"`
+	Metadata         []byte             `db:"metadata" json:"metadata"`
+	LastSeenAt       pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	CreatedAt        pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PresenceSession struct {
+	ID                 pgtype.UUID        `db:"id" json:"id"`
+	SourceKey          string             `db:"source_key" json:"source_key"`
+	SourceType         string             `db:"source_type" json:"source_type"`
+	Medium             string             `db:"medium" json:"medium"`
+	SourceSessionKey   string             `db:"source_session_key" json:"source_session_key"`
+	ClientMacAddress   string             `db:"client_mac_address" json:"client_mac_address"`
+	NetworkDeviceID    pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	ObservationPointID pgtype.UUID        `db:"observation_point_id" json:"observation_point_id"`
+	StartedAt          pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	SourceUpdatedAt    pgtype.Timestamptz `db:"source_updated_at" json:"source_updated_at"`
+	LastSeenAt         pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	EndedAt            pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	Ssid               *string            `db:"ssid" json:"ssid"`
+	Metadata           []byte             `db:"metadata" json:"metadata"`
+	CreatedAt          pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
+type PresenceWorkerState struct {
+	WorkerName      string             `db:"worker_name" json:"worker_name"`
+	SourceKey       string             `db:"source_key" json:"source_key"`
+	State           []byte             `db:"state" json:"state"`
+	LastPolledAt    pgtype.Timestamptz `db:"last_polled_at" json:"last_polled_at"`
+	LastSucceededAt pgtype.Timestamptz `db:"last_succeeded_at" json:"last_succeeded_at"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type Radacct struct {
 	Radacctid           int64              `db:"radacctid" json:"radacctid"`
 	Acctsessionid       string             `db:"acctsessionid" json:"acctsessionid"`

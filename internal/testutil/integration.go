@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -130,14 +131,31 @@ func StartRedis(t *testing.T) *RedisContainer {
 func applyPostgresSchema(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	sqlBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "db", "migrations", "202603080001_initial_schema.sql"))
+	migrationDir := filepath.Join(repoRoot(t), "db", "migrations")
+	entries, err := os.ReadDir(migrationDir)
 	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
+		t.Fatalf("failed to read migration directory: %v", err)
 	}
 
-	upSQL := extractGooseUp(string(sqlBytes))
-	if _, err := pool.Exec(ctx, upSQL); err != nil {
-		t.Fatalf("failed to apply schema: %v", err)
+	migrationFiles := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		migrationFiles = append(migrationFiles, entry.Name())
+	}
+	slices.Sort(migrationFiles)
+
+	for _, migrationFile := range migrationFiles {
+		sqlBytes, readErr := os.ReadFile(filepath.Join(migrationDir, migrationFile))
+		if readErr != nil {
+			t.Fatalf("failed to read migration file %s: %v", migrationFile, readErr)
+		}
+
+		upSQL := extractGooseUp(string(sqlBytes))
+		if _, execErr := pool.Exec(ctx, upSQL); execErr != nil {
+			t.Fatalf("failed to apply migration %s: %v\nSQL:\n%s", migrationFile, execErr, upSQL)
+		}
 	}
 }
 
