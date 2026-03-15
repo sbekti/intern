@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -16,6 +17,7 @@ type Config struct {
 	Database      DatabaseConfig
 	Redis         RedisConfig
 	Weather       WeatherConfig
+	Presence      PresenceConfig
 	LogLevel      LogLevel
 	Auth          AuthConfig
 	TrustedProxy  TrustedProxyConfig
@@ -40,6 +42,61 @@ type WeatherConfig struct {
 	Latitude     float64
 	Longitude    float64
 	CacheTTL     time.Duration
+}
+
+type PresenceConfig struct {
+	Enabled             bool
+	PollIntervalDefault time.Duration
+	Sources             []PresenceSourceConfig
+}
+
+type PresenceSourceType string
+
+const (
+	PresenceSourceTypeUnifi       PresenceSourceType = "unifi"
+	PresenceSourceTypeJuniperSNMP PresenceSourceType = "juniper-snmp"
+)
+
+type PresenceSourceConfig struct {
+	Key           string
+	Type          PresenceSourceType
+	DisplayName   string
+	Host          string
+	Port          int
+	PollInterval  time.Duration
+	Site          string
+	CredentialEnv PresenceSourceCredentialEnvConfig
+}
+
+type PresenceSourceCredentialEnvConfig struct {
+	Username         string
+	Password         string
+	SNMPUsername     string
+	SNMPAuthProtocol string
+	SNMPAuthPassword string
+	SNMPPrivProtocol string
+	SNMPPrivPassword string
+}
+
+type rawPresenceSourceConfig struct {
+	Key           string                               `json:"key"`
+	Type          PresenceSourceType                   `json:"type"`
+	DisplayName   string                               `json:"displayName"`
+	Host          string                               `json:"host"`
+	Port          int                                  `json:"port"`
+	PollInterval  string                               `json:"pollInterval"`
+	Site          string                               `json:"site"`
+	CredentialEnv rawPresenceSourceCredentialEnvConfig `json:"credentialEnv"`
+}
+
+type rawPresenceSourceCredentialEnvConfig struct {
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	SNMPUsername     string `json:"snmpUsername"`
+	SNMPAuthProtocol string `json:"snmpAuthProtocol"`
+	SNMPAuthPassword string `json:"snmpAuthPassword"`
+	SNMPPrivProtocol string `json:"snmpPrivProtocol"`
+	SNMPPrivPassword string `json:"snmpPrivPassword"`
 }
 
 type AuthConfig struct {
@@ -92,6 +149,19 @@ const (
 )
 
 func Load() (Config, error) {
+	presenceEnabled, err := envBoolOrDefault("INTERN_PRESENCE_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	presencePollIntervalDefault, err := envDurationOrDefault("INTERN_PRESENCE_POLL_INTERVAL_DEFAULT", 5*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	presenceSources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", presencePollIntervalDefault)
+	if err != nil {
+		return Config{}, err
+	}
+
 	trustedProxyCIDRs, err := envPrefixesOrDefault("TRUSTED_PROXY_CIDRS", []string{"127.0.0.1/32", "::1/128"})
 	if err != nil {
 		return Config{}, err
@@ -187,6 +257,11 @@ func Load() (Config, error) {
 			Longitude:    weatherLongitude,
 			CacheTTL:     weatherCacheTTL,
 		},
+		Presence: PresenceConfig{
+			Enabled:             presenceEnabled,
+			PollIntervalDefault: presencePollIntervalDefault,
+			Sources:             presenceSources,
+		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
 			PublicBaseURL:      envOrDefault("AUTH_PUBLIC_BASE_URL", ""),
@@ -260,6 +335,12 @@ func (c Config) Validate() error {
 	}
 	if c.Weather.CacheTTL <= 0 {
 		return fmt.Errorf("WEATHER_CACHE_TTL must be greater than zero")
+	}
+	if (c.Presence.Enabled || len(c.Presence.Sources) > 0) && c.Presence.PollIntervalDefault <= 0 {
+		return fmt.Errorf("INTERN_PRESENCE_POLL_INTERVAL_DEFAULT must be greater than zero")
+	}
+	if err := validatePresenceSources(c.Presence); err != nil {
+		return err
 	}
 
 	switch c.LogLevel {
@@ -392,6 +473,65 @@ func envCSVOrDefault(key string, fallback []string) []string {
 	return result
 }
 
+func validatePresenceSources(cfg PresenceConfig) error {
+	seenKeys := make(map[string]struct{}, len(cfg.Sources))
+	for _, source := range cfg.Sources {
+		if strings.TrimSpace(source.Key) == "" {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON contains a source with an empty key")
+		}
+		if _, exists := seenKeys[source.Key]; exists {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON contains duplicate source key %q", source.Key)
+		}
+		seenKeys[source.Key] = struct{}{}
+
+		if strings.TrimSpace(source.DisplayName) == "" {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include displayName", source.Key)
+		}
+		if strings.TrimSpace(source.Host) == "" {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include host", source.Key)
+		}
+		if source.Port <= 0 || source.Port > 65535 {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q has invalid port %d", source.Key, source.Port)
+		}
+		if source.PollInterval <= 0 {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include a positive pollInterval", source.Key)
+		}
+
+		switch source.Type {
+		case PresenceSourceTypeUnifi:
+			if strings.TrimSpace(source.Site) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include site for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.Username) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.username for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.Password) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.password for type %q", source.Key, source.Type)
+			}
+		case PresenceSourceTypeJuniperSNMP:
+			if strings.TrimSpace(source.CredentialEnv.SNMPUsername) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.snmpUsername for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.SNMPAuthProtocol) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.snmpAuthProtocol for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.SNMPAuthPassword) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.snmpAuthPassword for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.SNMPPrivProtocol) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.snmpPrivProtocol for type %q", source.Key, source.Type)
+			}
+			if strings.TrimSpace(source.CredentialEnv.SNMPPrivPassword) == "" {
+				return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include credentialEnv.snmpPrivPassword for type %q", source.Key, source.Type)
+			}
+		default:
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q has unsupported type %q", source.Key, source.Type)
+		}
+	}
+
+	return nil
+}
+
 func validateAuthRateLimitRule(prefix string, rule AuthRateLimitRule) error {
 	if rule.Limit <= 0 {
 		return fmt.Errorf("%s_LIMIT must be greater than zero", prefix)
@@ -429,6 +569,20 @@ func envPrefixesOrDefault(key string, fallback []string) ([]netip.Prefix, error)
 	return prefixes, nil
 }
 
+func envBoolOrDefault(key string, fallback bool) (bool, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a valid boolean: %w", key, err)
+	}
+
+	return parsed, nil
+}
+
 func envFloatOrDefault(key string, fallback float64) (float64, error) {
 	value := strings.TrimSpace(os.Getenv(key))
 	if value == "" {
@@ -440,6 +594,51 @@ func envFloatOrDefault(key string, fallback float64) (float64, error) {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return parsed, nil
+}
+
+func envPresenceSources(key string, defaultPollInterval time.Duration) ([]PresenceSourceConfig, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil, nil
+	}
+
+	var decoded []rawPresenceSourceConfig
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", key, err)
+	}
+
+	sources := make([]PresenceSourceConfig, 0, len(decoded))
+	for _, source := range decoded {
+		pollInterval := defaultPollInterval
+		if strings.TrimSpace(source.PollInterval) != "" {
+			parsed, err := time.ParseDuration(strings.TrimSpace(source.PollInterval))
+			if err != nil {
+				return nil, fmt.Errorf("invalid %s pollInterval for source %q: %w", key, source.Key, err)
+			}
+			pollInterval = parsed
+		}
+
+		sources = append(sources, PresenceSourceConfig{
+			Key:          strings.TrimSpace(source.Key),
+			Type:         source.Type,
+			DisplayName:  strings.TrimSpace(source.DisplayName),
+			Host:         strings.TrimSpace(source.Host),
+			Port:         source.Port,
+			PollInterval: pollInterval,
+			Site:         strings.TrimSpace(source.Site),
+			CredentialEnv: PresenceSourceCredentialEnvConfig{
+				Username:         strings.TrimSpace(source.CredentialEnv.Username),
+				Password:         strings.TrimSpace(source.CredentialEnv.Password),
+				SNMPUsername:     strings.TrimSpace(source.CredentialEnv.SNMPUsername),
+				SNMPAuthProtocol: strings.TrimSpace(source.CredentialEnv.SNMPAuthProtocol),
+				SNMPAuthPassword: strings.TrimSpace(source.CredentialEnv.SNMPAuthPassword),
+				SNMPPrivProtocol: strings.TrimSpace(source.CredentialEnv.SNMPPrivProtocol),
+				SNMPPrivPassword: strings.TrimSpace(source.CredentialEnv.SNMPPrivPassword),
+			},
+		})
+	}
+
+	return sources, nil
 }
 
 func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, error) {
