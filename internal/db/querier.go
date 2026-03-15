@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	ClosePresenceSession(ctx context.Context, arg ClosePresenceSessionParams) (PresenceSession, error)
 	CountActiveAuthSessions(ctx context.Context) (int64, error)
 	CountActiveAuthSessionsByUserID(ctx context.Context, arg CountActiveAuthSessionsByUserIDParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
@@ -28,6 +29,7 @@ type Querier interface {
 	GetAuthDeviceAuthorizationByUserCode(ctx context.Context, arg GetAuthDeviceAuthorizationByUserCodeParams) (AuthDeviceAuthorization, error)
 	GetAuthSessionByID(ctx context.Context, arg GetAuthSessionByIDParams) (AuthSession, error)
 	GetAuthSessionByRefreshTokenHash(ctx context.Context, arg GetAuthSessionByRefreshTokenHashParams) (AuthSession, error)
+	GetLatestOpenPresenceSessionForClientMedium(ctx context.Context, arg GetLatestOpenPresenceSessionForClientMediumParams) (GetLatestOpenPresenceSessionForClientMediumRow, error)
 	GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDeviceByIDParams) (NetworkDevice, error)
 	GetNetworkDeviceByMACAddress(ctx context.Context, arg GetNetworkDeviceByMACAddressParams) (NetworkDevice, error)
 	GetPresenceWorkerState(ctx context.Context, arg GetPresenceWorkerStateParams) (PresenceWorkerState, error)
@@ -44,6 +46,7 @@ type Querier interface {
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
 	ListRadacctRowsAfterID(ctx context.Context, arg ListRadacctRowsAfterIDParams) ([]Radacct, error)
+	ListStaleOnlinePresenceClientsBySource(ctx context.Context, arg ListStaleOnlinePresenceClientsBySourceParams) ([]PresenceClient, error)
 	ListVlans(ctx context.Context) ([]Vlan, error)
 	RevokeAllActiveAuthSessions(ctx context.Context, arg RevokeAllActiveAuthSessionsParams) (int64, error)
 	RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionParams) (AuthSession, error)
@@ -52,6 +55,7 @@ type Querier interface {
 	TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) (AuthSession, error)
 	UpdateAuthDeviceAuthorizationStatus(ctx context.Context, arg UpdateAuthDeviceAuthorizationStatusParams) (AuthDeviceAuthorization, error)
 	UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error)
+	UpdatePresenceSessionActivity(ctx context.Context, arg UpdatePresenceSessionActivityParams) (PresenceSession, error)
 	UpdateRadusergroupsGroupname(ctx context.Context, arg UpdateRadusergroupsGroupnameParams) error
 	UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, error)
 	UpsertPresenceClient(ctx context.Context, arg UpsertPresenceClientParams) (PresenceClient, error)

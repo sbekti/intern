@@ -23,6 +23,14 @@ func (f fakeUniFiClient) ListActiveClients(ctx context.Context, source config.Pr
 	return append([]UniFiActiveClient(nil), f.clients...), nil
 }
 
+type scriptedUniFiClient struct {
+	clients []UniFiActiveClient
+}
+
+func (f *scriptedUniFiClient) ListActiveClients(ctx context.Context, source config.PresenceSourceConfig) ([]UniFiActiveClient, error) {
+	return append([]UniFiActiveClient(nil), f.clients...), nil
+}
+
 func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	t.Parallel()
 
@@ -80,17 +88,19 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	}
 
 	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
-		Enabled:             true,
-		PollIntervalDefault: 5 * time.Minute,
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
 		Sources: []config.PresenceSourceConfig{
 			{
-				Key:          "unifi-jfk1",
-				Type:         config.PresenceSourceTypeUnifi,
-				DisplayName:  "JFK1 UniFi",
-				Host:         "https://unifi.example.test",
-				Port:         443,
-				Site:         "default",
-				PollInterval: 5 * time.Minute,
+				Key:             "unifi-jfk1",
+				Type:            config.PresenceSourceTypeUnifi,
+				DisplayName:     "JFK1 UniFi",
+				Host:            "https://unifi.example.test",
+				Port:            443,
+				Site:            "default",
+				PollInterval:    5 * time.Minute,
+				DisconnectGrace: 15 * time.Minute,
 			},
 		},
 	}, fakeUniFiClient{
@@ -188,5 +198,294 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	}
 	if sessionCount != 2 {
 		t.Fatalf("expected no duplicate sessions after re-sync, got %d", sessionCount)
+	}
+}
+
+func TestServiceSyncUniFiSourceClosesSyntheticSessionsAfterGrace(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	unifiSource := config.PresenceSourceConfig{
+		Key:             "unifi-jfk1",
+		Type:            config.PresenceSourceTypeUnifi,
+		DisplayName:     "JFK1 UniFi",
+		Host:            "https://unifi.example.test",
+		Port:            443,
+		Site:            "default",
+		PollInterval:    5 * time.Minute,
+		DisconnectGrace: 15 * time.Minute,
+	}
+
+	activeClient := &scriptedUniFiClient{
+		clients: []UniFiActiveClient{
+			{
+				MAC:       "80-B9-89-30-9D-63",
+				Hostname:  "alice-iphone",
+				ESSID:     "bektinet-wpa",
+				APMAC:     "18-E8-29-49-CB-5C",
+				BSSID:     "1A-E8-29-19-CB-5D",
+				AssocTime: time.Date(2026, 3, 15, 18, 24, 20, 0, time.UTC),
+				LastSeen:  time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC),
+			},
+		},
+	}
+
+	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
+		Sources:                []config.PresenceSourceConfig{unifiSource},
+	}, activeClient)
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC) }
+
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected initial unifi sync to succeed, got %v", err)
+	}
+
+	activeClient.clients = nil
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 50, 20, 0, time.UTC) }
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected stale unifi sync to succeed, got %v", err)
+	}
+
+	var status string
+	var endedAt time.Time
+	var metadata []byte
+	if err := pg.Pool.QueryRow(ctx, `
+		SELECT c.status, s.ended_at, s.metadata
+		FROM presence_clients c
+		JOIN presence_sessions s ON lower(s.client_mac_address) = lower(c.mac_address)
+		WHERE lower(c.mac_address) = '80:b9:89:30:9d:63'
+		ORDER BY s.started_at DESC
+		LIMIT 1
+	`).Scan(&status, &endedAt, &metadata); err != nil {
+		t.Fatalf("failed to load synthetic session: %v", err)
+	}
+
+	if status != clientStatusOffline {
+		t.Fatalf("expected client to be offline, got %q", status)
+	}
+	expectedEndedAt := time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC)
+	if !endedAt.Equal(expectedEndedAt) {
+		t.Fatalf("expected session to end at last seen %s, got %s", expectedEndedAt, endedAt)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(metadata, &decoded); err != nil {
+		t.Fatalf("failed to decode session metadata: %v", err)
+	}
+	if decoded["ended_by"] != "unifi_poll_timeout" {
+		t.Fatalf("expected unifi poll timeout metadata, got %#v", decoded)
+	}
+	if decoded["accounting_backed"] != false {
+		t.Fatalf("expected synthetic session metadata, got %#v", decoded)
+	}
+}
+
+func TestServiceSyncUniFiSourceClosesRadiusSessionsAfterGrace(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+
+	startedAt := time.Date(2026, 3, 15, 18, 24, 20, 0, time.UTC)
+	if _, err := pg.Pool.Exec(ctx, `
+		INSERT INTO radacct (
+			acctsessionid,
+			acctuniqueid,
+			nasipaddress,
+			acctstarttime,
+			acctupdatetime,
+			calledstationid,
+			callingstationid
+		) VALUES
+			('sess-open', 'unique-open', '10.20.0.1', $1, $1, '1A-E8-29-19-CB-5D:bektinet-wpa', '80-B9-89-30-9D-63')
+	`, startedAt); err != nil {
+		t.Fatalf("failed to seed radacct row: %v", err)
+	}
+
+	unifiSource := config.PresenceSourceConfig{
+		Key:             "unifi-jfk1",
+		Type:            config.PresenceSourceTypeUnifi,
+		DisplayName:     "JFK1 UniFi",
+		Host:            "https://unifi.example.test",
+		Port:            443,
+		Site:            "default",
+		PollInterval:    5 * time.Minute,
+		DisconnectGrace: 15 * time.Minute,
+	}
+	activeClient := &scriptedUniFiClient{
+		clients: []UniFiActiveClient{
+			{
+				MAC:       "80-B9-89-30-9D-63",
+				Hostname:  "alice-iphone",
+				ESSID:     "bektinet-wpa",
+				APMAC:     "18-E8-29-49-CB-5C",
+				BSSID:     "1A-E8-29-19-CB-5D",
+				AssocTime: startedAt,
+				LastSeen:  startedAt.Add(5 * time.Minute),
+			},
+		},
+	}
+
+	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
+		Sources:                []config.PresenceSourceConfig{unifiSource},
+	}, activeClient)
+	service.now = func() time.Time { return startedAt.Add(5 * time.Minute) }
+
+	if err := service.SyncRadius(ctx); err != nil {
+		t.Fatalf("expected radius sync to succeed, got %v", err)
+	}
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected unifi sync to succeed, got %v", err)
+	}
+
+	activeClient.clients = nil
+	service.now = func() time.Time { return startedAt.Add(25 * time.Minute) }
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected stale unifi sync to succeed, got %v", err)
+	}
+
+	var endedAt time.Time
+	var sourceType string
+	var metadata []byte
+	if err := pg.Pool.QueryRow(ctx, `
+		SELECT ended_at, source_type, metadata
+		FROM presence_sessions
+		WHERE source_session_key = 'unique-open'
+	`).Scan(&endedAt, &sourceType, &metadata); err != nil {
+		t.Fatalf("failed to load radius-backed session: %v", err)
+	}
+
+	if sourceType != sourceTypeRadius {
+		t.Fatalf("expected radius-backed session to retain source type, got %q", sourceType)
+	}
+	expectedEndedAt := startedAt.Add(5 * time.Minute)
+	if !endedAt.Equal(expectedEndedAt) {
+		t.Fatalf("expected radius-backed session to close at %s, got %s", expectedEndedAt, endedAt)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(metadata, &decoded); err != nil {
+		t.Fatalf("failed to decode radius-backed session metadata: %v", err)
+	}
+	if decoded["ended_by"] != "unifi_poll_timeout" {
+		t.Fatalf("expected poll timeout metadata, got %#v", decoded)
+	}
+	if decoded["accounting_backed"] != true {
+		t.Fatalf("expected accounting_backed to be preserved, got %#v", decoded)
+	}
+
+	var openCount int
+	if err := pg.Pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM presence_sessions
+		WHERE lower(client_mac_address) = '80:b9:89:30:9d:63'
+		  AND medium = $1
+		  AND ended_at IS NULL
+	`, mediumWireless).Scan(&openCount); err != nil {
+		t.Fatalf("failed to count open sessions after inferred close: %v", err)
+	}
+	if openCount != 0 {
+		t.Fatalf("expected no open session after inferred close, got %d", openCount)
+	}
+}
+
+func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	unifiSource := config.PresenceSourceConfig{
+		Key:             "unifi-jfk1",
+		Type:            config.PresenceSourceTypeUnifi,
+		DisplayName:     "JFK1 UniFi",
+		Host:            "https://unifi.example.test",
+		Port:            443,
+		Site:            "default",
+		PollInterval:    5 * time.Minute,
+		DisconnectGrace: 15 * time.Minute,
+	}
+	activeClient := &scriptedUniFiClient{
+		clients: []UniFiActiveClient{
+			{
+				MAC:       "80-B9-89-30-9D-63",
+				Hostname:  "alice-iphone",
+				ESSID:     "bektinet-wpa",
+				APMAC:     "18-E8-29-49-CB-5C",
+				BSSID:     "1A-E8-29-19-CB-5D",
+				AssocTime: time.Date(2026, 3, 15, 18, 24, 20, 0, time.UTC),
+				LastSeen:  time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC),
+			},
+		},
+	}
+
+	service := NewService(slog.Default(), pg.Pool, config.PresenceConfig{
+		Enabled:                true,
+		PollIntervalDefault:    5 * time.Minute,
+		DisconnectGraceDefault: 15 * time.Minute,
+		Sources:                []config.PresenceSourceConfig{unifiSource},
+	}, activeClient)
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 30, 20, 0, time.UTC) }
+
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected first unifi sync to succeed, got %v", err)
+	}
+
+	activeClient.clients = []UniFiActiveClient{
+		{
+			MAC:       "80-B9-89-30-9D-63",
+			Hostname:  "alice-iphone",
+			ESSID:     "bektinet-wpa",
+			APMAC:     "18-E8-29-49-CB-5D",
+			BSSID:     "1A-E8-29-19-CB-5E",
+			AssocTime: time.Date(2026, 3, 15, 18, 35, 20, 0, time.UTC),
+			LastSeen:  time.Date(2026, 3, 15, 18, 40, 20, 0, time.UTC),
+		},
+	}
+	service.now = func() time.Time { return time.Date(2026, 3, 15, 18, 40, 20, 0, time.UTC) }
+	if err := service.SyncUniFiSource(ctx, unifiSource); err != nil {
+		t.Fatalf("expected roaming unifi sync to succeed, got %v", err)
+	}
+
+	rows, err := pg.Pool.Query(ctx, `
+		SELECT source_session_key, ended_at, last_seen_at
+		FROM presence_sessions
+		WHERE lower(client_mac_address) = '80:b9:89:30:9d:63'
+		ORDER BY started_at ASC
+	`)
+	if err != nil {
+		t.Fatalf("failed to list roaming sessions: %v", err)
+	}
+	defer rows.Close()
+
+	var sessionKeys []string
+	var endedAts []pgtype.Timestamptz
+	for rows.Next() {
+		var key string
+		var endedAt pgtype.Timestamptz
+		var lastSeen pgtype.Timestamptz
+		if err := rows.Scan(&key, &endedAt, &lastSeen); err != nil {
+			t.Fatalf("failed to scan roaming session: %v", err)
+		}
+		sessionKeys = append(sessionKeys, key)
+		endedAts = append(endedAts, endedAt)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("failed to iterate roaming sessions: %v", err)
+	}
+
+	if len(sessionKeys) != 2 {
+		t.Fatalf("expected two split sessions, got %d", len(sessionKeys))
+	}
+	if !endedAts[0].Valid {
+		t.Fatalf("expected first session to be closed after roam")
+	}
+	if endedAts[1].Valid {
+		t.Fatalf("expected second session to remain open after roam")
 	}
 }

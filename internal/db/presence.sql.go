@@ -11,6 +11,134 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const closePresenceSession = `-- name: ClosePresenceSession :one
+UPDATE presence_sessions
+SET
+  network_device_id = COALESCE($1, network_device_id),
+  observation_point_id = COALESCE($2, observation_point_id),
+  source_updated_at = GREATEST(source_updated_at, $3),
+  last_seen_at = GREATEST(last_seen_at, $4),
+  ended_at = CASE
+    WHEN ended_at IS NULL THEN $5
+    WHEN $5 > ended_at THEN $5
+    ELSE ended_at
+  END,
+  ssid = COALESCE($6, ssid),
+  metadata = metadata || $7
+WHERE id = $8
+RETURNING id, source_key, source_type, medium, source_session_key, client_mac_address, network_device_id, observation_point_id, started_at, source_updated_at, last_seen_at, ended_at, ssid, metadata, created_at, updated_at
+`
+
+type ClosePresenceSessionParams struct {
+	NetworkDeviceID    pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	ObservationPointID pgtype.UUID        `db:"observation_point_id" json:"observation_point_id"`
+	SourceUpdatedAt    pgtype.Timestamptz `db:"source_updated_at" json:"source_updated_at"`
+	LastSeenAt         pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	EndedAt            pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	Ssid               *string            `db:"ssid" json:"ssid"`
+	Metadata           []byte             `db:"metadata" json:"metadata"`
+	ID                 pgtype.UUID        `db:"id" json:"id"`
+}
+
+func (q *Queries) ClosePresenceSession(ctx context.Context, arg ClosePresenceSessionParams) (PresenceSession, error) {
+	row := q.db.QueryRow(ctx, closePresenceSession,
+		arg.NetworkDeviceID,
+		arg.ObservationPointID,
+		arg.SourceUpdatedAt,
+		arg.LastSeenAt,
+		arg.EndedAt,
+		arg.Ssid,
+		arg.Metadata,
+		arg.ID,
+	)
+	var i PresenceSession
+	err := row.Scan(
+		&i.ID,
+		&i.SourceKey,
+		&i.SourceType,
+		&i.Medium,
+		&i.SourceSessionKey,
+		&i.ClientMacAddress,
+		&i.NetworkDeviceID,
+		&i.ObservationPointID,
+		&i.StartedAt,
+		&i.SourceUpdatedAt,
+		&i.LastSeenAt,
+		&i.EndedAt,
+		&i.Ssid,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getLatestOpenPresenceSessionForClientMedium = `-- name: GetLatestOpenPresenceSessionForClientMedium :one
+SELECT
+  ps.id, ps.source_key, ps.source_type, ps.medium, ps.source_session_key, ps.client_mac_address, ps.network_device_id, ps.observation_point_id, ps.started_at, ps.source_updated_at, ps.last_seen_at, ps.ended_at, ps.ssid, ps.metadata, ps.created_at, ps.updated_at,
+  COALESCE(pop.external_id, '') AS observation_external_id,
+  COALESCE(pop.parent_external_id, '') AS observation_parent_external_id
+FROM presence_sessions ps
+LEFT JOIN presence_observation_points pop ON pop.id = ps.observation_point_id
+WHERE LOWER(ps.client_mac_address) = LOWER($1)
+  AND ps.medium = $2
+  AND ps.ended_at IS NULL
+ORDER BY ps.last_seen_at DESC, ps.started_at DESC
+LIMIT 1
+`
+
+type GetLatestOpenPresenceSessionForClientMediumParams struct {
+	ClientMacAddress string `db:"client_mac_address" json:"client_mac_address"`
+	Medium           string `db:"medium" json:"medium"`
+}
+
+type GetLatestOpenPresenceSessionForClientMediumRow struct {
+	ID                          pgtype.UUID        `db:"id" json:"id"`
+	SourceKey                   string             `db:"source_key" json:"source_key"`
+	SourceType                  string             `db:"source_type" json:"source_type"`
+	Medium                      string             `db:"medium" json:"medium"`
+	SourceSessionKey            string             `db:"source_session_key" json:"source_session_key"`
+	ClientMacAddress            string             `db:"client_mac_address" json:"client_mac_address"`
+	NetworkDeviceID             pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	ObservationPointID          pgtype.UUID        `db:"observation_point_id" json:"observation_point_id"`
+	StartedAt                   pgtype.Timestamptz `db:"started_at" json:"started_at"`
+	SourceUpdatedAt             pgtype.Timestamptz `db:"source_updated_at" json:"source_updated_at"`
+	LastSeenAt                  pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	EndedAt                     pgtype.Timestamptz `db:"ended_at" json:"ended_at"`
+	Ssid                        *string            `db:"ssid" json:"ssid"`
+	Metadata                    []byte             `db:"metadata" json:"metadata"`
+	CreatedAt                   pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	ObservationExternalID       string             `db:"observation_external_id" json:"observation_external_id"`
+	ObservationParentExternalID string             `db:"observation_parent_external_id" json:"observation_parent_external_id"`
+}
+
+func (q *Queries) GetLatestOpenPresenceSessionForClientMedium(ctx context.Context, arg GetLatestOpenPresenceSessionForClientMediumParams) (GetLatestOpenPresenceSessionForClientMediumRow, error) {
+	row := q.db.QueryRow(ctx, getLatestOpenPresenceSessionForClientMedium, arg.ClientMacAddress, arg.Medium)
+	var i GetLatestOpenPresenceSessionForClientMediumRow
+	err := row.Scan(
+		&i.ID,
+		&i.SourceKey,
+		&i.SourceType,
+		&i.Medium,
+		&i.SourceSessionKey,
+		&i.ClientMacAddress,
+		&i.NetworkDeviceID,
+		&i.ObservationPointID,
+		&i.StartedAt,
+		&i.SourceUpdatedAt,
+		&i.LastSeenAt,
+		&i.EndedAt,
+		&i.Ssid,
+		&i.Metadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ObservationExternalID,
+		&i.ObservationParentExternalID,
+	)
+	return i, err
+}
+
 const getPresenceWorkerState = `-- name: GetPresenceWorkerState :one
 SELECT worker_name, source_key, state, last_polled_at, last_succeeded_at, created_at, updated_at
 FROM presence_worker_state
@@ -33,6 +161,119 @@ func (q *Queries) GetPresenceWorkerState(ctx context.Context, arg GetPresenceWor
 		&i.State,
 		&i.LastPolledAt,
 		&i.LastSucceededAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listStaleOnlinePresenceClientsBySource = `-- name: ListStaleOnlinePresenceClientsBySource :many
+SELECT id, mac_address, network_device_id, status, first_seen_at, last_seen_at, last_source_key, last_source_type, last_medium, last_observation_point_id, last_ssid, last_metadata, created_at, updated_at
+FROM presence_clients
+WHERE status = 'online'
+  AND last_source_key = $1
+  AND last_source_type = $2
+  AND last_medium = $3
+  AND last_seen_at <= $4
+ORDER BY last_seen_at ASC
+`
+
+type ListStaleOnlinePresenceClientsBySourceParams struct {
+	SourceKey  string             `db:"source_key" json:"source_key"`
+	SourceType string             `db:"source_type" json:"source_type"`
+	Medium     string             `db:"medium" json:"medium"`
+	SeenBefore pgtype.Timestamptz `db:"seen_before" json:"seen_before"`
+}
+
+func (q *Queries) ListStaleOnlinePresenceClientsBySource(ctx context.Context, arg ListStaleOnlinePresenceClientsBySourceParams) ([]PresenceClient, error) {
+	rows, err := q.db.Query(ctx, listStaleOnlinePresenceClientsBySource,
+		arg.SourceKey,
+		arg.SourceType,
+		arg.Medium,
+		arg.SeenBefore,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PresenceClient{}
+	for rows.Next() {
+		var i PresenceClient
+		if err := rows.Scan(
+			&i.ID,
+			&i.MacAddress,
+			&i.NetworkDeviceID,
+			&i.Status,
+			&i.FirstSeenAt,
+			&i.LastSeenAt,
+			&i.LastSourceKey,
+			&i.LastSourceType,
+			&i.LastMedium,
+			&i.LastObservationPointID,
+			&i.LastSsid,
+			&i.LastMetadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePresenceSessionActivity = `-- name: UpdatePresenceSessionActivity :one
+UPDATE presence_sessions
+SET
+  network_device_id = COALESCE($1, network_device_id),
+  observation_point_id = COALESCE($2, observation_point_id),
+  source_updated_at = GREATEST(source_updated_at, $3),
+  last_seen_at = GREATEST(last_seen_at, $4),
+  ssid = COALESCE($5, ssid),
+  metadata = metadata || $6
+WHERE id = $7
+RETURNING id, source_key, source_type, medium, source_session_key, client_mac_address, network_device_id, observation_point_id, started_at, source_updated_at, last_seen_at, ended_at, ssid, metadata, created_at, updated_at
+`
+
+type UpdatePresenceSessionActivityParams struct {
+	NetworkDeviceID    pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	ObservationPointID pgtype.UUID        `db:"observation_point_id" json:"observation_point_id"`
+	SourceUpdatedAt    pgtype.Timestamptz `db:"source_updated_at" json:"source_updated_at"`
+	LastSeenAt         pgtype.Timestamptz `db:"last_seen_at" json:"last_seen_at"`
+	Ssid               *string            `db:"ssid" json:"ssid"`
+	Metadata           []byte             `db:"metadata" json:"metadata"`
+	ID                 pgtype.UUID        `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdatePresenceSessionActivity(ctx context.Context, arg UpdatePresenceSessionActivityParams) (PresenceSession, error) {
+	row := q.db.QueryRow(ctx, updatePresenceSessionActivity,
+		arg.NetworkDeviceID,
+		arg.ObservationPointID,
+		arg.SourceUpdatedAt,
+		arg.LastSeenAt,
+		arg.Ssid,
+		arg.Metadata,
+		arg.ID,
+	)
+	var i PresenceSession
+	err := row.Scan(
+		&i.ID,
+		&i.SourceKey,
+		&i.SourceType,
+		&i.Medium,
+		&i.SourceSessionKey,
+		&i.ClientMacAddress,
+		&i.NetworkDeviceID,
+		&i.ObservationPointID,
+		&i.StartedAt,
+		&i.SourceUpdatedAt,
+		&i.LastSeenAt,
+		&i.EndedAt,
+		&i.Ssid,
+		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

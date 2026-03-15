@@ -21,7 +21,7 @@ func TestValidate(t *testing.T) {
 				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevelInfo,
 				Auth:         testAuthConfig("test-secret"),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -37,7 +37,7 @@ func TestValidate(t *testing.T) {
 				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevelInfo,
 				Auth:         testAuthConfig("test-secret"),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -54,7 +54,7 @@ func TestValidate(t *testing.T) {
 				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevel("trace"),
 				Auth:         testAuthConfig("test-secret"),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -71,7 +71,7 @@ func TestValidate(t *testing.T) {
 				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevelInfo,
 				Auth:         testAuthConfig(""),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -88,7 +88,7 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					PublicBaseURL:      "",
@@ -115,7 +115,7 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: AuthConfig{
 					PublicBaseURL:      "not-a-url",
@@ -142,7 +142,7 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth:     testAuthConfig("test-secret"),
 				Authorization: AuthorizationConfig{
@@ -158,7 +158,7 @@ func TestValidate(t *testing.T) {
 				Database: DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence: PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel: LogLevelInfo,
 				Auth: func() AuthConfig {
 					cfg := testAuthConfig("test-secret")
@@ -179,7 +179,7 @@ func TestValidate(t *testing.T) {
 				Database:     DatabaseConfig{},
 				Redis:        RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevelInfo,
 				Auth:         testAuthConfig("test-secret"),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -195,7 +195,7 @@ func TestValidate(t *testing.T) {
 				Server:       ServerConfig{Addr: ":8080"},
 				Database:     DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 				Weather:      WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
-				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute},
+				Presence:     PresenceConfig{PollIntervalDefault: 5 * time.Minute, DisconnectGraceDefault: 15 * time.Minute},
 				LogLevel:     LogLevelInfo,
 				Auth:         testAuthConfig("test-secret"),
 				TrustedProxy: testTrustedProxyConfig(),
@@ -213,29 +213,32 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				Presence: PresenceConfig{
-					Enabled:             true,
-					PollIntervalDefault: 5 * time.Minute,
+					Enabled:                true,
+					PollIntervalDefault:    5 * time.Minute,
+					DisconnectGraceDefault: 15 * time.Minute,
 					Sources: []PresenceSourceConfig{
 						{
-							Key:          "unifi-jfk1",
-							Type:         PresenceSourceTypeUnifi,
-							DisplayName:  "JFK1 UniFi",
-							Host:         "unifi.default.svc.cluster.local",
-							Port:         443,
-							PollInterval: 5 * time.Minute,
-							Site:         "default",
+							Key:             "unifi-jfk1",
+							Type:            PresenceSourceTypeUnifi,
+							DisplayName:     "JFK1 UniFi",
+							Host:            "unifi.default.svc.cluster.local",
+							Port:            443,
+							PollInterval:    5 * time.Minute,
+							DisconnectGrace: 15 * time.Minute,
+							Site:            "default",
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
 								Username: "INTERN_PRESENCE_SOURCE_UNIFI_JFK1_USERNAME",
 								Password: "INTERN_PRESENCE_SOURCE_UNIFI_JFK1_PASSWORD",
 							},
 						},
 						{
-							Key:          "juniper-jfk1-br-acc-r1",
-							Type:         PresenceSourceTypeJuniperSNMP,
-							DisplayName:  "jfk1-br-acc-r1",
-							Host:         "10.20.0.10",
-							Port:         161,
-							PollInterval: 5 * time.Minute,
+							Key:             "juniper-jfk1-br-acc-r1",
+							Type:            PresenceSourceTypeJuniperSNMP,
+							DisplayName:     "jfk1-br-acc-r1",
+							Host:            "10.20.0.10",
+							Port:            161,
+							PollInterval:    5 * time.Minute,
+							DisconnectGrace: 15 * time.Minute,
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
 								SNMPUsername:     "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_USERNAME",
 								SNMPAuthProtocol: "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_AUTH_PROTOCOL",
@@ -262,29 +265,32 @@ func TestValidate(t *testing.T) {
 				Redis:    RedisConfig{URL: "redis://127.0.0.1:6379/0"},
 				Weather:  WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 				Presence: PresenceConfig{
-					Enabled:             true,
-					PollIntervalDefault: 5 * time.Minute,
+					Enabled:                true,
+					PollIntervalDefault:    5 * time.Minute,
+					DisconnectGraceDefault: 15 * time.Minute,
 					Sources: []PresenceSourceConfig{
 						{
-							Key:          "dup",
-							Type:         PresenceSourceTypeUnifi,
-							DisplayName:  "A",
-							Host:         "unifi-a.example.test",
-							Port:         443,
-							PollInterval: 5 * time.Minute,
-							Site:         "default",
+							Key:             "dup",
+							Type:            PresenceSourceTypeUnifi,
+							DisplayName:     "A",
+							Host:            "unifi-a.example.test",
+							Port:            443,
+							PollInterval:    5 * time.Minute,
+							DisconnectGrace: 15 * time.Minute,
+							Site:            "default",
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
 								Username: "A",
 								Password: "B",
 							},
 						},
 						{
-							Key:          "dup",
-							Type:         PresenceSourceTypeJuniperSNMP,
-							DisplayName:  "B",
-							Host:         "10.20.0.11",
-							Port:         161,
-							PollInterval: 5 * time.Minute,
+							Key:             "dup",
+							Type:            PresenceSourceTypeJuniperSNMP,
+							DisplayName:     "B",
+							Host:            "10.20.0.11",
+							Port:            161,
+							PollInterval:    5 * time.Minute,
+							DisconnectGrace: 15 * time.Minute,
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
 								SNMPUsername:     "A",
 								SNMPAuthProtocol: "B",
@@ -337,7 +343,7 @@ func TestEnvPresenceSources(t *testing.T) {
 
 	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"juniper-jfk1-br-acc-r1","type":"juniper-snmp","displayName":"jfk1-br-acc-r1","host":"10.20.0.10","port":161,"credentialEnv":{"snmpUsername":"JUNIPER_USERNAME","snmpAuthProtocol":"JUNIPER_AUTH_PROTOCOL","snmpAuthPassword":"JUNIPER_AUTH_PASSWORD","snmpPrivProtocol":"JUNIPER_PRIV_PROTOCOL","snmpPrivPassword":"JUNIPER_PRIV_PASSWORD"}}]`)
 
-	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute)
+	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute, 15*time.Minute)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -347,8 +353,26 @@ func TestEnvPresenceSources(t *testing.T) {
 	if sources[0].PollInterval != 5*time.Minute {
 		t.Fatalf("expected default poll interval to be applied, got %s", sources[0].PollInterval)
 	}
+	if sources[0].DisconnectGrace != 15*time.Minute {
+		t.Fatalf("expected default disconnect grace to be applied, got %s", sources[0].DisconnectGrace)
+	}
 	if sources[0].CredentialEnv.SNMPPrivProtocol != "JUNIPER_PRIV_PROTOCOL" {
 		t.Fatalf("expected snmp priv protocol env var name to be preserved, got %q", sources[0].CredentialEnv.SNMPPrivProtocol)
+	}
+}
+
+func TestEnvPresenceSourcesDisconnectGraceOverride(t *testing.T) {
+	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"unifi-jfk1","type":"unifi","displayName":"JFK1 UniFi","host":"unifi.default.svc.cluster.local","port":443,"site":"default","disconnectGrace":"2m","credentialEnv":{"username":"UNIFI_USERNAME","password":"UNIFI_PASSWORD"}}]`)
+
+	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(sources))
+	}
+	if sources[0].DisconnectGrace != 2*time.Minute {
+		t.Fatalf("expected explicit disconnect grace to win, got %s", sources[0].DisconnectGrace)
 	}
 }
 

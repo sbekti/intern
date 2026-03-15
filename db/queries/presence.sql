@@ -170,3 +170,55 @@ ON CONFLICT (source_key, source_session_key) DO UPDATE SET
   ssid = COALESCE(EXCLUDED.ssid, presence_sessions.ssid),
   metadata = presence_sessions.metadata || EXCLUDED.metadata
 RETURNING *;
+
+-- name: GetLatestOpenPresenceSessionForClientMedium :one
+SELECT
+  ps.*,
+  COALESCE(pop.external_id, '') AS observation_external_id,
+  COALESCE(pop.parent_external_id, '') AS observation_parent_external_id
+FROM presence_sessions ps
+LEFT JOIN presence_observation_points pop ON pop.id = ps.observation_point_id
+WHERE LOWER(ps.client_mac_address) = LOWER(sqlc.arg(client_mac_address))
+  AND ps.medium = sqlc.arg(medium)
+  AND ps.ended_at IS NULL
+ORDER BY ps.last_seen_at DESC, ps.started_at DESC
+LIMIT 1;
+
+-- name: ListStaleOnlinePresenceClientsBySource :many
+SELECT *
+FROM presence_clients
+WHERE status = 'online'
+  AND last_source_key = sqlc.arg(source_key)
+  AND last_source_type = sqlc.arg(source_type)
+  AND last_medium = sqlc.arg(medium)
+  AND last_seen_at <= sqlc.arg(seen_before)
+ORDER BY last_seen_at ASC;
+
+-- name: UpdatePresenceSessionActivity :one
+UPDATE presence_sessions
+SET
+  network_device_id = COALESCE(sqlc.narg(network_device_id), network_device_id),
+  observation_point_id = COALESCE(sqlc.narg(observation_point_id), observation_point_id),
+  source_updated_at = GREATEST(source_updated_at, sqlc.arg(source_updated_at)),
+  last_seen_at = GREATEST(last_seen_at, sqlc.arg(last_seen_at)),
+  ssid = COALESCE(sqlc.narg(ssid), ssid),
+  metadata = metadata || sqlc.arg(metadata)
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
+-- name: ClosePresenceSession :one
+UPDATE presence_sessions
+SET
+  network_device_id = COALESCE(sqlc.narg(network_device_id), network_device_id),
+  observation_point_id = COALESCE(sqlc.narg(observation_point_id), observation_point_id),
+  source_updated_at = GREATEST(source_updated_at, sqlc.arg(source_updated_at)),
+  last_seen_at = GREATEST(last_seen_at, sqlc.arg(last_seen_at)),
+  ended_at = CASE
+    WHEN ended_at IS NULL THEN sqlc.arg(ended_at)
+    WHEN sqlc.arg(ended_at) > ended_at THEN sqlc.arg(ended_at)
+    ELSE ended_at
+  END,
+  ssid = COALESCE(sqlc.narg(ssid), ssid),
+  metadata = metadata || sqlc.arg(metadata)
+WHERE id = sqlc.arg(id)
+RETURNING *;

@@ -45,9 +45,10 @@ type WeatherConfig struct {
 }
 
 type PresenceConfig struct {
-	Enabled             bool
-	PollIntervalDefault time.Duration
-	Sources             []PresenceSourceConfig
+	Enabled                bool
+	PollIntervalDefault    time.Duration
+	DisconnectGraceDefault time.Duration
+	Sources                []PresenceSourceConfig
 }
 
 type PresenceSourceType string
@@ -58,14 +59,15 @@ const (
 )
 
 type PresenceSourceConfig struct {
-	Key           string
-	Type          PresenceSourceType
-	DisplayName   string
-	Host          string
-	Port          int
-	PollInterval  time.Duration
-	Site          string
-	CredentialEnv PresenceSourceCredentialEnvConfig
+	Key             string
+	Type            PresenceSourceType
+	DisplayName     string
+	Host            string
+	Port            int
+	PollInterval    time.Duration
+	DisconnectGrace time.Duration
+	Site            string
+	CredentialEnv   PresenceSourceCredentialEnvConfig
 }
 
 type PresenceSourceCredentialEnvConfig struct {
@@ -79,14 +81,15 @@ type PresenceSourceCredentialEnvConfig struct {
 }
 
 type rawPresenceSourceConfig struct {
-	Key           string                               `json:"key"`
-	Type          PresenceSourceType                   `json:"type"`
-	DisplayName   string                               `json:"displayName"`
-	Host          string                               `json:"host"`
-	Port          int                                  `json:"port"`
-	PollInterval  string                               `json:"pollInterval"`
-	Site          string                               `json:"site"`
-	CredentialEnv rawPresenceSourceCredentialEnvConfig `json:"credentialEnv"`
+	Key             string                               `json:"key"`
+	Type            PresenceSourceType                   `json:"type"`
+	DisplayName     string                               `json:"displayName"`
+	Host            string                               `json:"host"`
+	Port            int                                  `json:"port"`
+	PollInterval    string                               `json:"pollInterval"`
+	DisconnectGrace string                               `json:"disconnectGrace"`
+	Site            string                               `json:"site"`
+	CredentialEnv   rawPresenceSourceCredentialEnvConfig `json:"credentialEnv"`
 }
 
 type rawPresenceSourceCredentialEnvConfig struct {
@@ -157,7 +160,11 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	presenceSources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", presencePollIntervalDefault)
+	presenceDisconnectGraceDefault, err := envDurationOrDefault("INTERN_PRESENCE_DISCONNECT_GRACE_DEFAULT", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	presenceSources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", presencePollIntervalDefault, presenceDisconnectGraceDefault)
 	if err != nil {
 		return Config{}, err
 	}
@@ -258,9 +265,10 @@ func Load() (Config, error) {
 			CacheTTL:     weatherCacheTTL,
 		},
 		Presence: PresenceConfig{
-			Enabled:             presenceEnabled,
-			PollIntervalDefault: presencePollIntervalDefault,
-			Sources:             presenceSources,
+			Enabled:                presenceEnabled,
+			PollIntervalDefault:    presencePollIntervalDefault,
+			DisconnectGraceDefault: presenceDisconnectGraceDefault,
+			Sources:                presenceSources,
 		},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
@@ -338,6 +346,9 @@ func (c Config) Validate() error {
 	}
 	if (c.Presence.Enabled || len(c.Presence.Sources) > 0) && c.Presence.PollIntervalDefault <= 0 {
 		return fmt.Errorf("INTERN_PRESENCE_POLL_INTERVAL_DEFAULT must be greater than zero")
+	}
+	if (c.Presence.Enabled || len(c.Presence.Sources) > 0) && c.Presence.DisconnectGraceDefault <= 0 {
+		return fmt.Errorf("INTERN_PRESENCE_DISCONNECT_GRACE_DEFAULT must be greater than zero")
 	}
 	if err := validatePresenceSources(c.Presence); err != nil {
 		return err
@@ -496,6 +507,9 @@ func validatePresenceSources(cfg PresenceConfig) error {
 		if source.PollInterval <= 0 {
 			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include a positive pollInterval", source.Key)
 		}
+		if source.DisconnectGrace <= 0 {
+			return fmt.Errorf("INTERN_PRESENCE_SOURCES_JSON source %q must include a positive disconnectGrace", source.Key)
+		}
 
 		switch source.Type {
 		case PresenceSourceTypeUnifi:
@@ -596,7 +610,7 @@ func envFloatOrDefault(key string, fallback float64) (float64, error) {
 	return parsed, nil
 }
 
-func envPresenceSources(key string, defaultPollInterval time.Duration) ([]PresenceSourceConfig, error) {
+func envPresenceSources(key string, defaultPollInterval time.Duration, defaultDisconnectGrace time.Duration) ([]PresenceSourceConfig, error) {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
 		return nil, nil
@@ -617,15 +631,24 @@ func envPresenceSources(key string, defaultPollInterval time.Duration) ([]Presen
 			}
 			pollInterval = parsed
 		}
+		disconnectGrace := defaultDisconnectGrace
+		if strings.TrimSpace(source.DisconnectGrace) != "" {
+			parsed, err := time.ParseDuration(strings.TrimSpace(source.DisconnectGrace))
+			if err != nil {
+				return nil, fmt.Errorf("invalid %s disconnectGrace for source %q: %w", key, source.Key, err)
+			}
+			disconnectGrace = parsed
+		}
 
 		sources = append(sources, PresenceSourceConfig{
-			Key:          strings.TrimSpace(source.Key),
-			Type:         source.Type,
-			DisplayName:  strings.TrimSpace(source.DisplayName),
-			Host:         strings.TrimSpace(source.Host),
-			Port:         source.Port,
-			PollInterval: pollInterval,
-			Site:         strings.TrimSpace(source.Site),
+			Key:             strings.TrimSpace(source.Key),
+			Type:            source.Type,
+			DisplayName:     strings.TrimSpace(source.DisplayName),
+			Host:            strings.TrimSpace(source.Host),
+			Port:            source.Port,
+			PollInterval:    pollInterval,
+			DisconnectGrace: disconnectGrace,
+			Site:            strings.TrimSpace(source.Site),
 			CredentialEnv: PresenceSourceCredentialEnvConfig{
 				Username:         strings.TrimSpace(source.CredentialEnv.Username),
 				Password:         strings.TrimSpace(source.CredentialEnv.Password),
