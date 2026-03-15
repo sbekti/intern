@@ -30,6 +30,7 @@ type Querier interface {
 	GetAuthSessionByRefreshTokenHash(ctx context.Context, arg GetAuthSessionByRefreshTokenHashParams) (AuthSession, error)
 	GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDeviceByIDParams) (NetworkDevice, error)
 	GetNetworkDeviceByMACAddress(ctx context.Context, arg GetNetworkDeviceByMACAddressParams) (NetworkDevice, error)
+	GetPresenceWorkerState(ctx context.Context, arg GetPresenceWorkerStateParams) (PresenceWorkerState, error)
 	GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error)
 	GetUserByUsername(ctx context.Context, arg GetUserByUsernameParams) (User, error)
 	GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error)
@@ -42,6 +43,7 @@ type Querier interface {
 	ListAuthSessions(ctx context.Context) ([]AuthSession, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
 	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
+	ListRadacctRowsAfterID(ctx context.Context, arg ListRadacctRowsAfterIDParams) ([]Radacct, error)
 	ListVlans(ctx context.Context) ([]Vlan, error)
 	RevokeAllActiveAuthSessions(ctx context.Context, arg RevokeAllActiveAuthSessionsParams) (int64, error)
 	RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionParams) (AuthSession, error)
@@ -52,6 +54,10 @@ type Querier interface {
 	UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error)
 	UpdateRadusergroupsGroupname(ctx context.Context, arg UpdateRadusergroupsGroupnameParams) error
 	UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, error)
+	UpsertPresenceClient(ctx context.Context, arg UpsertPresenceClientParams) (PresenceClient, error)
+	UpsertPresenceObservationPoint(ctx context.Context, arg UpsertPresenceObservationPointParams) (PresenceObservationPoint, error)
+	UpsertPresenceSession(ctx context.Context, arg UpsertPresenceSessionParams) (PresenceSession, error)
+	UpsertPresenceWorkerState(ctx context.Context, arg UpsertPresenceWorkerStateParams) (PresenceWorkerState, error)
 	UpsertRadcheckCleartextPassword(ctx context.Context, arg UpsertRadcheckCleartextPasswordParams) error
 	UpsertUserByUsername(ctx context.Context, arg UpsertUserByUsernameParams) (User, error)
 	UpsertUserPreferences(ctx context.Context, arg UpsertUserPreferencesParams) (UserPreference, error)
