@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/sbekti/internctl/internal/buildinfo"
 	"github.com/sbekti/internctl/internal/config"
 )
 
@@ -19,6 +20,7 @@ func NewRootCommand() *cobra.Command {
 		Short:         "Command-line client for the internal management platform",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       buildinfo.Short(),
 	}
 
 	cmd.PersistentFlags().StringVar(
@@ -40,6 +42,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newSessionCommand(options))
 	cmd.AddCommand(newVlanCommand(options))
 	cmd.AddCommand(newDeviceCommand(options))
+	cmd.AddCommand(newVersionCommand())
 
 	return cmd
 }

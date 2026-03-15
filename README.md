@@ -29,6 +29,13 @@ internctl device create --name "Kitchen TV" --mac-address aa:bb:cc:dd:ee:ff --vl
 internctl logout
 ```
 
+Show release metadata:
+
+```bash
+internctl version
+internctl --version
+```
+
 Global flags:
 
 - `--profile`
@@ -74,3 +81,33 @@ go test ./...
 go build ./cmd/internctl
 docker buildx build --platform linux/amd64,linux/arm64 --output=type=cacheonly .
 ```
+
+## Distribution
+
+Homebrew tap install on macOS or Linux:
+
+```bash
+brew tap sbekti/tap
+brew install internctl
+```
+
+Direct release download examples:
+
+```bash
+curl -L -O https://github.com/sbekti/internctl/releases/download/vX.Y.Z/internctl_vX.Y.Z_linux_amd64.tar.gz
+tar -xzf internctl_vX.Y.Z_linux_amd64.tar.gz
+./internctl version
+```
+
+Windows:
+
+- download the matching `internctl_vX.Y.Z_windows_<arch>.zip` asset from GitHub Releases
+- extract `internctl.exe`
+- run `internctl.exe --version`
+
+Release automation:
+
+- semver tags `v*.*.*` publish:
+  - GitHub Release archives and checksums
+  - Homebrew formula updates in `sbekti/homebrew-tap`
+- the release workflow requires the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret with write access to `sbekti/homebrew-tap`

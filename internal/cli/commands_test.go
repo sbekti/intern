@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/sbekti/internctl/internal/api"
+	"github.com/sbekti/internctl/internal/buildinfo"
 	"github.com/sbekti/internctl/internal/config"
 	"github.com/sbekti/internctl/internal/session"
 )
@@ -271,6 +272,48 @@ func TestVlansListPrintsTable(t *testing.T) {
 	}
 	if !strings.Contains(output, "guest") || !strings.Contains(output, "10") {
 		t.Fatalf("stdout missing VLAN row: %s", output)
+	}
+}
+
+func TestVersionCommandPrintsBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	originalVersion := buildinfo.Version
+	originalCommit := buildinfo.Commit
+	originalDate := buildinfo.Date
+	originalDefaultServerURL := config.DefaultServerURL
+
+	buildinfo.Version = "v9.9.9"
+	buildinfo.Commit = "deadbeef"
+	buildinfo.Date = "2026-03-15T12:34:56Z"
+	config.DefaultServerURL = "https://intern.corp.bekti.com"
+
+	t.Cleanup(func() {
+		buildinfo.Version = originalVersion
+		buildinfo.Commit = originalCommit
+		buildinfo.Date = originalDate
+		config.DefaultServerURL = originalDefaultServerURL
+	})
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetArgs([]string{"version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	output := stdout.String()
+	for _, expected := range []string{
+		"version: v9.9.9",
+		"commit: deadbeef",
+		"built: 2026-03-15T12:34:56Z",
+		"default_server: https://intern.corp.bekti.com",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("output missing %q: %s", expected, output)
+		}
 	}
 }
 
