@@ -218,33 +218,33 @@ func TestValidate(t *testing.T) {
 					DisconnectGraceDefault: 15 * time.Minute,
 					Sources: []PresenceSourceConfig{
 						{
-							Key:             "unifi-jfk1",
+							Key:             "unifi-site-a",
 							Type:            PresenceSourceTypeUnifi,
-							DisplayName:     "JFK1 UniFi",
-							Host:            "unifi.default.svc.cluster.local",
+							DisplayName:     "Site A UniFi",
+							Host:            "controller.internal.example",
 							Port:            443,
 							PollInterval:    5 * time.Minute,
 							DisconnectGrace: 15 * time.Minute,
 							Site:            "default",
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
-								Username: "INTERN_PRESENCE_SOURCE_UNIFI_JFK1_USERNAME",
-								Password: "INTERN_PRESENCE_SOURCE_UNIFI_JFK1_PASSWORD",
+								Username: "INTERN_PRESENCE_SOURCE_UNIFI_SITE_A_USERNAME",
+								Password: "INTERN_PRESENCE_SOURCE_UNIFI_SITE_A_PASSWORD",
 							},
 						},
 						{
-							Key:             "juniper-jfk1-br-acc-r1",
+							Key:             "juniper-switch-a",
 							Type:            PresenceSourceTypeJuniperSNMP,
-							DisplayName:     "jfk1-br-acc-r1",
-							Host:            "10.20.0.10",
+							DisplayName:     "switch-a",
+							Host:            "192.0.2.10",
 							Port:            161,
 							PollInterval:    5 * time.Minute,
 							DisconnectGrace: 15 * time.Minute,
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
-								SNMPUsername:     "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_USERNAME",
-								SNMPAuthProtocol: "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_AUTH_PROTOCOL",
-								SNMPAuthPassword: "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_AUTH_PASSWORD",
-								SNMPPrivProtocol: "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_PRIV_PROTOCOL",
-								SNMPPrivPassword: "INTERN_PRESENCE_SOURCE_JUNIPER_JFK1_BR_ACC_R1_SNMP_PRIV_PASSWORD",
+								SNMPUsername:     "INTERN_PRESENCE_SOURCE_JUNIPER_SWITCH_A_SNMP_USERNAME",
+								SNMPAuthProtocol: "INTERN_PRESENCE_SOURCE_JUNIPER_SWITCH_A_SNMP_AUTH_PROTOCOL",
+								SNMPAuthPassword: "INTERN_PRESENCE_SOURCE_JUNIPER_SWITCH_A_SNMP_AUTH_PASSWORD",
+								SNMPPrivProtocol: "INTERN_PRESENCE_SOURCE_JUNIPER_SWITCH_A_SNMP_PRIV_PROTOCOL",
+								SNMPPrivPassword: "INTERN_PRESENCE_SOURCE_JUNIPER_SWITCH_A_SNMP_PRIV_PASSWORD",
 							},
 						},
 					},
@@ -341,7 +341,7 @@ func TestEnvPrefixesOrDefault(t *testing.T) {
 
 func TestEnvPresenceSources(t *testing.T) {
 
-	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"juniper-jfk1-br-acc-r1","type":"juniper-snmp","displayName":"jfk1-br-acc-r1","host":"10.20.0.10","port":161,"credentialEnv":{"snmpUsername":"JUNIPER_USERNAME","snmpAuthProtocol":"JUNIPER_AUTH_PROTOCOL","snmpAuthPassword":"JUNIPER_AUTH_PASSWORD","snmpPrivProtocol":"JUNIPER_PRIV_PROTOCOL","snmpPrivPassword":"JUNIPER_PRIV_PASSWORD"}}]`)
+	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"juniper-switch-a","type":"juniper-snmp","displayName":"switch-a","host":"192.0.2.10","port":161,"credentialEnv":{"snmpUsername":"JUNIPER_USERNAME","snmpAuthProtocol":"JUNIPER_AUTH_PROTOCOL","snmpAuthPassword":"JUNIPER_AUTH_PASSWORD","snmpPrivProtocol":"JUNIPER_PRIV_PROTOCOL","snmpPrivPassword":"JUNIPER_PRIV_PASSWORD"}}]`)
 
 	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute, 15*time.Minute)
 	if err != nil {
@@ -362,7 +362,7 @@ func TestEnvPresenceSources(t *testing.T) {
 }
 
 func TestEnvPresenceSourcesDisconnectGraceOverride(t *testing.T) {
-	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"unifi-jfk1","type":"unifi","displayName":"JFK1 UniFi","host":"unifi.default.svc.cluster.local","port":443,"site":"default","disconnectGrace":"2m","credentialEnv":{"username":"UNIFI_USERNAME","password":"UNIFI_PASSWORD"}}]`)
+	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"unifi-site-a","type":"unifi","displayName":"Site A UniFi","host":"controller.internal.example","port":443,"site":"default","disconnectGrace":"2m","credentialEnv":{"username":"UNIFI_USERNAME","password":"UNIFI_PASSWORD"}}]`)
 
 	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute, 15*time.Minute)
 	if err != nil {

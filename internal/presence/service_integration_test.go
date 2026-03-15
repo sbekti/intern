@@ -39,9 +39,9 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	queries := db.New(pg.Pool)
 
 	actor, err := queries.UpsertUserByUsername(ctx, db.UpsertUserByUsernameParams{
-		Username: "presence-admin",
-		Name:     "Presence Admin",
-		Email:    "presence-admin@example.com",
+		Username: "test-admin",
+		Name:     "Test Admin",
+		Email:    "test-admin@example.com",
 		Groups:   []string{"Super-Users"},
 	})
 	if err != nil {
@@ -50,7 +50,7 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 
 	device, err := queries.CreateNetworkDevice(ctx, db.CreateNetworkDeviceParams{
 		MacAddress:      "80:b9:89:30:9d:63",
-		DisplayName:     "Alice iPhone",
+		DisplayName:     "Managed Handset",
 		VlanID:          1,
 		CreatedByUserID: actor.ID,
 		UpdatedByUserID: actor.ID,
@@ -73,8 +73,8 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 			calledstationid,
 			callingstationid
 		) VALUES
-			('sess-open', 'unique-open', '10.20.0.1', $1, $2, '1A-E8-29-19-CB-5D:bektinet-wpa', '80-B9-89-30-9D-63'),
-			('sess-closed', 'unique-closed', '10.20.0.1', $1 - interval '1 hour', $2 - interval '40 minutes', '18-E8-29-49-CB-5C:bektinet-psk', '6A-1A-F8-41-BA-9F')
+			('sess-open', 'unique-open', '10.20.0.1', $1, $2, '1A-E8-29-19-CB-5D:corp-wifi', '80-B9-89-30-9D-63'),
+			('sess-closed', 'unique-closed', '10.20.0.1', $1 - interval '1 hour', $2 - interval '40 minutes', '18-E8-29-49-CB-5C:corp-guest', '6A-1A-F8-41-BA-9F')
 	`, startedAt, updatedAt); err != nil {
 		t.Fatalf("failed to seed radacct rows: %v", err)
 	}
@@ -93,10 +93,10 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 		DisconnectGraceDefault: 15 * time.Minute,
 		Sources: []config.PresenceSourceConfig{
 			{
-				Key:             "unifi-jfk1",
+				Key:             "unifi-site-a",
 				Type:            config.PresenceSourceTypeUnifi,
-				DisplayName:     "JFK1 UniFi",
-				Host:            "https://unifi.example.test",
+				DisplayName:     "Site A UniFi",
+				Host:            "https://controller.internal.example",
 				Port:            443,
 				Site:            "default",
 				PollInterval:    5 * time.Minute,
@@ -107,8 +107,8 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 		clients: []UniFiActiveClient{
 			{
 				MAC:       "80-B9-89-30-9D-63",
-				Hostname:  "alice-iphone",
-				ESSID:     "bektinet-wpa",
+				Hostname:  "handset-01",
+				ESSID:     "corp-wifi",
 				APMAC:     "18-E8-29-49-CB-5C",
 				BSSID:     "1A-E8-29-19-CB-5D",
 				AssocTime: startedAt,
@@ -161,15 +161,15 @@ func TestServiceSyncWirelessOnceNormalizesRadiusAndUniFi(t *testing.T) {
 	if networkDeviceID != device.ID {
 		t.Fatalf("expected managed device link %v, got %v", device.ID, networkDeviceID)
 	}
-	if lastSSID == nil || *lastSSID != "bektinet-wpa" {
-		t.Fatalf("expected last_ssid to be bektinet-wpa, got %#v", lastSSID)
+	if lastSSID == nil || *lastSSID != "corp-wifi" {
+		t.Fatalf("expected last_ssid to be corp-wifi, got %#v", lastSSID)
 	}
 
 	var decoded map[string]any
 	if err := json.Unmarshal(lastMetadata, &decoded); err != nil {
 		t.Fatalf("failed to decode metadata: %v", err)
 	}
-	if decoded["hostname"] != "alice-iphone" {
+	if decoded["hostname"] != "handset-01" {
 		t.Fatalf("expected unifi hostname metadata, got %#v", decoded)
 	}
 
@@ -207,10 +207,10 @@ func TestServiceSyncUniFiSourceClosesSyntheticSessionsAfterGrace(t *testing.T) {
 	pg := testutil.StartPostgres(t)
 	ctx := context.Background()
 	unifiSource := config.PresenceSourceConfig{
-		Key:             "unifi-jfk1",
+		Key:             "unifi-site-a",
 		Type:            config.PresenceSourceTypeUnifi,
-		DisplayName:     "JFK1 UniFi",
-		Host:            "https://unifi.example.test",
+		DisplayName:     "Site A UniFi",
+		Host:            "https://controller.internal.example",
 		Port:            443,
 		Site:            "default",
 		PollInterval:    5 * time.Minute,
@@ -221,8 +221,8 @@ func TestServiceSyncUniFiSourceClosesSyntheticSessionsAfterGrace(t *testing.T) {
 		clients: []UniFiActiveClient{
 			{
 				MAC:       "80-B9-89-30-9D-63",
-				Hostname:  "alice-iphone",
-				ESSID:     "bektinet-wpa",
+				Hostname:  "handset-01",
+				ESSID:     "corp-wifi",
 				APMAC:     "18-E8-29-49-CB-5C",
 				BSSID:     "1A-E8-29-19-CB-5D",
 				AssocTime: time.Date(2026, 3, 15, 18, 24, 20, 0, time.UTC),
@@ -300,16 +300,16 @@ func TestServiceSyncUniFiSourceClosesRadiusSessionsAfterGrace(t *testing.T) {
 			calledstationid,
 			callingstationid
 		) VALUES
-			('sess-open', 'unique-open', '10.20.0.1', $1, $1, '1A-E8-29-19-CB-5D:bektinet-wpa', '80-B9-89-30-9D-63')
+			('sess-open', 'unique-open', '10.20.0.1', $1, $1, '1A-E8-29-19-CB-5D:corp-wifi', '80-B9-89-30-9D-63')
 	`, startedAt); err != nil {
 		t.Fatalf("failed to seed radacct row: %v", err)
 	}
 
 	unifiSource := config.PresenceSourceConfig{
-		Key:             "unifi-jfk1",
+		Key:             "unifi-site-a",
 		Type:            config.PresenceSourceTypeUnifi,
-		DisplayName:     "JFK1 UniFi",
-		Host:            "https://unifi.example.test",
+		DisplayName:     "Site A UniFi",
+		Host:            "https://controller.internal.example",
 		Port:            443,
 		Site:            "default",
 		PollInterval:    5 * time.Minute,
@@ -319,8 +319,8 @@ func TestServiceSyncUniFiSourceClosesRadiusSessionsAfterGrace(t *testing.T) {
 		clients: []UniFiActiveClient{
 			{
 				MAC:       "80-B9-89-30-9D-63",
-				Hostname:  "alice-iphone",
-				ESSID:     "bektinet-wpa",
+				Hostname:  "handset-01",
+				ESSID:     "corp-wifi",
 				APMAC:     "18-E8-29-49-CB-5C",
 				BSSID:     "1A-E8-29-19-CB-5D",
 				AssocTime: startedAt,
@@ -401,10 +401,10 @@ func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) 
 	pg := testutil.StartPostgres(t)
 	ctx := context.Background()
 	unifiSource := config.PresenceSourceConfig{
-		Key:             "unifi-jfk1",
+		Key:             "unifi-site-a",
 		Type:            config.PresenceSourceTypeUnifi,
-		DisplayName:     "JFK1 UniFi",
-		Host:            "https://unifi.example.test",
+		DisplayName:     "Site A UniFi",
+		Host:            "https://controller.internal.example",
 		Port:            443,
 		Site:            "default",
 		PollInterval:    5 * time.Minute,
@@ -414,8 +414,8 @@ func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) 
 		clients: []UniFiActiveClient{
 			{
 				MAC:       "80-B9-89-30-9D-63",
-				Hostname:  "alice-iphone",
-				ESSID:     "bektinet-wpa",
+				Hostname:  "handset-01",
+				ESSID:     "corp-wifi",
 				APMAC:     "18-E8-29-49-CB-5C",
 				BSSID:     "1A-E8-29-19-CB-5D",
 				AssocTime: time.Date(2026, 3, 15, 18, 24, 20, 0, time.UTC),
@@ -439,8 +439,8 @@ func TestServiceSyncUniFiSourceSplitsSessionsWhenObservationMoves(t *testing.T) 
 	activeClient.clients = []UniFiActiveClient{
 		{
 			MAC:       "80-B9-89-30-9D-63",
-			Hostname:  "alice-iphone",
-			ESSID:     "bektinet-wpa",
+			Hostname:  "handset-01",
+			ESSID:     "corp-wifi",
 			APMAC:     "18-E8-29-49-CB-5D",
 			BSSID:     "1A-E8-29-19-CB-5E",
 			AssocTime: time.Date(2026, 3, 15, 18, 35, 20, 0, time.UTC),

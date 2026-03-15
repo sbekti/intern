@@ -21,7 +21,7 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 	var createdByUserID string
 	if err := pg.Pool.QueryRow(ctx, `
 		INSERT INTO users (username, name, email, groups)
-		VALUES ('presence-admin', 'Presence Admin', 'presence-admin@example.com', ARRAY['Super-Users'])
+		VALUES ('test-admin', 'Test Admin', 'test-admin@example.com', ARRAY['Super-Users'])
 		RETURNING id::text
 	`).Scan(&createdByUserID); err != nil {
 		t.Fatalf("failed to insert user: %v", err)
@@ -30,7 +30,7 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 	var networkDeviceID string
 	if err := pg.Pool.QueryRow(ctx, `
 		INSERT INTO network_devices (mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id)
-		VALUES ('aa:bb:cc:dd:ee:ff', 'Desk iPhone', 1, $1::uuid, $1::uuid)
+		VALUES ('aa:bb:cc:dd:ee:ff', 'Managed Handset', 1, $1::uuid, $1::uuid)
 		RETURNING id::text
 	`, createdByUserID).Scan(&networkDeviceID); err != nil {
 		t.Fatalf("failed to insert network device: %v", err)
@@ -52,11 +52,11 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 			metadata,
 			last_seen_at
 		) VALUES (
-			'juniper-jfk1-br-acc-r1',
+			'juniper-switch-a',
 			'juniper-snmp',
 			'wired',
 			'GE-0/0/5',
-			'jfk1-br-acc-r1',
+			'switch-a',
 			'ge-0/0/5',
 			'Desk 12',
 			'Initial location',
@@ -71,7 +71,7 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 
 	_, err := pg.Pool.Exec(ctx, `
 		INSERT INTO presence_observation_points (source_key, source_type, medium, external_id)
-		VALUES ('juniper-jfk1-br-acc-r1', 'juniper-snmp', 'wired', 'ge-0/0/5')
+		VALUES ('juniper-switch-a', 'juniper-snmp', 'wired', 'ge-0/0/5')
 	`)
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
@@ -112,7 +112,7 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 			'online',
 			NOW() - INTERVAL '5 minutes',
 			NOW(),
-			'juniper-jfk1-br-acc-r1',
+			'juniper-switch-a',
 			'juniper-snmp',
 			'wired',
 			$2::uuid,
@@ -138,10 +138,10 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 			last_seen_at,
 			metadata
 		) VALUES (
-			'juniper-jfk1-br-acc-r1',
+			'juniper-switch-a',
 			'juniper-snmp',
 			'wired',
-			'jfk1-br-acc-r1:ge-0/0/5:aa:bb:cc:dd:ee:ff',
+			'switch-a:ge-0/0/5:aa:bb:cc:dd:ee:ff',
 			'aa:bb:cc:dd:ee:ff',
 			$1::uuid,
 			$2::uuid,
@@ -158,7 +158,7 @@ func TestPresenceSchemaSupportsGenericSourceData(t *testing.T) {
 	if _, err := pg.Pool.Exec(ctx, `
 		INSERT INTO presence_worker_state (worker_name, source_key, state, last_polled_at, last_succeeded_at)
 		VALUES
-			('juniper-snmp-sync', 'juniper-jfk1-br-acc-r1', '{"cursor": "42"}'::jsonb, NOW(), NOW()),
+			('juniper-snmp-sync', 'juniper-switch-a', '{"cursor": "42"}'::jsonb, NOW(), NOW()),
 			('session-retention', '', '{"retained_days": 180}'::jsonb, NOW(), NOW())
 	`); err != nil {
 		t.Fatalf("failed to insert worker state rows: %v", err)

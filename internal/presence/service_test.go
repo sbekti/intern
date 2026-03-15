@@ -14,11 +14,11 @@ import (
 func TestParseCalledStationID(t *testing.T) {
 	t.Parallel()
 
-	bssid, ssid := parseCalledStationID("1A-E8-29-19-CB-5D:bektinet-wpa")
+	bssid, ssid := parseCalledStationID("1A-E8-29-19-CB-5D:corp-wifi")
 	if bssid != "1a:e8:29:19:cb:5d" {
 		t.Fatalf("expected normalized bssid, got %q", bssid)
 	}
-	if ssid != "bektinet-wpa" {
+	if ssid != "corp-wifi" {
 		t.Fatalf("expected ssid, got %q", ssid)
 	}
 }
@@ -37,7 +37,7 @@ func TestUniFiHTTPClientFallbackLoginAndActiveClients(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case "/api/s/default/stat/sta":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"data":[{"mac":"80-B9-89-30-9D-63","hostname":"alice-iphone","essid":"bektinet-wpa","ap_mac":"18:E8:29:49:CB:5C","bssid":"1A-E8-29-19-CB-5D","assoc_time":1742061600,"last_seen":1742062200}]}`))
+			_, _ = w.Write([]byte(`{"data":[{"mac":"80-B9-89-30-9D-63","hostname":"handset-01","essid":"corp-wifi","ap_mac":"18:E8:29:49:CB:5C","bssid":"1A-E8-29-19-CB-5D","assoc_time":1742061600,"last_seen":1742062200}]}`))
 		default:
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
@@ -62,7 +62,7 @@ func TestUniFiHTTPClientFallbackLoginAndActiveClients(t *testing.T) {
 	if len(clients) != 1 {
 		t.Fatalf("expected one client, got %d", len(clients))
 	}
-	if clients[0].MAC != "80-B9-89-30-9D-63" || clients[0].ESSID != "bektinet-wpa" {
+	if clients[0].MAC != "80-B9-89-30-9D-63" || clients[0].ESSID != "corp-wifi" {
 		t.Fatalf("unexpected client payload %#v", clients[0])
 	}
 	if clients[0].LastSeen.IsZero() || clients[0].AssocTime.IsZero() {
