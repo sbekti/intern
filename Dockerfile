@@ -16,6 +16,7 @@ COPY db ./db
 COPY internal ./internal
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/intern-api ./cmd/intern-api
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/intern-presence-worker ./cmd/intern-presence-worker
 RUN mkdir /tmp/goosebuild \
     && cd /tmp/goosebuild \
     && go mod init goosebuild \
@@ -29,6 +30,7 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 COPY --from=build /out/intern-api /usr/local/bin/intern-api
+COPY --from=build /out/intern-presence-worker /usr/local/bin/intern-presence-worker
 COPY --from=build /out/goose /usr/local/bin/goose
 COPY --from=build /src/db/migrations ./db/migrations
 

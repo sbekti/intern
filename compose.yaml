@@ -1,3 +1,41 @@
+x-intern-api-env: &intern_api_env
+  INTERN_API_ADDR: :8080
+  INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
+  INTERN_API_REDIS_URL: redis://redis:6379/0
+  INTERN_API_LOG_LEVEL: info
+  WEATHER_BASE_URL: https://api.open-meteo.com/v1/forecast
+  WEATHER_LOCATION_NAME: Example Home
+  WEATHER_LATITUDE: "40.7128"
+  WEATHER_LONGITUDE: "-74.0060"
+  WEATHER_CACHE_TTL: 15m
+  AUTH_JWT_ISSUER: intern.corp.example.com
+  AUTH_JWT_AUDIENCE: internctl
+  AUTH_JWT_HMAC_SECRET: dev-compose-jwt-secret
+  AUTH_PUBLIC_BASE_URL: http://127.0.0.1:3000
+  AUTH_ACCESS_TOKEN_TTL: 15m
+  AUTH_REFRESH_IDLE_TTL: 720h
+  AUTH_REFRESH_ABSOLUTE_TTL: 2160h
+  AUTH_DEVICE_CODE_TTL: 10m
+  AUTH_DEVICE_POLL_INTERVAL: 5s
+  AUTH_DEVICE_CODE_CREATE_RATE_LIMIT: "10"
+  AUTH_DEVICE_CODE_CREATE_RATE_WINDOW: 1m
+  AUTH_DEVICE_TOKEN_EXCHANGE_RATE_LIMIT: "120"
+  AUTH_DEVICE_TOKEN_EXCHANGE_RATE_WINDOW: 1m
+  AUTH_DEVICE_DECISION_RATE_LIMIT: "30"
+  AUTH_DEVICE_DECISION_RATE_WINDOW: 1m
+  AUTH_REFRESH_TOKEN_RATE_LIMIT: "60"
+  AUTH_REFRESH_TOKEN_RATE_WINDOW: 1m
+  AUTH_LOGOUT_RATE_LIMIT: "60"
+  AUTH_LOGOUT_RATE_WINDOW: 1m
+  TRUSTED_PROXY_CIDRS: 10.89.0.0/24
+  AUTH_REMOTE_USER_HEADER: Remote-User
+  AUTH_REMOTE_NAME_HEADER: Remote-Name
+  AUTH_REMOTE_EMAIL_HEADER: Remote-Email
+  AUTH_REMOTE_GROUPS_HEADER: Remote-Groups
+  AUTH_FORWARD_AUTH_MARKER_HEADER: X-Intern-Forward-Auth
+  AUTH_FORWARD_AUTH_MARKER_VALUE: authenticated-ingress
+  AUTH_ADMIN_GROUPS: Super-Users
+
 services:
   postgres:
     image: postgres:18-alpine3.22
@@ -51,42 +89,7 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      INTERN_API_ADDR: :8080
-      INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
-      INTERN_API_REDIS_URL: redis://redis:6379/0
-      INTERN_API_LOG_LEVEL: info
-      WEATHER_BASE_URL: https://api.open-meteo.com/v1/forecast
-      WEATHER_LOCATION_NAME: Example Home
-      WEATHER_LATITUDE: "40.7128"
-      WEATHER_LONGITUDE: "-74.0060"
-      WEATHER_CACHE_TTL: 15m
-      AUTH_JWT_ISSUER: intern.corp.example.com
-      AUTH_JWT_AUDIENCE: internctl
-      AUTH_JWT_HMAC_SECRET: dev-compose-jwt-secret
-      AUTH_PUBLIC_BASE_URL: http://127.0.0.1:3000
-      AUTH_ACCESS_TOKEN_TTL: 15m
-      AUTH_REFRESH_IDLE_TTL: 720h
-      AUTH_REFRESH_ABSOLUTE_TTL: 2160h
-      AUTH_DEVICE_CODE_TTL: 10m
-      AUTH_DEVICE_POLL_INTERVAL: 5s
-      AUTH_DEVICE_CODE_CREATE_RATE_LIMIT: "10"
-      AUTH_DEVICE_CODE_CREATE_RATE_WINDOW: 1m
-      AUTH_DEVICE_TOKEN_EXCHANGE_RATE_LIMIT: "120"
-      AUTH_DEVICE_TOKEN_EXCHANGE_RATE_WINDOW: 1m
-      AUTH_DEVICE_DECISION_RATE_LIMIT: "30"
-      AUTH_DEVICE_DECISION_RATE_WINDOW: 1m
-      AUTH_REFRESH_TOKEN_RATE_LIMIT: "60"
-      AUTH_REFRESH_TOKEN_RATE_WINDOW: 1m
-      AUTH_LOGOUT_RATE_LIMIT: "60"
-      AUTH_LOGOUT_RATE_WINDOW: 1m
-      TRUSTED_PROXY_CIDRS: 10.89.0.0/24
-      AUTH_REMOTE_USER_HEADER: Remote-User
-      AUTH_REMOTE_NAME_HEADER: Remote-Name
-      AUTH_REMOTE_EMAIL_HEADER: Remote-Email
-      AUTH_REMOTE_GROUPS_HEADER: Remote-Groups
-      AUTH_FORWARD_AUTH_MARKER_HEADER: X-Intern-Forward-Auth
-      AUTH_FORWARD_AUTH_MARKER_VALUE: authenticated-ingress
-      AUTH_ADMIN_GROUPS: Super-Users
+      <<: *intern_api_env
     depends_on:
       postgres:
         condition: service_healthy
@@ -99,6 +102,28 @@ services:
         ipv4_address: 10.89.0.20
     expose:
       - "8080"
+
+  intern-presence-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["intern-presence-worker"]
+    env_file:
+      - ./docker/presence-worker.env
+      - path: ./.env.presence.local
+        required: false
+    environment:
+      <<: *intern_api_env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      devnet:
+        ipv4_address: 10.89.0.21
 
   dev-auth-proxy:
     image: nginx:1.28-alpine3.23
