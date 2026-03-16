@@ -59,15 +59,16 @@ const (
 )
 
 type PresenceSourceConfig struct {
-	Key             string
-	Type            PresenceSourceType
-	DisplayName     string
-	Host            string
-	Port            int
-	PollInterval    time.Duration
-	DisconnectGrace time.Duration
-	Site            string
-	CredentialEnv   PresenceSourceCredentialEnvConfig
+	Key                string
+	Type               PresenceSourceType
+	DisplayName        string
+	Host               string
+	Port               int
+	PollInterval       time.Duration
+	DisconnectGrace    time.Duration
+	InsecureSkipVerify bool
+	Site               string
+	CredentialEnv      PresenceSourceCredentialEnvConfig
 }
 
 type PresenceSourceCredentialEnvConfig struct {
@@ -81,15 +82,16 @@ type PresenceSourceCredentialEnvConfig struct {
 }
 
 type rawPresenceSourceConfig struct {
-	Key             string                               `json:"key"`
-	Type            PresenceSourceType                   `json:"type"`
-	DisplayName     string                               `json:"displayName"`
-	Host            string                               `json:"host"`
-	Port            int                                  `json:"port"`
-	PollInterval    string                               `json:"pollInterval"`
-	DisconnectGrace string                               `json:"disconnectGrace"`
-	Site            string                               `json:"site"`
-	CredentialEnv   rawPresenceSourceCredentialEnvConfig `json:"credentialEnv"`
+	Key                string                               `json:"key"`
+	Type               PresenceSourceType                   `json:"type"`
+	DisplayName        string                               `json:"displayName"`
+	Host               string                               `json:"host"`
+	Port               int                                  `json:"port"`
+	PollInterval       string                               `json:"pollInterval"`
+	DisconnectGrace    string                               `json:"disconnectGrace"`
+	InsecureSkipVerify bool                                 `json:"insecureSkipVerify"`
+	Site               string                               `json:"site"`
+	CredentialEnv      rawPresenceSourceCredentialEnvConfig `json:"credentialEnv"`
 }
 
 type rawPresenceSourceCredentialEnvConfig struct {
@@ -641,14 +643,15 @@ func envPresenceSources(key string, defaultPollInterval time.Duration, defaultDi
 		}
 
 		sources = append(sources, PresenceSourceConfig{
-			Key:             strings.TrimSpace(source.Key),
-			Type:            source.Type,
-			DisplayName:     strings.TrimSpace(source.DisplayName),
-			Host:            strings.TrimSpace(source.Host),
-			Port:            source.Port,
-			PollInterval:    pollInterval,
-			DisconnectGrace: disconnectGrace,
-			Site:            strings.TrimSpace(source.Site),
+			Key:                strings.TrimSpace(source.Key),
+			Type:               source.Type,
+			DisplayName:        strings.TrimSpace(source.DisplayName),
+			Host:               strings.TrimSpace(source.Host),
+			Port:               source.Port,
+			PollInterval:       pollInterval,
+			DisconnectGrace:    disconnectGrace,
+			InsecureSkipVerify: source.InsecureSkipVerify,
+			Site:               strings.TrimSpace(source.Site),
 			CredentialEnv: PresenceSourceCredentialEnvConfig{
 				Username:         strings.TrimSpace(source.CredentialEnv.Username),
 				Password:         strings.TrimSpace(source.CredentialEnv.Password),

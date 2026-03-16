@@ -31,7 +31,7 @@ func TestUniFiHTTPClientFallbackLoginAndActiveClients(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/auth/login":
 			loginCalls++
-			http.NotFound(w, r)
+			w.WriteHeader(http.StatusUnauthorized)
 		case "/api/login":
 			loginCalls++
 			w.WriteHeader(http.StatusOK)
@@ -67,6 +67,42 @@ func TestUniFiHTTPClientFallbackLoginAndActiveClients(t *testing.T) {
 	}
 	if clients[0].LastSeen.IsZero() || clients[0].AssocTime.IsZero() {
 		t.Fatalf("expected parsed timestamps, got %#v", clients[0])
+	}
+}
+
+func TestUniFiHTTPClientInsecureSkipVerify(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/auth/login", "/api/login":
+			w.WriteHeader(http.StatusOK)
+		case "/api/s/default/stat/sta":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+
+	source := config.PresenceSourceConfig{
+		Host:               upstream.URL,
+		Site:               "default",
+		InsecureSkipVerify: true,
+		CredentialEnv: config.PresenceSourceCredentialEnvConfig{
+			Username: "neteng",
+			Password: "secret",
+		},
+	}
+
+	if _, err := NewUniFiHTTPClient(nil).ListActiveClients(context.Background(), source); err != nil {
+		t.Fatalf("expected insecureSkipVerify source to succeed, got %v", err)
+	}
+
+	source.InsecureSkipVerify = false
+	if _, err := NewUniFiHTTPClient(nil).ListActiveClients(context.Background(), source); err == nil {
+		t.Fatal("expected default TLS verification to fail against self-signed upstream")
 	}
 }
 

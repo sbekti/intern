@@ -218,14 +218,15 @@ func TestValidate(t *testing.T) {
 					DisconnectGraceDefault: 15 * time.Minute,
 					Sources: []PresenceSourceConfig{
 						{
-							Key:             "unifi-site-a",
-							Type:            PresenceSourceTypeUnifi,
-							DisplayName:     "Site A UniFi",
-							Host:            "controller.internal.example",
-							Port:            443,
-							PollInterval:    5 * time.Minute,
-							DisconnectGrace: 15 * time.Minute,
-							Site:            "default",
+							Key:                "unifi-site-a",
+							Type:               PresenceSourceTypeUnifi,
+							DisplayName:        "Site A UniFi",
+							Host:               "controller.internal.example",
+							Port:               443,
+							PollInterval:       5 * time.Minute,
+							DisconnectGrace:    15 * time.Minute,
+							InsecureSkipVerify: true,
+							Site:               "default",
 							CredentialEnv: PresenceSourceCredentialEnvConfig{
 								Username: "INTERN_PRESENCE_SOURCE_UNIFI_SITE_A_USERNAME",
 								Password: "INTERN_PRESENCE_SOURCE_UNIFI_SITE_A_PASSWORD",
@@ -362,7 +363,7 @@ func TestEnvPresenceSources(t *testing.T) {
 }
 
 func TestEnvPresenceSourcesDisconnectGraceOverride(t *testing.T) {
-	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"unifi-site-a","type":"unifi","displayName":"Site A UniFi","host":"controller.internal.example","port":443,"site":"default","disconnectGrace":"2m","credentialEnv":{"username":"UNIFI_USERNAME","password":"UNIFI_PASSWORD"}}]`)
+	t.Setenv("INTERN_PRESENCE_SOURCES_JSON", `[{"key":"unifi-site-a","type":"unifi","displayName":"Site A UniFi","host":"controller.internal.example","port":443,"site":"default","disconnectGrace":"2m","insecureSkipVerify":true,"credentialEnv":{"username":"UNIFI_USERNAME","password":"UNIFI_PASSWORD"}}]`)
 
 	sources, err := envPresenceSources("INTERN_PRESENCE_SOURCES_JSON", 5*time.Minute, 15*time.Minute)
 	if err != nil {
@@ -373,6 +374,9 @@ func TestEnvPresenceSourcesDisconnectGraceOverride(t *testing.T) {
 	}
 	if sources[0].DisconnectGrace != 2*time.Minute {
 		t.Fatalf("expected explicit disconnect grace to win, got %s", sources[0].DisconnectGrace)
+	}
+	if !sources[0].InsecureSkipVerify {
+		t.Fatal("expected insecureSkipVerify to be preserved")
 	}
 }
 

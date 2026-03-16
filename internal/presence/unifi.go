@@ -3,6 +3,7 @@ package presence
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -45,18 +46,15 @@ type unifiActiveClientPayload struct {
 }
 
 func NewUniFiHTTPClient(httpClient HTTPEr) *UniFiHTTPClient {
-	if httpClient == nil {
-		jar, _ := cookiejar.New(nil)
-		httpClient = &http.Client{
-			Timeout: 10 * time.Second,
-			Jar:     jar,
-		}
-	}
-
 	return &UniFiHTTPClient{httpClient: httpClient}
 }
 
 func (c *UniFiHTTPClient) ListActiveClients(ctx context.Context, source config.PresenceSourceConfig) ([]UniFiActiveClient, error) {
+	httpClient := c.httpClient
+	if httpClient == nil {
+		httpClient = newUniFiHTTPClient(source)
+	}
+
 	baseURL := unifiBaseURL(source)
 	loginPayload := mustJSON(unifiLoginRequest{
 		Username:   resolveCredentialValue(source.CredentialEnv.Username),
@@ -74,15 +72,15 @@ func (c *UniFiHTTPClient) ListActiveClients(ctx context.Context, source config.P
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := c.httpClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			loginErr = err
 			continue
 		}
 		resp.Body.Close()
 
-		if resp.StatusCode == http.StatusNotFound {
-			loginErr = fmt.Errorf("unifi login endpoint %s returned 404", endpoint)
+		if shouldRetryUniFiLoginEndpoint(resp.StatusCode) {
+			loginErr = fmt.Errorf("unifi login endpoint %s returned status %d", endpoint, resp.StatusCode)
 			continue
 		}
 		if resp.StatusCode >= 300 {
@@ -101,7 +99,7 @@ func (c *UniFiHTTPClient) ListActiveClients(ctx context.Context, source config.P
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +128,26 @@ func (c *UniFiHTTPClient) ListActiveClients(ctx context.Context, source config.P
 	}
 
 	return clients, nil
+}
+
+func newUniFiHTTPClient(source config.PresenceSourceConfig) HTTPEr {
+	jar, _ := cookiejar.New(nil)
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Jar:     jar,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: source.InsecureSkipVerify},
+		},
+	}
+}
+
+func shouldRetryUniFiLoginEndpoint(statusCode int) bool {
+	switch statusCode {
+	case http.StatusNotFound, http.StatusUnauthorized, http.StatusForbidden:
+		return true
+	default:
+		return false
+	}
 }
 
 func unifiBaseURL(source config.PresenceSourceConfig) string {
