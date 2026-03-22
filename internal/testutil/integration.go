@@ -130,14 +130,24 @@ func StartRedis(t *testing.T) *RedisContainer {
 func applyPostgresSchema(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
 
-	sqlBytes, err := os.ReadFile(filepath.Join(repoRoot(t), "db", "migrations", "202603080001_initial_schema.sql"))
+	migrationPaths, err := filepath.Glob(filepath.Join(repoRoot(t), "db", "migrations", "*.sql"))
 	if err != nil {
-		t.Fatalf("failed to read migration file: %v", err)
+		t.Fatalf("failed to list migration files: %v", err)
+	}
+	if len(migrationPaths) == 0 {
+		t.Fatal("no migration files found")
 	}
 
-	upSQL := extractGooseUp(string(sqlBytes))
-	if _, err := pool.Exec(ctx, upSQL); err != nil {
-		t.Fatalf("failed to apply schema: %v", err)
+	for _, migrationPath := range migrationPaths {
+		sqlBytes, err := os.ReadFile(migrationPath)
+		if err != nil {
+			t.Fatalf("failed to read migration file %s: %v", migrationPath, err)
+		}
+
+		upSQL := extractGooseUp(string(sqlBytes))
+		if _, err := pool.Exec(ctx, upSQL); err != nil {
+			t.Fatalf("failed to apply schema migration %s: %v", filepath.Base(migrationPath), err)
+		}
 	}
 }
 

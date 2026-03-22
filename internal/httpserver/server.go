@@ -945,6 +945,7 @@ func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 		Id:          openapi_types.UUID(record.Device.ID.Bytes),
 		MacAddress:  record.Device.MacAddress,
 		DisplayName: record.Device.DisplayName,
+		Disabled:    record.Device.Disabled,
 		Vlan: api.VlanRef{
 			Name:   record.VLAN.Name,
 			VlanId: record.VLAN.VlanID,

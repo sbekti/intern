@@ -90,6 +90,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"id":           deviceID(created.Device).String(),
 			"mac_address":  "aa:bb:cc:dd:ee:ff",
 			"display_name": "Camera",
+			"disabled":     false,
 			"vlan_id":      float64(iotID),
 			"radius_group": "vlan-20",
 		},
@@ -99,12 +100,14 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"id":           deviceID(created.Device).String(),
 			"mac_address":  "aa:bb:cc:dd:ee:ff",
 			"display_name": "Camera",
+			"disabled":     false,
 			"vlan_id":      float64(iotID),
 		},
 		"after": map[string]any{
 			"id":           deviceID(created.Device).String(),
 			"mac_address":  "aa:bb:cc:dd:ee:99",
 			"display_name": "Porch Camera",
+			"disabled":     false,
 			"vlan_id":      float64(guestID),
 			"radius_group": "vlan-10",
 		},
@@ -116,7 +119,99 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"id":           deviceID(created.Device).String(),
 			"mac_address":  "aa:bb:cc:dd:ee:99",
 			"display_name": "Porch Camera",
+			"disabled":     false,
 			"vlan_id":      float64(guestID),
+		},
+	})
+}
+
+func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.T) {
+	t.Parallel()
+
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	queries := db.New(pg.Pool)
+	actor := createActor(t, ctx, queries)
+	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
+	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
+
+	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
+		MacAddress:  "AA-BB-CC-DD-EE-55",
+		DisplayName: "Camera",
+		VlanId:      iotID,
+	})
+	if err != nil {
+		t.Fatalf("failed to create device: %v", err)
+	}
+
+	disabled, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
+		Disabled: boolPtr(true),
+	})
+	if err != nil {
+		t.Fatalf("failed to disable device: %v", err)
+	}
+	if !disabled.Device.Disabled {
+		t.Fatal("expected disabled device state")
+	}
+	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee55")
+
+	updatedWhileDisabled, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
+		MacAddress: stringPtr("AA-BB-CC-DD-EE-66"),
+		VlanId:     int32Ptr(guestID),
+	})
+	if err != nil {
+		t.Fatalf("failed to update disabled device: %v", err)
+	}
+	if !updatedWhileDisabled.Device.Disabled {
+		t.Fatal("expected device to remain disabled")
+	}
+	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee55")
+	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee66")
+
+	enabled, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
+		Disabled: boolPtr(false),
+	})
+	if err != nil {
+		t.Fatalf("failed to enable device: %v", err)
+	}
+	if enabled.Device.Disabled {
+		t.Fatal("expected enabled device state")
+	}
+	assertRadiusState(t, ctx, pg.Pool, "aabbccddee66", "vlan-10")
+
+	assertAuditLogMetadata(t, ctx, pg.Pool, "device.disable", map[string]any{
+		"before": map[string]any{
+			"id":           deviceID(created.Device).String(),
+			"mac_address":  "aa:bb:cc:dd:ee:55",
+			"display_name": "Camera",
+			"disabled":     false,
+			"vlan_id":      float64(iotID),
+		},
+		"after": map[string]any{
+			"id":           deviceID(created.Device).String(),
+			"mac_address":  "aa:bb:cc:dd:ee:55",
+			"display_name": "Camera",
+			"disabled":     true,
+			"vlan_id":      float64(iotID),
+			"radius_group": "vlan-20",
+		},
+	})
+	assertAuditLogMetadata(t, ctx, pg.Pool, "device.enable", map[string]any{
+		"before": map[string]any{
+			"id":           deviceID(created.Device).String(),
+			"mac_address":  "aa:bb:cc:dd:ee:66",
+			"display_name": "Camera",
+			"disabled":     true,
+			"vlan_id":      float64(guestID),
+		},
+		"after": map[string]any{
+			"id":           deviceID(created.Device).String(),
+			"mac_address":  "aa:bb:cc:dd:ee:66",
+			"display_name": "Camera",
+			"disabled":     false,
+			"vlan_id":      float64(guestID),
+			"radius_group": "vlan-10",
 		},
 	})
 }
@@ -400,6 +495,10 @@ func stringPtr(value string) *string {
 }
 
 func int32Ptr(value int32) *int32 {
+	return &value
+}
+
+func boolPtr(value bool) *bool {
 	return &value
 }
 

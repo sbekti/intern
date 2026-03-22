@@ -1002,6 +1002,7 @@ components:
         - id
         - mac_address
         - display_name
+        - disabled
         - vlan
         - created_at
         - updated_at
@@ -1014,6 +1015,8 @@ components:
           example: aa:bb:cc:dd:ee:ff
         display_name:
           type: string
+        disabled:
+          type: boolean
         vlan:
           $ref: '#/components/schemas/VlanRef'
         created_by_user_id:
@@ -1047,6 +1050,8 @@ components:
           example: aa:bb:cc:dd:ee:ff
         display_name:
           type: string
+        disabled:
+          type: boolean
         vlan_id:
           type: integer
           format: int32
@@ -1060,6 +1065,8 @@ components:
           example: aa:bb:cc:dd:ee:ff
         display_name:
           type: string
+        disabled:
+          type: boolean
         vlan_id:
           type: integer
           format: int32

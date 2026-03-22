@@ -513,11 +513,13 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 		},
 		DeviceService: fakeDeviceService{
 			createFn: func(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error) {
+				disabled := input.Disabled != nil && *input.Disabled
 				return devices.DeviceRecord{
 					Device: db.NetworkDevice{
 						ID:              pgtype.UUID{Bytes: [16]byte(deviceID), Valid: true},
 						MacAddress:      "aa:bb:cc:dd:ee:ff",
 						DisplayName:     input.DisplayName,
+						Disabled:        disabled,
 						VlanID:          input.VlanId,
 						CreatedAt:       testTimestamp(),
 						UpdatedAt:       testTimestamp(),
@@ -533,7 +535,7 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","vlan_id":20}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", strings.NewReader(`{"mac_address":"AA-BB-CC-DD-EE-FF","display_name":"Camera","disabled":true,"vlan_id":20}`))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("Content-Type", "application/json")
 	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
@@ -542,6 +544,14 @@ func TestCreateDeviceReturnsCreated(t *testing.T) {
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+
+	var payload api.NetworkDevice
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !payload.Disabled {
+		t.Fatalf("expected disabled device payload, got %#v", payload)
 	}
 }
 

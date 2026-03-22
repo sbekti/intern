@@ -80,6 +80,7 @@ type NetworkDevice struct {
 	UpdatedByUserID pgtype.UUID        `db:"updated_by_user_id" json:"updated_by_user_id"`
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	Disabled        bool               `db:"disabled" json:"disabled"`
 }
 
 type Radacct struct {

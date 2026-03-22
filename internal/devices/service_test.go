@@ -104,6 +104,7 @@ func TestMergePatch(t *testing.T) {
 	current := db.NetworkDevice{
 		MacAddress:  "aa:bb:cc:dd:ee:ff",
 		DisplayName: "Living Room TV",
+		Disabled:    false,
 		VlanID:      2,
 	}
 
@@ -116,15 +117,17 @@ func TestMergePatch(t *testing.T) {
 	name := "  Updated TV  "
 	vlanID := int32(3)
 	macAddress := "AA-BB-CC-00-11-22"
+	disabled := true
 	params, err := mergePatch(current, api.NetworkDevicePatch{
 		MacAddress:  &macAddress,
 		DisplayName: &name,
+		Disabled:    &disabled,
 		VlanId:      &vlanID,
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if params.MacAddress != "aa:bb:cc:00:11:22" || params.DisplayName != "Updated TV" || params.VlanID != 3 {
+	if params.MacAddress != "aa:bb:cc:00:11:22" || params.DisplayName != "Updated TV" || params.Disabled != true || params.VlanID != 3 {
 		t.Fatalf("unexpected patch params %+v", params)
 	}
 }
@@ -144,10 +147,14 @@ func TestServiceCreateWritesRadiusState(t *testing.T) {
 				if arg.MacAddress != "aa:bb:cc:dd:ee:ff" {
 					t.Fatalf("expected normalized app mac, got %q", arg.MacAddress)
 				}
+				if arg.Disabled {
+					t.Fatal("expected enabled device to stay enabled")
+				}
 				return db.NetworkDevice{
 					ID:          toPgUUID(deviceID),
 					MacAddress:  arg.MacAddress,
 					DisplayName: arg.DisplayName,
+					Disabled:    arg.Disabled,
 					VlanID:      arg.VlanID,
 				}, nil
 			},
@@ -190,6 +197,64 @@ func TestServiceCreateWritesRadiusState(t *testing.T) {
 	}
 	if !radcheckCalled || !radgroupCalled {
 		t.Fatal("expected radius writes")
+	}
+}
+
+func TestServiceCreateDisabledSkipsRadiusWrites(t *testing.T) {
+	t.Parallel()
+
+	deviceID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	service := NewService(nil, fakeTransactor{
+		q: fakeQuerier{
+			getVlanFn: func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error) {
+				return db.Vlan{Name: "guest", VlanID: 10}, nil
+			},
+			createFn: func(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error) {
+				if !arg.Disabled {
+					t.Fatal("expected disabled device to be persisted as disabled")
+				}
+				return db.NetworkDevice{
+					ID:          toPgUUID(deviceID),
+					MacAddress:  arg.MacAddress,
+					DisplayName: arg.DisplayName,
+					Disabled:    arg.Disabled,
+					VlanID:      arg.VlanID,
+				}, nil
+			},
+			upsertRadcheckFn: func(ctx context.Context, arg db.UpsertRadcheckCleartextPasswordParams) error {
+				t.Fatal("expected radcheck not to be written for disabled device")
+				return nil
+			},
+			deleteUsergroupsFn: func(ctx context.Context, arg db.DeleteRadusergroupsByUsernameParams) error {
+				return nil
+			},
+			deleteRadcheckFn: func(ctx context.Context, arg db.DeleteRadcheckCleartextPasswordByUsernameParams) error {
+				return nil
+			},
+			insertUsergroupFn: func(ctx context.Context, arg db.InsertRadusergroupParams) error {
+				t.Fatal("expected radusergroup not to be written for disabled device")
+				return nil
+			},
+			createAuditLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
+				return db.AuditLog{}, nil
+			},
+		},
+	})
+
+	record, err := service.Create(context.Background(), db.User{
+		ID:       pgtype.UUID{Valid: true},
+		Username: "alice",
+	}, api.NetworkDeviceWrite{
+		MacAddress:  "AA-BB-CC-DD-EE-44",
+		DisplayName: "Spare Phone",
+		Disabled:    boolPtrUnit(true),
+		VlanId:      10,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !record.Device.Disabled {
+		t.Fatal("expected disabled device record")
 	}
 }
 
@@ -246,4 +311,8 @@ func TestClassifyDBError(t *testing.T) {
 	if !errors.Is(classifyDBError(&pgconn.PgError{Code: "23505"}), ErrConflict) {
 		t.Fatal("expected unique violation to map to ErrConflict")
 	}
+}
+
+func boolPtrUnit(value bool) *bool {
+	return &value
 }

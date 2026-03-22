@@ -27,6 +27,7 @@ const createNetworkDevice = `-- name: CreateNetworkDevice :one
 INSERT INTO network_devices (
   mac_address,
   display_name,
+  disabled,
   vlan_id,
   created_by_user_id,
   updated_by_user_id
@@ -35,14 +36,16 @@ INSERT INTO network_devices (
   $2,
   $3,
   $4,
-  $5
+  $5,
+  $6
 )
-RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
+RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
 `
 
 type CreateNetworkDeviceParams struct {
 	MacAddress      string      `db:"mac_address" json:"mac_address"`
 	DisplayName     string      `db:"display_name" json:"display_name"`
+	Disabled        bool        `db:"disabled" json:"disabled"`
 	VlanID          int32       `db:"vlan_id" json:"vlan_id"`
 	CreatedByUserID pgtype.UUID `db:"created_by_user_id" json:"created_by_user_id"`
 	UpdatedByUserID pgtype.UUID `db:"updated_by_user_id" json:"updated_by_user_id"`
@@ -52,6 +55,7 @@ func (q *Queries) CreateNetworkDevice(ctx context.Context, arg CreateNetworkDevi
 	row := q.db.QueryRow(ctx, createNetworkDevice,
 		arg.MacAddress,
 		arg.DisplayName,
+		arg.Disabled,
 		arg.VlanID,
 		arg.CreatedByUserID,
 		arg.UpdatedByUserID,
@@ -66,6 +70,7 @@ func (q *Queries) CreateNetworkDevice(ctx context.Context, arg CreateNetworkDevi
 		&i.UpdatedByUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
@@ -85,7 +90,7 @@ func (q *Queries) DeleteNetworkDevice(ctx context.Context, arg DeleteNetworkDevi
 }
 
 const getNetworkDeviceByID = `-- name: GetNetworkDeviceByID :one
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
+SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
 FROM network_devices
 WHERE id = $1
 LIMIT 1
@@ -107,12 +112,13 @@ func (q *Queries) GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDevice
 		&i.UpdatedByUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const getNetworkDeviceByMACAddress = `-- name: GetNetworkDeviceByMACAddress :one
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
+SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
 FROM network_devices
 WHERE LOWER(mac_address) = LOWER($1)
 LIMIT 1
@@ -134,12 +140,13 @@ func (q *Queries) GetNetworkDeviceByMACAddress(ctx context.Context, arg GetNetwo
 		&i.UpdatedByUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }
 
 const listNetworkDevices = `-- name: ListNetworkDevices :many
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
+SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
 FROM network_devices
 ORDER BY display_name, id
 `
@@ -162,6 +169,7 @@ func (q *Queries) ListNetworkDevices(ctx context.Context) ([]NetworkDevice, erro
 			&i.UpdatedByUserID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -178,16 +186,18 @@ UPDATE network_devices
 SET
   mac_address = $1,
   display_name = $2,
-  vlan_id = $3,
-  updated_by_user_id = $4,
+  disabled = $3,
+  vlan_id = $4,
+  updated_by_user_id = $5,
   updated_at = NOW()
-WHERE id = $5
-RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at
+WHERE id = $6
+RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
 `
 
 type UpdateNetworkDeviceParams struct {
 	MacAddress      string      `db:"mac_address" json:"mac_address"`
 	DisplayName     string      `db:"display_name" json:"display_name"`
+	Disabled        bool        `db:"disabled" json:"disabled"`
 	VlanID          int32       `db:"vlan_id" json:"vlan_id"`
 	UpdatedByUserID pgtype.UUID `db:"updated_by_user_id" json:"updated_by_user_id"`
 	ID              pgtype.UUID `db:"id" json:"id"`
@@ -197,6 +207,7 @@ func (q *Queries) UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDevi
 	row := q.db.QueryRow(ctx, updateNetworkDevice,
 		arg.MacAddress,
 		arg.DisplayName,
+		arg.Disabled,
 		arg.VlanID,
 		arg.UpdatedByUserID,
 		arg.ID,
@@ -211,6 +222,7 @@ func (q *Queries) UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDevi
 		&i.UpdatedByUserID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Disabled,
 	)
 	return i, err
 }

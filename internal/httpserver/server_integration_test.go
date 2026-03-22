@@ -231,6 +231,44 @@ func TestHandlerIntegrationAdminDeviceListRequiresAdmin(t *testing.T) {
 	}
 }
 
+func TestHandlerIntegrationDeviceListIncludesDisabledState(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", bytes.NewBufferString(`{"display_name":"Dorm TV","mac_address":"02:00:00:00:00:42","disabled":true,"vlan_id":10}`))
+	createReq.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	createReq.Header.Set("Content-Type", "application/json")
+	setForwardAuthHeaders(createReq, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
+
+	createRec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(createRec, createReq)
+
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d body=%s", createRec.Code, createRec.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/networks/devices", nil)
+	req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
+	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
+
+	rec := httptest.NewRecorder()
+	testEnv.handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload api.NetworkDeviceList
+	decodeBody(t, rec.Body, &payload)
+	if len(payload.Items) != 1 {
+		t.Fatalf("expected 1 device, got %d", len(payload.Items))
+	}
+	if !payload.Items[0].Disabled {
+		t.Fatalf("expected disabled device payload, got %#v", payload.Items[0])
+	}
+}
+
 func TestHandlerIntegrationApproveDeviceCodeForAuthenticatedUser(t *testing.T) {
 	t.Parallel()
 

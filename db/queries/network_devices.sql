@@ -23,12 +23,14 @@ LIMIT 1;
 INSERT INTO network_devices (
   mac_address,
   display_name,
+  disabled,
   vlan_id,
   created_by_user_id,
   updated_by_user_id
 ) VALUES (
   sqlc.arg(mac_address),
   sqlc.arg(display_name),
+  sqlc.arg(disabled),
   sqlc.arg(vlan_id),
   sqlc.narg(created_by_user_id),
   sqlc.narg(updated_by_user_id)
@@ -40,6 +42,7 @@ UPDATE network_devices
 SET
   mac_address = sqlc.arg(mac_address),
   display_name = sqlc.arg(display_name),
+  disabled = sqlc.arg(disabled),
   vlan_id = sqlc.arg(vlan_id),
   updated_by_user_id = sqlc.narg(updated_by_user_id),
   updated_at = NOW()

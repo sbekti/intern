@@ -162,6 +162,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 		device, err := q.CreateNetworkDevice(ctx, db.CreateNetworkDeviceParams{
 			MacAddress:      params.MacAddressColon,
 			DisplayName:     params.DisplayName,
+			Disabled:        params.Disabled,
 			VlanID:          params.VlanID,
 			CreatedByUserID: nullablePgUUID(actor.ID),
 			UpdatedByUserID: nullablePgUUID(actor.ID),
@@ -170,23 +171,14 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 			return classifyDBError(err)
 		}
 
-		if err := q.UpsertRadcheckCleartextPassword(ctx, db.UpsertRadcheckCleartextPasswordParams{
-			Username: params.MacAddressBare,
-			Value:    params.MacAddressBare,
-		}); err != nil {
-			return classifyDBError(err)
-		}
-		if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-			Username: params.MacAddressBare,
-		}); err != nil {
-			return classifyDBError(err)
-		}
-		if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
-			Username:  params.MacAddressBare,
-			Groupname: radiusGroupName(vlan.VlanID),
-			Priority:  0,
-		}); err != nil {
-			return classifyDBError(err)
+		if device.Disabled {
+			if err := ensureRadiusAbsent(ctx, q, params.MacAddressBare); err != nil {
+				return err
+			}
+		} else {
+			if err := syncRadiusAssignment(ctx, q, params.MacAddressBare, vlan.VlanID); err != nil {
+				return err
+			}
 		}
 
 		metadata, err := json.Marshal(map[string]any{
@@ -194,6 +186,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 				"id":           deviceIDString(device.ID),
 				"mac_address":  device.MacAddress,
 				"display_name": device.DisplayName,
+				"disabled":     device.Disabled,
 				"vlan_id":      device.VlanID,
 				"radius_group": radiusGroupName(vlan.VlanID),
 			},
@@ -257,6 +250,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 			ID:              params.ID,
 			MacAddress:      params.MacAddress,
 			DisplayName:     params.DisplayName,
+			Disabled:        params.Disabled,
 			VlanID:          params.VlanID,
 			UpdatedByUserID: nullablePgUUID(actor.ID),
 		})
@@ -267,35 +261,27 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 		oldRadiusUsername := colonMACToBare(current.MacAddress)
 		newRadiusUsername := colonMACToBare(device.MacAddress)
 		if oldRadiusUsername != newRadiusUsername {
-			if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-				Username: oldRadiusUsername,
-			}); err != nil {
-				return classifyDBError(err)
-			}
-			if err := q.DeleteRadcheckCleartextPasswordByUsername(ctx, db.DeleteRadcheckCleartextPasswordByUsernameParams{
-				Username: oldRadiusUsername,
-			}); err != nil {
-				return classifyDBError(err)
+			if err := ensureRadiusAbsent(ctx, q, oldRadiusUsername); err != nil {
+				return err
 			}
 		}
 
-		if err := q.UpsertRadcheckCleartextPassword(ctx, db.UpsertRadcheckCleartextPasswordParams{
-			Username: newRadiusUsername,
-			Value:    newRadiusUsername,
-		}); err != nil {
-			return classifyDBError(err)
+		if device.Disabled {
+			if err := ensureRadiusAbsent(ctx, q, newRadiusUsername); err != nil {
+				return err
+			}
+		} else {
+			if err := syncRadiusAssignment(ctx, q, newRadiusUsername, vlan.VlanID); err != nil {
+				return err
+			}
 		}
-		if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-			Username: newRadiusUsername,
-		}); err != nil {
-			return classifyDBError(err)
-		}
-		if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
-			Username:  newRadiusUsername,
-			Groupname: radiusGroupName(vlan.VlanID),
-			Priority:  0,
-		}); err != nil {
-			return classifyDBError(err)
+
+		action := "device.update"
+		switch {
+		case !current.Disabled && device.Disabled:
+			action = "device.disable"
+		case current.Disabled && !device.Disabled:
+			action = "device.enable"
 		}
 
 		metadataBody := map[string]any{
@@ -303,12 +289,14 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 				"id":           deviceIDString(current.ID),
 				"mac_address":  current.MacAddress,
 				"display_name": current.DisplayName,
+				"disabled":     current.Disabled,
 				"vlan_id":      current.VlanID,
 			},
 			"after": map[string]any{
 				"id":           deviceIDString(device.ID),
 				"mac_address":  device.MacAddress,
 				"display_name": device.DisplayName,
+				"disabled":     device.Disabled,
 				"vlan_id":      device.VlanID,
 				"radius_group": radiusGroupName(vlan.VlanID),
 			},
@@ -326,7 +314,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 		_, err = q.CreateAuditLog(ctx, db.CreateAuditLogParams{
 			ActorUserID:   actor.ID,
 			ActorUsername: actor.Username,
-			Action:        "device.update",
+			Action:        action,
 			ResourceType:  "network_device",
 			ResourceID:    deviceIDString(device.ID),
 			Metadata:      metadata,
@@ -364,15 +352,8 @@ func (s *Service) Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 		}
 
 		radiusUsername := colonMACToBare(current.MacAddress)
-		if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-			Username: radiusUsername,
-		}); err != nil {
-			return classifyDBError(err)
-		}
-		if err := q.DeleteRadcheckCleartextPasswordByUsername(ctx, db.DeleteRadcheckCleartextPasswordByUsernameParams{
-			Username: radiusUsername,
-		}); err != nil {
-			return classifyDBError(err)
+		if err := ensureRadiusAbsent(ctx, q, radiusUsername); err != nil {
+			return err
 		}
 
 		metadata, err := json.Marshal(map[string]any{
@@ -380,6 +361,7 @@ func (s *Service) Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 				"id":           deviceIDString(current.ID),
 				"mac_address":  current.MacAddress,
 				"display_name": current.DisplayName,
+				"disabled":     current.Disabled,
 				"vlan_id":      current.VlanID,
 			},
 		})
@@ -403,6 +385,7 @@ type normalizedCreate struct {
 	MacAddressColon string
 	MacAddressBare  string
 	DisplayName     string
+	Disabled        bool
 	VlanID          int32
 }
 
@@ -424,12 +407,13 @@ func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
 		MacAddressColon: macColon,
 		MacAddressBare:  macBare,
 		DisplayName:     displayName,
+		Disabled:        boolValue(input.Disabled),
 		VlanID:          input.VlanId,
 	}, nil
 }
 
 func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.UpdateNetworkDeviceParams, error) {
-	if patch.DisplayName == nil && patch.VlanId == nil && patch.MacAddress == nil {
+	if patch.DisplayName == nil && patch.VlanId == nil && patch.MacAddress == nil && patch.Disabled == nil {
 		return db.UpdateNetworkDeviceParams{}, ValidationError{Message: "patch must include at least one field"}
 	}
 
@@ -458,11 +442,57 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 		vlanID = *patch.VlanId
 	}
 
+	disabled := current.Disabled
+	if patch.Disabled != nil {
+		disabled = *patch.Disabled
+	}
+
 	return db.UpdateNetworkDeviceParams{
 		MacAddress:  macAddress,
 		DisplayName: displayName,
+		Disabled:    disabled,
 		VlanID:      vlanID,
 	}, nil
+}
+
+func syncRadiusAssignment(ctx context.Context, q Querier, username string, vlanID int32) error {
+	if err := q.UpsertRadcheckCleartextPassword(ctx, db.UpsertRadcheckCleartextPasswordParams{
+		Username: username,
+		Value:    username,
+	}); err != nil {
+		return classifyDBError(err)
+	}
+	if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
+		Username: username,
+	}); err != nil {
+		return classifyDBError(err)
+	}
+	if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
+		Username:  username,
+		Groupname: radiusGroupName(vlanID),
+		Priority:  0,
+	}); err != nil {
+		return classifyDBError(err)
+	}
+	return nil
+}
+
+func ensureRadiusAbsent(ctx context.Context, q Querier, username string) error {
+	if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
+		Username: username,
+	}); err != nil {
+		return classifyDBError(err)
+	}
+	if err := q.DeleteRadcheckCleartextPasswordByUsername(ctx, db.DeleteRadcheckCleartextPasswordByUsernameParams{
+		Username: username,
+	}); err != nil {
+		return classifyDBError(err)
+	}
+	return nil
+}
+
+func boolValue(value *bool) bool {
+	return value != nil && *value
 }
 
 func normalizeMAC(raw string) (bare string, colon string, err error) {
