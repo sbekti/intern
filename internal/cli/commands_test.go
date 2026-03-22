@@ -502,7 +502,7 @@ func TestDevicesCreatePrintsCreatedMessage(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`))
+		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":false,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`))
 	}))
 	defer server.Close()
 
@@ -541,7 +541,7 @@ func TestDevicesListPrintsIDAndSupportsJSONOutput(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}]}`))
+		_, _ = w.Write([]byte(`{"items":[{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":true,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}]}`))
 	}))
 	defer server.Close()
 
@@ -556,8 +556,11 @@ func TestDevicesListPrintsIDAndSupportsJSONOutput(t *testing.T) {
 	if err := tableCmd.Execute(); err != nil {
 		t.Fatalf("table Execute returned error: %v", err)
 	}
-	if !strings.Contains(tableOut.String(), "00000000-0000-0000-0000-000000000123") || !strings.Contains(tableOut.String(), "ID") {
+	if !strings.Contains(tableOut.String(), "00000000-0000-0000-0000-000000000123") || !strings.Contains(tableOut.String(), "STATUS") || !strings.Contains(tableOut.String(), "disabled") {
 		t.Fatalf("table output missing device id: %s", tableOut.String())
+	}
+	if strings.Index(tableOut.String(), "VLAN") > strings.Index(tableOut.String(), "STATUS") {
+		t.Fatalf("expected VLAN column before STATUS: %s", tableOut.String())
 	}
 
 	jsonCmd := NewRootCommand()
@@ -569,8 +572,67 @@ func TestDevicesListPrintsIDAndSupportsJSONOutput(t *testing.T) {
 	if err := jsonCmd.Execute(); err != nil {
 		t.Fatalf("json Execute returned error: %v", err)
 	}
-	if !strings.Contains(jsonOut.String(), `"id": "00000000-0000-0000-0000-000000000123"`) || !strings.Contains(jsonOut.String(), `"display_name": "Kitchen TV"`) {
+	if !strings.Contains(jsonOut.String(), `"id": "00000000-0000-0000-0000-000000000123"`) || !strings.Contains(jsonOut.String(), `"display_name": "Kitchen TV"`) || !strings.Contains(jsonOut.String(), `"disabled": true`) {
 		t.Fatalf("json output missing device fields: %s", jsonOut.String())
+	}
+}
+
+func TestDevicesDisableAndEnableCommandsPatchDisabledState(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	requests := make([]api.NetworkDevicePatch, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices/00000000-0000-0000-0000-000000000123" || r.Method != http.MethodPatch {
+			http.NotFound(w, r)
+			return
+		}
+		var request api.NetworkDevicePatch
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests = append(requests, request)
+
+		disabled := request.Disabled != nil && *request.Disabled
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":%t,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`, disabled)))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	disableCmd := NewRootCommand()
+	var disableOut bytes.Buffer
+	disableCmd.SetOut(&disableOut)
+	disableCmd.SetErr(new(bytes.Buffer))
+	disableCmd.SetArgs([]string{"device", "disable", "00000000-0000-0000-0000-000000000123", "--config-dir", configDir})
+	if err := disableCmd.Execute(); err != nil {
+		t.Fatalf("disable Execute returned error: %v", err)
+	}
+
+	enableCmd := NewRootCommand()
+	var enableOut bytes.Buffer
+	enableCmd.SetOut(&enableOut)
+	enableCmd.SetErr(new(bytes.Buffer))
+	enableCmd.SetArgs([]string{"device", "enable", "00000000-0000-0000-0000-000000000123", "--config-dir", configDir})
+	if err := enableCmd.Execute(); err != nil {
+		t.Fatalf("enable Execute returned error: %v", err)
+	}
+
+	if len(requests) != 2 {
+		t.Fatalf("expected 2 patch requests, got %d", len(requests))
+	}
+	if requests[0].Disabled == nil || !*requests[0].Disabled {
+		t.Fatalf("expected first request to disable device, got %+v", requests[0])
+	}
+	if requests[1].Disabled == nil || *requests[1].Disabled {
+		t.Fatalf("expected second request to enable device, got %+v", requests[1])
+	}
+	if !strings.Contains(disableOut.String(), "Disabled device Kitchen TV (00000000-0000-0000-0000-000000000123).") {
+		t.Fatalf("stdout missing disable confirmation: %s", disableOut.String())
+	}
+	if !strings.Contains(enableOut.String(), "Enabled device Kitchen TV (00000000-0000-0000-0000-000000000123).") {
+		t.Fatalf("stdout missing enable confirmation: %s", enableOut.String())
 	}
 }
 

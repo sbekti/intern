@@ -20,6 +20,8 @@ func newDeviceCommand(options *RootOptions) *cobra.Command {
 	cmd.AddCommand(newDevicesListCommand(options))
 	cmd.AddCommand(newDevicesCreateCommand(options))
 	cmd.AddCommand(newDevicesUpdateCommand(options))
+	cmd.AddCommand(newDevicesEnableCommand(options))
+	cmd.AddCommand(newDevicesDisableCommand(options))
 	cmd.AddCommand(newDevicesDeleteCommand(options))
 	return cmd
 }
@@ -70,10 +72,11 @@ func newDevicesListCommand(options *RootOptions) *cobra.Command {
 					device.DisplayName,
 					device.MacAddress,
 					device.Vlan.Name,
+					deviceStatusLabel(device.Disabled),
 				})
 			}
 
-			if err := printTable(cmd, []string{"ID", "NAME", "MAC ADDRESS", "VLAN"}, rows); err != nil {
+			if err := printTable(cmd, []string{"ID", "NAME", "MAC ADDRESS", "VLAN", "STATUS"}, rows); err != nil {
 				return fmt.Errorf("render device table: %w", err)
 			}
 			return nil
@@ -220,6 +223,68 @@ func newDevicesDeleteCommand(options *RootOptions) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func newDevicesEnableCommand(options *RootOptions) *cobra.Command {
+	return newDevicesToggleCommand(options, "enable", false)
+}
+
+func newDevicesDisableCommand(options *RootOptions) *cobra.Command {
+	return newDevicesToggleCommand(options, "disable", true)
+}
+
+func newDevicesToggleCommand(options *RootOptions, action string, disabled bool) *cobra.Command {
+	return &cobra.Command{
+		Use:   action + " <id>",
+		Short: toggleActionTitle(action) + " a network device",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runtime, err := resolveRuntime(options)
+			if err != nil {
+				return err
+			}
+
+			client, err := runtime.NewAuthenticatedClient()
+			if err != nil {
+				return err
+			}
+
+			device, err := client.UpdateNetworkDevice(cmd.Context(), args[0], api.NetworkDevicePatch{
+				Disabled: boolPtr(disabled),
+			})
+			if err != nil {
+				return mapDeviceMutationError(err, action)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "%s device %s (%s).\n", toggleActionPastTense(action), device.DisplayName, device.Id.String())
+			return nil
+		},
+	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
+}
+
+func deviceStatusLabel(disabled bool) string {
+	if disabled {
+		return "disabled"
+	}
+	return "enabled"
+}
+
+func toggleActionTitle(action string) string {
+	if action == "enable" {
+		return "Enable"
+	}
+	return "Disable"
+}
+
+func toggleActionPastTense(action string) string {
+	if action == "enable" {
+		return "Enabled"
+	}
+	return "Disabled"
 }
 
 func mapDeviceMutationError(err error, action string) error {

@@ -150,6 +150,7 @@ type LogoutRequest struct {
 type NetworkDevice struct {
 	CreatedAt       time.Time           `json:"created_at"`
 	CreatedByUserId *openapi_types.UUID `json:"created_by_user_id,omitempty"`
+	Disabled        bool                `json:"disabled"`
 	DisplayName     string              `json:"display_name"`
 	Id              openapi_types.UUID  `json:"id"`
 	MacAddress      string              `json:"mac_address"`
@@ -165,6 +166,7 @@ type NetworkDeviceList struct {
 
 // NetworkDevicePatch defines model for NetworkDevicePatch.
 type NetworkDevicePatch struct {
+	Disabled    *bool   `json:"disabled,omitempty"`
 	DisplayName *string `json:"display_name,omitempty"`
 	MacAddress  *string `json:"mac_address,omitempty"`
 	VlanId      *int32  `json:"vlan_id,omitempty"`
@@ -172,6 +174,7 @@ type NetworkDevicePatch struct {
 
 // NetworkDeviceWrite defines model for NetworkDeviceWrite.
 type NetworkDeviceWrite struct {
+	Disabled    *bool  `json:"disabled,omitempty"`
 	DisplayName string `json:"display_name"`
 	MacAddress  string `json:"mac_address"`
 	VlanId      int32  `json:"vlan_id"`

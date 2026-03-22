@@ -12,7 +12,7 @@ Current scope:
 - `logout`
 - `session list|revoke|revoke-all`
 - `vlan list|create|update|delete`
-- `device list|create|update|delete`
+- `device list|create|update|enable|disable|delete`
 - list commands support `--output table|json`
 
 ## Usage
@@ -26,6 +26,8 @@ internctl vlan list
 internctl device list --output json
 internctl vlan create --name iot --vlan-id 20 --description "IoT devices"
 internctl device create --name "Kitchen TV" --mac-address aa:bb:cc:dd:ee:ff --vlan-id 1
+internctl device disable 00000000-0000-0000-0000-000000000123
+internctl device enable 00000000-0000-0000-0000-000000000123
 internctl logout
 ```
 
