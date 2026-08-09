@@ -40,7 +40,6 @@ func TestBootstrapRoutes(t *testing.T) {
 		path string
 	}{
 		{path: "/healthz"},
-		{path: "/readyz"},
 		{path: "/api/v1/system/ping"},
 	}
 
@@ -61,6 +60,56 @@ func TestBootstrapRoutes(t *testing.T) {
 				t.Fatalf("expected application/json content type, got %q", got)
 			}
 		})
+	}
+}
+
+type fakeDatabasePinger struct{ err error }
+
+func (f fakeDatabasePinger) Ping(context.Context) error { return f.err }
+
+func TestReadyReturnsServiceUnavailableWithoutDatabasePinger(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{})
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestReadyReturnsOKWhenDatabasePingSucceeds(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		DatabasePinger: fakeDatabasePinger{},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
+	}
+}
+
+func TestReadyReturnsServiceUnavailableWhenDatabasePingFails(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
+		DatabasePinger: fakeDatabasePinger{err: errors.New("database unavailable")},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/json" {
+		t.Fatalf("content type = %q, want application/json", got)
 	}
 }
 
@@ -125,22 +174,12 @@ func TestGetProfileBearerSessionValidationFailureReturnsServiceUnavailable(t *te
 	}
 }
 
-func TestGetProfileSyncsAndReturnsProfile(t *testing.T) {
+func TestGetProfileLooksUpWithoutWriting(t *testing.T) {
 	t.Parallel()
 
-	called := false
+	store := &readOnlyProfileUserStore{}
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		UserStore: fakeProfileUserStore{
-			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
-				called = true
-				return db.User{
-					Username: arg.Username,
-					Name:     arg.Name,
-					Email:    arg.Email,
-					Groups:   arg.Groups,
-				}, nil
-			},
-		},
+		UserStore: store,
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/profile", nil)
@@ -173,83 +212,8 @@ func TestGetProfileSyncsAndReturnsProfile(t *testing.T) {
 	if !profile.IsAdmin {
 		t.Fatal("expected profile to be admin")
 	}
-	if !called {
-		t.Fatal("expected user store to be called")
-	}
-}
-
-func TestGetDashboardRequiresAuthentication(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{})
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, rec.Code)
-	}
-}
-
-func TestGetDashboardReturnsSummary(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
-		UserStore: fakeProfileUserStore{
-			upsertFn: func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
-				return db.User{
-					Username: arg.Username,
-					Name:     arg.Name,
-					Email:    arg.Email,
-					Groups:   arg.Groups,
-				}, nil
-			},
-		},
-		DashboardStore: fakeDashboardStore{
-			deviceCount: 7,
-			vlanCount:   3,
-		},
-		WeatherService: fakeDashboardWeatherService{
-			locationName: "Example Home",
-		},
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/dashboard", nil)
-	req.RemoteAddr = "127.0.0.1:12345"
-	setForwardAuthHeaders(req, "alice", "Alice Example", "alice@example.com", "Users, Super-Users")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
-	}
-
-	var payload struct {
-		WelcomeMessage string `json:"welcome_message"`
-		NetworkSummary struct {
-			DeviceCount int64 `json:"device_count"`
-			VlanCount   int64 `json:"vlan_count"`
-		} `json:"network_summary"`
-		Weather *struct {
-			LocationName string `json:"location_name"`
-		} `json:"weather"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
-		t.Fatalf("failed to decode dashboard response: %v", err)
-	}
-
-	if payload.WelcomeMessage != "Welcome, Alice Example" {
-		t.Fatalf("unexpected welcome message %q", payload.WelcomeMessage)
-	}
-	if payload.NetworkSummary.DeviceCount != 7 {
-		t.Fatalf("expected 7 devices, got %d", payload.NetworkSummary.DeviceCount)
-	}
-	if payload.NetworkSummary.VlanCount != 3 {
-		t.Fatalf("expected 3 vlans, got %d", payload.NetworkSummary.VlanCount)
-	}
-	if payload.Weather == nil || payload.Weather.LocationName != "Example Home" {
-		t.Fatal("expected weather payload")
+	if store.upsertCalled {
+		t.Fatal("profile lookup unexpectedly attempted a write")
 	}
 }
 
@@ -1234,37 +1198,26 @@ type fakeProfileUserStore struct {
 	upsertFn func(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error)
 }
 
+type readOnlyProfileUserStore struct {
+	upsertCalled bool
+}
+
+func (f *readOnlyProfileUserStore) UpsertUserByUsername(context.Context, db.UpsertUserByUsernameParams) (db.User, error) {
+	f.upsertCalled = true
+	return db.User{}, errors.New("profile lookup attempted a write")
+}
+
+func (f *readOnlyProfileUserStore) GetUserByUsername(context.Context, db.GetUserByUsernameParams) (db.User, error) {
+	return db.User{
+		Username: "alice",
+		Name:     "Alice Example",
+		Email:    "alice@example.com",
+		Groups:   []string{"Users", "Super-Users"},
+	}, nil
+}
+
 func (f fakeProfileUserStore) UpsertUserByUsername(ctx context.Context, arg db.UpsertUserByUsernameParams) (db.User, error) {
 	return f.upsertFn(ctx, arg)
-}
-
-type fakeDashboardStore struct {
-	deviceCount int64
-	vlanCount   int64
-}
-
-func (f fakeDashboardStore) CountNetworkDevices(ctx context.Context) (int64, error) {
-	return f.deviceCount, nil
-}
-
-func (f fakeDashboardStore) CountVlans(ctx context.Context) (int64, error) {
-	return f.vlanCount, nil
-}
-
-type fakeDashboardWeatherService struct {
-	locationName string
-}
-
-func (f fakeDashboardWeatherService) GetSummary(ctx context.Context) (*api.WeatherSummary, error) {
-	return &api.WeatherSummary{
-		LocationName: f.locationName,
-		Timezone:     "America/New_York",
-		Current: api.WeatherCurrent{
-			TemperatureC: 20,
-			WindSpeedKph: 10,
-			WeatherCode:  1,
-		},
-	}, nil
 }
 
 type fakeVLANService struct {
@@ -1500,8 +1453,6 @@ func mustTestConfig(t *testing.T) config.Config {
 	cfg := config.Config{
 		Server:   config.ServerConfig{Addr: ":8080"},
 		Database: config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-		Redis:    config.RedisConfig{URL: "redis://127.0.0.1:6379/0"},
-		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
 			PublicBaseURL:      "https://intern.corp.example.com",

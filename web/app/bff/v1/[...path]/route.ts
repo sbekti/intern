@@ -1,30 +1,9 @@
 import type { NextRequest } from "next/server"
 
-import { resolveApiBaseUrl } from "@/lib/api"
+import { buildForwardHeaders, resolveApiBaseUrl } from "@/lib/api"
 
-function buildProxyHeaders(request: NextRequest, hasBody: boolean) {
-  const outbound = new Headers()
-
-  const passthrough = [
-    "authorization",
-    "cookie",
-    "x-forwarded-for",
-    "x-real-ip",
-    "x-intern-forward-auth",
-    "remote-user",
-    "remote-name",
-    "remote-email",
-    "remote-groups",
-  ] as const
-
-  for (const name of passthrough) {
-    const value = request.headers.get(name)
-
-    if (value) {
-      outbound.set(name, value)
-    }
-  }
-
+async function buildProxyHeaders(request: NextRequest, hasBody: boolean) {
+  const outbound = await buildForwardHeaders(request.headers)
   if (hasBody) {
     const contentType = request.headers.get("content-type")
 
@@ -44,7 +23,7 @@ async function proxy(request: NextRequest, path: string[]) {
 
   const response = await fetch(target, {
     method: request.method,
-    headers: buildProxyHeaders(request, hasBody),
+    headers: await buildProxyHeaders(request, hasBody),
     body,
     redirect: "manual",
     cache: "no-store",

@@ -1,0 +1,55 @@
+version: 2
+
+project_name: internctl
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./internal/api ./internal/db
+    - go test ./...
+
+builds:
+  - id: internctl
+    main: ./cmd/internctl
+    binary: internctl
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/sbekti/intern-api/internal/buildinfo.Version={{ .Version }}
+        -X github.com/sbekti/intern-api/internal/buildinfo.Commit={{ .Commit }}
+        -X github.com/sbekti/intern-api/internal/buildinfo.Date={{ .Date }}
+        -X github.com/sbekti/intern-api/internal/cli/config.DefaultServerURL=https://intern.bekti.com
+
+archives:
+  - id: internctl
+    ids: [internctl]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [README.md, LICENSE]
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  draft: true
+  prerelease: auto
+
+brews:
+  - repository:
+      owner: sbekti
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://intern.bekti.com
+    description: Command-line client for Intern
+    license: MIT
+    test: 'system "#{bin}/internctl", "--version"'
+    install: 'bin.install "internctl"'

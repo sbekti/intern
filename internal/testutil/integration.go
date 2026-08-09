@@ -13,28 +13,19 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 	tc "github.com/testcontainers/testcontainers-go"
 	postgresmodule "github.com/testcontainers/testcontainers-go/modules/postgres"
-	redismodule "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
 	postgresImage = "postgres:18.3-alpine3.22"
-	redisImage    = "redis:8.4.0-alpine3.22"
 )
 
 type PostgresContainer struct {
 	Container tc.Container
 	URL       string
 	Pool      *pgxpool.Pool
-}
-
-type RedisContainer struct {
-	Container tc.Container
-	URL       string
-	Client    *redis.Client
 }
 
 func StartPostgres(t *testing.T) *PostgresContainer {
@@ -81,49 +72,6 @@ func StartPostgres(t *testing.T) *PostgresContainer {
 		Container: container,
 		URL:       url,
 		Pool:      pool,
-	}
-}
-
-func StartRedis(t *testing.T) *RedisContainer {
-	t.Helper()
-	requireDocker(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	container, err := redismodule.Run(ctx,
-		redisImage,
-		tc.WithWaitStrategy(wait.ForListeningPort("6379/tcp")),
-	)
-	if err != nil {
-		t.Fatalf("failed to start redis container: %v", err)
-	}
-
-	t.Cleanup(func() {
-		_ = container.Terminate(context.Background())
-	})
-
-	connectionURL, err := container.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("failed to get redis connection string: %v", err)
-	}
-
-	options, err := redis.ParseURL(connectionURL)
-	if err != nil {
-		t.Fatalf("failed to parse redis connection string: %v", err)
-	}
-
-	client := redis.NewClient(options)
-	t.Cleanup(func() { _ = client.Close() })
-
-	if err := client.Ping(ctx).Err(); err != nil {
-		t.Fatalf("failed to ping redis: %v", err)
-	}
-
-	return &RedisContainer{
-		Container: container,
-		URL:       connectionURL,
-		Client:    client,
 	}
 }
 

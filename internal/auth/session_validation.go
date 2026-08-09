@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"net/http"
+
+	"github.com/sbekti/intern-api/internal/apierror"
 )
 
 type SessionValidator interface {
@@ -25,21 +27,21 @@ func RequireActiveBearerSession(validator SessionValidator) func(http.Handler) h
 			}
 
 			if principal.SessionID == "" {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				apierror.Write(w, http.StatusUnauthorized, "unauthorized", "authentication required")
 				return
 			}
 			if validator == nil {
-				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				apierror.Write(w, http.StatusServiceUnavailable, "service_unavailable", "session validation unavailable")
 				return
 			}
 
 			active, err := validator.ValidateSession(r.Context(), principal.SessionID)
 			if err != nil {
-				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				apierror.Write(w, http.StatusServiceUnavailable, "service_unavailable", "session validation unavailable")
 				return
 			}
 			if !active {
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				apierror.Write(w, http.StatusUnauthorized, "unauthorized", "session is invalid")
 				return
 			}
 

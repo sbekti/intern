@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-export const appName = "Bektinet"
+export const appName = "Intern"
 
 export const pageTitles = {
   "/": "Home",

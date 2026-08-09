@@ -3,7 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/toast"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { appName } from "@/lib/page-titles"
 import { cn } from "@/lib/utils"
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     default: appName,
     template: `${appName} - %s`,
   },
-  description: "Bektinet dashboard for network and homelab management.",
+  description: "Intern network management.",
 }
 
 export default function RootLayout({

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/toast"
 
 import { buildBffPath } from "@/lib/bff"
 import { Button } from "@/components/ui/button"
@@ -169,7 +169,7 @@ export function DeviceCodeApproval({
     }
 
     setBusyAction(null)
-    toast.success(action === "approve" ? "Device login approved." : "Device login denied.")
+    toast.add({ type: "success", title: action === "approve" ? "Device login approved." : "Device login denied." })
     router.push(sessionsPath)
   }
 

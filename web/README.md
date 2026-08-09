@@ -1,51 +1,20 @@
-# intern-www
+# Intern web app
 
-Next.js frontend for the internal network and homelab dashboard.
+This Next.js app is the authenticated web interface for Intern. It uses the
+Base UI + Vega shadcn setup and is developed from the repository root:
 
-Current bootstrap:
-- Next.js 16 App Router
-- `shadcn/ui` v4 with `base-nova`
-- Base UI primitives
-
-## Development
-
-Install dependencies and start the dev server:
-
-```bash
-npm install
+```sh
+npm ci
 npm run dev
 ```
 
-For the full local stack with the required backend:
+The root Compose watch stack provides the private API service. The web service
+is the only published service and binds to loopback.
 
-```bash
-npm run dev:user
-```
+Use the shadcn CLI to add components only after checking the installed Base UI
+registry and reviewing the dry-run diff:
 
-Admin-mode frontend against the admin proxy:
-
-```bash
-npm run dev:admin
-```
-
-Useful helper commands:
-
-```bash
-npm run backend:up
-npm run backend:logs
-npm run backend:down
-```
-
-## Adding components
-
-Use the shadcn CLI with the project-local package manager:
-
-```bash
-npx shadcn@latest add button
-```
-
-Components are written into [`components/ui`](./components/ui).
-
-```tsx
-import { Button } from "@/components/ui/button";
+```sh
+npx shadcn@latest info
+npx shadcn@latest docs <component>
 ```

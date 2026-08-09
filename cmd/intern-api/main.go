@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/redis/go-redis/v9"
 	"github.com/sbekti/intern-api/internal/auditlogs"
 	"github.com/sbekti/intern-api/internal/authspam"
 	"github.com/sbekti/intern-api/internal/clientauth"
@@ -21,7 +20,6 @@ import (
 	"github.com/sbekti/intern-api/internal/httpserver"
 	"github.com/sbekti/intern-api/internal/sessions"
 	"github.com/sbekti/intern-api/internal/vlans"
-	"github.com/sbekti/intern-api/internal/weather"
 )
 
 func main() {
@@ -58,25 +56,9 @@ func main() {
 
 	logger.Info("connected to database")
 
-	redisOptions, err := redis.ParseURL(cfg.Redis.URL)
-	if err != nil {
-		logger.Error("failed to parse redis url", "error", err)
-		os.Exit(1)
-	}
-
-	redisClient := redis.NewClient(redisOptions)
-	defer redisClient.Close()
-
-	if err := redisClient.Ping(connectCtx).Err(); err != nil {
-		logger.Error("failed to reach redis", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("connected to redis")
-
 	queries := db.New(pool)
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pool))
-	authSpamService := authspam.NewService(redisClient, cfg.Auth.RateLimit)
+	authSpamService := authspam.NewService(cfg.Auth.RateLimit)
 	auditLogService := auditlogs.NewService(queries)
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
 	sessionService := sessions.NewService(queries)
@@ -86,8 +68,7 @@ func main() {
 		Addr: cfg.Server.Addr,
 		Handler: httpserver.NewHandler(logger, cfg, httpserver.Dependencies{
 			UserStore:         queries,
-			DashboardStore:    queries,
-			WeatherService:    weather.NewService(cfg, weather.NewRedisCache(redisClient), nil),
+			DatabasePinger:    pool,
 			VLANService:       vlanService,
 			DeviceService:     deviceService,
 			ClientAuthService: clientAuthService,

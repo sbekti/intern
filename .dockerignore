@@ -1,0 +1,9 @@
+.git
+.env
+.env.*
+.next
+node_modules
+web/node_modules
+web/.next
+coverage
+dist

@@ -3,51 +3,47 @@ package authspam
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/requestmeta"
 )
 
-var (
-	ErrRateLimited = errors.New("rate limited")
+var ErrRateLimited = errors.New("rate limited")
 
-	incrWindowScript = redis.NewScript(`
-local current = redis.call("INCR", KEYS[1])
-if current == 1 then
-  redis.call("PEXPIRE", KEYS[1], ARGV[1])
-end
-local ttl = redis.call("PTTL", KEYS[1])
-return {current, ttl}
-`)
-)
+const maxEntries = 10_000
 
+type window struct {
+	count   int64
+	expires time.Time
+}
+
+// Service is a fixed-window limiter for the single API replica. Entries expire
+// at the end of their configured window and are removed during checks.
 type Service struct {
-	client redis.Cmdable
-	cfg    config.AuthRateLimitConfig
+	mu      sync.Mutex
+	buckets map[string]window
+	now     func() time.Time
+	max     int
+	cfg     config.AuthRateLimitConfig
 }
 
 type RateLimitedError struct {
 	RetryAfter time.Duration
 }
 
-func (e RateLimitedError) Error() string {
-	return ErrRateLimited.Error()
-}
+func (e RateLimitedError) Error() string { return ErrRateLimited.Error() }
+func (e RateLimitedError) Unwrap() error { return ErrRateLimited }
 
-func (e RateLimitedError) Unwrap() error {
-	return ErrRateLimited
-}
-
-func NewService(client redis.Cmdable, cfg config.AuthRateLimitConfig) *Service {
+func NewService(cfg config.AuthRateLimitConfig) *Service {
 	return &Service{
-		client: client,
-		cfg:    cfg,
+		buckets: make(map[string]window),
+		now:     time.Now,
+		max:     maxEntries,
+		cfg:     cfg,
 	}
 }
 
@@ -86,40 +82,61 @@ func (s *Service) CheckLogout(ctx context.Context, clientInfo requestmeta.Client
 	return s.check(ctx, "logout", rateLimitKey("logout", "", clientInfo.IP), s.cfg.Logout)
 }
 
-func (s *Service) check(ctx context.Context, scope, key string, rule config.AuthRateLimitRule) error {
-	if s == nil || s.client == nil {
+func (s *Service) check(ctx context.Context, _ string, key string, rule config.AuthRateLimitRule) error {
+	if s == nil || rule.Limit <= 0 || rule.Window <= 0 {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	now := s.now()
+	expires := now.Truncate(rule.Window).Add(rule.Window)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanupLocked(now)
+
+	entry, ok := s.buckets[key]
+	if !ok || !now.Before(entry.expires) {
+		if len(s.buckets) >= s.max {
+			s.evictOldestLocked()
+		}
+		entry = window{expires: expires}
+	}
+	entry.count++
+	entry.expires = expires
+	s.buckets[key] = entry
+	if entry.count <= rule.Limit {
 		return nil
 	}
 
-	result, err := incrWindowScript.Run(ctx, s.client, []string{key}, rule.Window.Milliseconds()).Result()
-	if err != nil {
-		return fmt.Errorf("%s rate limit: %w", scope, err)
-	}
-
-	values, ok := result.([]any)
-	if !ok || len(values) != 2 {
-		return fmt.Errorf("%s rate limit: unexpected redis result %T", scope, result)
-	}
-
-	current, err := parseInt64(values[0])
-	if err != nil {
-		return fmt.Errorf("%s rate limit: %w", scope, err)
-	}
-	if current <= rule.Limit {
-		return nil
-	}
-
-	ttlMillis, err := parseInt64(values[1])
-	if err != nil {
-		return fmt.Errorf("%s rate limit: %w", scope, err)
-	}
-
-	retryAfter := time.Duration(ttlMillis) * time.Millisecond
+	retryAfter := entry.expires.Sub(now)
 	if retryAfter <= 0 {
 		retryAfter = rule.Window
 	}
-
 	return RateLimitedError{RetryAfter: retryAfter}
+}
+
+func (s *Service) cleanupLocked(now time.Time) {
+	for key, entry := range s.buckets {
+		if !now.Before(entry.expires) {
+			delete(s.buckets, key)
+		}
+	}
+}
+
+func (s *Service) evictOldestLocked() {
+	var oldestKey string
+	var oldest time.Time
+	for key, entry := range s.buckets {
+		if oldestKey == "" || entry.expires.Before(oldest) {
+			oldestKey, oldest = key, entry.expires
+		}
+	}
+	if oldestKey != "" {
+		delete(s.buckets, oldestKey)
+	}
 }
 
 func rateLimitKey(scope, username, ip string) string {
@@ -127,23 +144,10 @@ func rateLimitKey(scope, username, ip string) string {
 	if trimmedUser := strings.TrimSpace(username); trimmedUser != "" {
 		parts = append(parts, "user", url.QueryEscape(trimmedUser))
 	}
-
 	trimmedIP := strings.TrimSpace(ip)
 	if trimmedIP == "" {
 		trimmedIP = "unknown"
 	}
 	parts = append(parts, "ip", url.QueryEscape(trimmedIP))
-
 	return strings.Join(parts, ":")
-}
-
-func parseInt64(value any) (int64, error) {
-	switch cast := value.(type) {
-	case int64:
-		return cast, nil
-	case string:
-		return strconv.ParseInt(cast, 10, 64)
-	default:
-		return 0, fmt.Errorf("unexpected value type %T", value)
-	}
 }

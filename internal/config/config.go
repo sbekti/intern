@@ -14,33 +14,14 @@ import (
 type Config struct {
 	Server        ServerConfig
 	Database      DatabaseConfig
-	Redis         RedisConfig
-	Weather       WeatherConfig
 	LogLevel      LogLevel
 	Auth          AuthConfig
 	TrustedProxy  TrustedProxyConfig
 	Authorization AuthorizationConfig
 }
 
-type ServerConfig struct {
-	Addr string
-}
-
-type DatabaseConfig struct {
-	URL string
-}
-
-type RedisConfig struct {
-	URL string
-}
-
-type WeatherConfig struct {
-	BaseURL      string
-	LocationName string
-	Latitude     float64
-	Longitude    float64
-	CacheTTL     time.Duration
-}
+type ServerConfig struct{ Addr string }
+type DatabaseConfig struct{ URL string }
 
 type AuthConfig struct {
 	PublicBaseURL      string
@@ -78,9 +59,7 @@ type TrustedProxyConfig struct {
 	MarkerValue  string
 }
 
-type AuthorizationConfig struct {
-	AdminGroups []string
-}
+type AuthorizationConfig struct{ AdminGroups []string }
 
 type LogLevel string
 
@@ -93,19 +72,6 @@ const (
 
 func Load() (Config, error) {
 	trustedProxyCIDRs, err := envPrefixesOrDefault("TRUSTED_PROXY_CIDRS", []string{"127.0.0.1/32", "::1/128"})
-	if err != nil {
-		return Config{}, err
-	}
-
-	weatherLatitude, err := envFloatOrDefault("WEATHER_LATITUDE", 0)
-	if err != nil {
-		return Config{}, err
-	}
-	weatherLongitude, err := envFloatOrDefault("WEATHER_LONGITUDE", 0)
-	if err != nil {
-		return Config{}, err
-	}
-	weatherCacheTTL, err := envDurationOrDefault("WEATHER_CACHE_TTL", 15*time.Minute)
 	if err != nil {
 		return Config{}, err
 	}
@@ -171,54 +137,25 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Server: ServerConfig{
-			Addr: envOrDefault("INTERN_API_ADDR", ":8080"),
-		},
-		Database: DatabaseConfig{
-			URL: envOrDefault("INTERN_API_DATABASE_URL", ""),
-		},
-		Redis: RedisConfig{
-			URL: envOrDefault("INTERN_API_REDIS_URL", ""),
-		},
-		Weather: WeatherConfig{
-			BaseURL:      envOrDefault("WEATHER_BASE_URL", "https://api.open-meteo.com/v1/forecast"),
-			LocationName: envOrDefault("WEATHER_LOCATION_NAME", "Configured Location"),
-			Latitude:     weatherLatitude,
-			Longitude:    weatherLongitude,
-			CacheTTL:     weatherCacheTTL,
-		},
+		Server:   ServerConfig{Addr: envOrDefault("INTERN_API_ADDR", ":8080")},
+		Database: DatabaseConfig{URL: envOrDefault("INTERN_API_DATABASE_URL", "")},
 		LogLevel: LogLevel(envOrDefault("INTERN_API_LOG_LEVEL", string(LogLevelInfo))),
 		Auth: AuthConfig{
 			PublicBaseURL:      envOrDefault("AUTH_PUBLIC_BASE_URL", ""),
-			JWTIssuer:          envOrDefault("AUTH_JWT_ISSUER", "intern.corp.example.com"),
-			JWTAudience:        envOrDefault("AUTH_JWT_AUDIENCE", "internctl"),
-			JWTHMACSecret:      envOrDefault("AUTH_JWT_HMAC_SECRET", "dev-insecure-jwt-secret"),
+			JWTIssuer:          envOrDefault("AUTH_JWT_ISSUER", ""),
+			JWTAudience:        envOrDefault("AUTH_JWT_AUDIENCE", ""),
+			JWTHMACSecret:      envOrDefault("AUTH_JWT_HMAC_SECRET", ""),
 			AccessTokenTTL:     accessTokenTTL,
 			RefreshIdleTTL:     refreshIdleTTL,
 			RefreshAbsoluteTTL: refreshAbsoluteTTL,
 			DeviceCodeTTL:      deviceCodeTTL,
 			DevicePollInterval: devicePollInterval,
 			RateLimit: AuthRateLimitConfig{
-				DeviceCodeCreate: AuthRateLimitRule{
-					Limit:  deviceCodeCreateLimit,
-					Window: deviceCodeCreateWindow,
-				},
-				DeviceTokenExchange: AuthRateLimitRule{
-					Limit:  deviceTokenExchangeLimit,
-					Window: deviceTokenExchangeWindow,
-				},
-				DeviceDecision: AuthRateLimitRule{
-					Limit:  deviceDecisionLimit,
-					Window: deviceDecisionWindow,
-				},
-				RefreshToken: AuthRateLimitRule{
-					Limit:  refreshTokenLimit,
-					Window: refreshTokenWindow,
-				},
-				Logout: AuthRateLimitRule{
-					Limit:  logoutLimit,
-					Window: logoutWindow,
-				},
+				DeviceCodeCreate:    AuthRateLimitRule{Limit: deviceCodeCreateLimit, Window: deviceCodeCreateWindow},
+				DeviceTokenExchange: AuthRateLimitRule{Limit: deviceTokenExchangeLimit, Window: deviceTokenExchangeWindow},
+				DeviceDecision:      AuthRateLimitRule{Limit: deviceDecisionLimit, Window: deviceDecisionWindow},
+				RefreshToken:        AuthRateLimitRule{Limit: refreshTokenLimit, Window: refreshTokenWindow},
+				Logout:              AuthRateLimitRule{Limit: logoutLimit, Window: logoutWindow},
 			},
 		},
 		TrustedProxy: TrustedProxyConfig{
@@ -227,18 +164,15 @@ func Load() (Config, error) {
 			NameHeader:   envOrDefault("AUTH_REMOTE_NAME_HEADER", "Remote-Name"),
 			EmailHeader:  envOrDefault("AUTH_REMOTE_EMAIL_HEADER", "Remote-Email"),
 			GroupsHeader: envOrDefault("AUTH_REMOTE_GROUPS_HEADER", "Remote-Groups"),
-			MarkerHeader: envOrDefault("AUTH_FORWARD_AUTH_MARKER_HEADER", "X-Intern-Forward-Auth"),
-			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", "authenticated-ingress"),
+			MarkerHeader: envOrDefault("AUTH_FORWARD_AUTH_MARKER_HEADER", ""),
+			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", ""),
 		},
-		Authorization: AuthorizationConfig{
-			AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"}),
-		},
+		Authorization: AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
 	}
 
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
-
 	return cfg, nil
 }
 
@@ -249,25 +183,11 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Database.URL) == "" {
 		return fmt.Errorf("INTERN_API_DATABASE_URL must not be empty")
 	}
-	if strings.TrimSpace(c.Redis.URL) == "" {
-		return fmt.Errorf("INTERN_API_REDIS_URL must not be empty")
-	}
-	if strings.TrimSpace(c.Weather.BaseURL) == "" {
-		return fmt.Errorf("WEATHER_BASE_URL must not be empty")
-	}
-	if strings.TrimSpace(c.Weather.LocationName) == "" {
-		return fmt.Errorf("WEATHER_LOCATION_NAME must not be empty")
-	}
-	if c.Weather.CacheTTL <= 0 {
-		return fmt.Errorf("WEATHER_CACHE_TTL must be greater than zero")
-	}
-
 	switch c.LogLevel {
 	case LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError:
 	default:
 		return fmt.Errorf("invalid INTERN_API_LOG_LEVEL %q", c.LogLevel)
 	}
-
 	if strings.TrimSpace(c.Auth.JWTIssuer) == "" {
 		return fmt.Errorf("AUTH_JWT_ISSUER must not be empty")
 	}
@@ -284,20 +204,8 @@ func (c Config) Validate() error {
 	if strings.TrimSpace(c.Auth.JWTHMACSecret) == "" {
 		return fmt.Errorf("AUTH_JWT_HMAC_SECRET must not be empty")
 	}
-	if c.Auth.AccessTokenTTL <= 0 {
-		return fmt.Errorf("AUTH_ACCESS_TOKEN_TTL must be greater than zero")
-	}
-	if c.Auth.RefreshIdleTTL <= 0 {
-		return fmt.Errorf("AUTH_REFRESH_IDLE_TTL must be greater than zero")
-	}
-	if c.Auth.RefreshAbsoluteTTL <= 0 {
-		return fmt.Errorf("AUTH_REFRESH_ABSOLUTE_TTL must be greater than zero")
-	}
-	if c.Auth.DeviceCodeTTL <= 0 {
-		return fmt.Errorf("AUTH_DEVICE_CODE_TTL must be greater than zero")
-	}
-	if c.Auth.DevicePollInterval <= 0 {
-		return fmt.Errorf("AUTH_DEVICE_POLL_INTERVAL must be greater than zero")
+	if c.Auth.AccessTokenTTL <= 0 || c.Auth.RefreshIdleTTL <= 0 || c.Auth.RefreshAbsoluteTTL <= 0 || c.Auth.DeviceCodeTTL <= 0 || c.Auth.DevicePollInterval <= 0 {
+		return fmt.Errorf("authentication durations must be greater than zero")
 	}
 	if err := validateAuthRateLimitRule("AUTH_DEVICE_CODE_CREATE_RATE", c.Auth.RateLimit.DeviceCodeCreate); err != nil {
 		return err
@@ -329,7 +237,6 @@ func (c Config) Validate() error {
 	if len(c.Authorization.AdminGroups) == 0 {
 		return fmt.Errorf("AUTH_ADMIN_GROUPS must contain at least one group")
 	}
-
 	return nil
 }
 
@@ -346,9 +253,7 @@ func (l LogLevel) Leveler() slog.Leveler {
 	}
 }
 
-func (l LogLevel) String() string {
-	return string(l)
-}
+func (l LogLevel) String() string { return string(l) }
 
 func envOrDefault(key, fallback string) string {
 	value := strings.TrimSpace(os.Getenv(key))
@@ -363,12 +268,10 @@ func envInt64OrDefault(key string, fallback int64) (int64, error) {
 	if value == "" {
 		return fallback, nil
 	}
-
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%s must be a valid integer: %w", key, err)
 	}
-
 	return parsed, nil
 }
 
@@ -377,12 +280,10 @@ func envCSVOrDefault(key string, fallback []string) []string {
 	if value == "" {
 		return append([]string(nil), fallback...)
 	}
-
 	parts := strings.Split(value, ",")
 	result := make([]string, 0, len(parts))
 	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
 			result = append(result, trimmed)
 		}
 	}
@@ -407,7 +308,6 @@ func envPrefixesOrDefault(key string, fallback []string) ([]netip.Prefix, error)
 	if raw == "" {
 		raw = strings.Join(fallback, ",")
 	}
-
 	parts := strings.Split(raw, ",")
 	prefixes := make([]netip.Prefix, 0, len(parts))
 	for _, part := range parts {
@@ -421,25 +321,10 @@ func envPrefixesOrDefault(key string, fallback []string) ([]netip.Prefix, error)
 		}
 		prefixes = append(prefixes, prefix)
 	}
-
 	if len(prefixes) == 0 {
 		return nil, fmt.Errorf("%s must contain at least one CIDR", key)
 	}
-
 	return prefixes, nil
-}
-
-func envFloatOrDefault(key string, fallback float64) (float64, error) {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value == "" {
-		return fallback, nil
-	}
-
-	parsed, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid %s: %w", key, err)
-	}
-	return parsed, nil
 }
 
 func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, error) {
@@ -447,7 +332,6 @@ func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, er
 	if value == "" {
 		return fallback, nil
 	}
-
 	parsed, err := time.ParseDuration(value)
 	if err != nil {
 		return 0, fmt.Errorf("invalid %s: %w", key, err)

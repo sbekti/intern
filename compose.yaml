@@ -1,126 +1,72 @@
 services:
-  postgres:
-    image: postgres:18-alpine3.22
-    environment:
-      POSTGRES_DB: intern_dev
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d intern_dev"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      devnet:
-        ipv4_address: 10.89.0.10
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:8.4-alpine3.22
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    networks:
-      devnet:
-        ipv4_address: 10.89.0.11
-
-  migrate:
-    image: golang:1.26-alpine3.23
-    working_dir: /workspace
-    command:
-      - /bin/sh
-      - -lc
-      - /usr/local/go/bin/go tool -modfile=tools/go.mod github.com/pressly/goose/v3/cmd/goose -dir db/migrations postgres "$$INTERN_API_DATABASE_URL" up
-    environment:
-      INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      devnet:
-        ipv4_address: 10.89.0.12
-    volumes:
-      - .:/workspace:ro
-
   intern-api:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      INTERN_API_ADDR: :8080
-      INTERN_API_DATABASE_URL: postgres://postgres:postgres@postgres:5432/intern_dev?sslmode=disable
-      INTERN_API_REDIS_URL: redis://redis:6379/0
-      INTERN_API_LOG_LEVEL: info
-      WEATHER_BASE_URL: https://api.open-meteo.com/v1/forecast
-      WEATHER_LOCATION_NAME: Example Home
-      WEATHER_LATITUDE: "40.7128"
-      WEATHER_LONGITUDE: "-74.0060"
-      WEATHER_CACHE_TTL: 15m
-      AUTH_JWT_ISSUER: intern.corp.example.com
-      AUTH_JWT_AUDIENCE: internctl
-      AUTH_JWT_HMAC_SECRET: dev-compose-jwt-secret
-      AUTH_PUBLIC_BASE_URL: http://127.0.0.1:3000
-      AUTH_ACCESS_TOKEN_TTL: 15m
-      AUTH_REFRESH_IDLE_TTL: 720h
-      AUTH_REFRESH_ABSOLUTE_TTL: 2160h
-      AUTH_DEVICE_CODE_TTL: 10m
-      AUTH_DEVICE_POLL_INTERVAL: 5s
-      AUTH_DEVICE_CODE_CREATE_RATE_LIMIT: "10"
-      AUTH_DEVICE_CODE_CREATE_RATE_WINDOW: 1m
-      AUTH_DEVICE_TOKEN_EXCHANGE_RATE_LIMIT: "120"
-      AUTH_DEVICE_TOKEN_EXCHANGE_RATE_WINDOW: 1m
-      AUTH_DEVICE_DECISION_RATE_LIMIT: "30"
-      AUTH_DEVICE_DECISION_RATE_WINDOW: 1m
-      AUTH_REFRESH_TOKEN_RATE_LIMIT: "60"
-      AUTH_REFRESH_TOKEN_RATE_WINDOW: 1m
-      AUTH_LOGOUT_RATE_LIMIT: "60"
-      AUTH_LOGOUT_RATE_WINDOW: 1m
-      TRUSTED_PROXY_CIDRS: 10.89.0.0/24
-      AUTH_REMOTE_USER_HEADER: Remote-User
-      AUTH_REMOTE_NAME_HEADER: Remote-Name
-      AUTH_REMOTE_EMAIL_HEADER: Remote-Email
-      AUTH_REMOTE_GROUPS_HEADER: Remote-Groups
-      AUTH_FORWARD_AUTH_MARKER_HEADER: X-Intern-Forward-Auth
-      AUTH_FORWARD_AUTH_MARKER_VALUE: authenticated-ingress
-      AUTH_ADMIN_GROUPS: Super-Users
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    networks:
-      devnet:
-        ipv4_address: 10.89.0.20
+      INTERN_API_ADDR: ":8080"
+      INTERN_API_DATABASE_URL: "${INTERN_API_DATABASE_URL:?set the explicitly configured production database URL}"
+      INTERN_API_LOG_LEVEL: "${INTERN_API_LOG_LEVEL:?set the API log level}"
+      AUTH_PUBLIC_BASE_URL: "${AUTH_PUBLIC_BASE_URL:?set the public application URL}"
+      AUTH_JWT_ISSUER: "${AUTH_JWT_ISSUER:?set the JWT issuer}"
+      AUTH_JWT_AUDIENCE: "${AUTH_JWT_AUDIENCE:?set the JWT audience}"
+      AUTH_JWT_HMAC_SECRET: "${AUTH_JWT_HMAC_SECRET:?set a strong JWT secret}"
+      AUTH_FORWARD_AUTH_MARKER_HEADER: "${INTERN_DEV_IDENTITY_MARKER_HEADER:?set the development identity marker header}"
+      AUTH_FORWARD_AUTH_MARKER_VALUE: "${INTERN_DEV_IDENTITY_MARKER:?set the development identity marker value}"
+      AUTH_REMOTE_USER_HEADER: "Remote-User"
+      AUTH_REMOTE_NAME_HEADER: "Remote-Name"
+      AUTH_REMOTE_EMAIL_HEADER: "Remote-Email"
+      AUTH_REMOTE_GROUPS_HEADER: "Remote-Groups"
+      TRUSTED_PROXY_CIDRS: "${INTERN_TRUSTED_PROXY_CIDRS:?set the private Compose proxy CIDR}"
+      AUTH_ADMIN_GROUPS: "${AUTH_ADMIN_GROUPS:?set at least one admin group}"
     expose:
       - "8080"
-
-  dev-auth-proxy:
-    image: nginx:1.28-alpine3.23
-    depends_on:
-      - intern-api
-    networks:
-      devnet:
-        ipv4_address: 10.89.0.30
-    ports:
-      - "18080:18080"
-      - "18081:18081"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - ./docker/dev-auth-proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          ignore:
+            - .git/
+            - .env
+            - .env.*
+            - web/
+            - node_modules/
+            - web/node_modules/
+            - web/.next/
+            - .next/
+            - coverage/
+            - dist/
+            - tmp/
 
-networks:
-  devnet:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 10.89.0.0/24
-
-volumes:
-  postgres-data:
+  intern-web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: dev
+    environment:
+      INTERN_API_BASE_URL: "http://intern-api:8080"
+      INTERN_DEV_IDENTITY_ENABLED: "${INTERN_DEV_IDENTITY_ENABLED:?set development identity mode explicitly}"
+      INTERN_DEV_IDENTITY_MARKER_HEADER: "${INTERN_DEV_IDENTITY_MARKER_HEADER:?set the development identity marker header}"
+      INTERN_DEV_IDENTITY_MARKER: "${INTERN_DEV_IDENTITY_MARKER:?set the development identity marker value}"
+      INTERN_DEV_IDENTITY_USER: "${INTERN_DEV_IDENTITY_USER:?set a development username}"
+      INTERN_DEV_IDENTITY_NAME: "${INTERN_DEV_IDENTITY_NAME:?set a development display name}"
+      INTERN_DEV_IDENTITY_EMAIL: "${INTERN_DEV_IDENTITY_EMAIL:?set a development email}"
+      INTERN_DEV_IDENTITY_GROUPS: "${INTERN_DEV_IDENTITY_GROUPS:?set development groups}"
+    depends_on:
+      - intern-api
+    ports:
+      - "${INTERN_WEB_BIND:-0.0.0.0}:${INTERN_WEB_PORT:?set the web port}:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./web
+          target: /app/web
+          ignore:
+            - node_modules/
+            - .next/
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./web/package.json

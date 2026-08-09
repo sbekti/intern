@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { LaptopIcon, LoaderCircleIcon, LogOutIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/toast"
 
 import type { AuthSession, AuthSessionPage } from "@/lib/api"
 import { buildBffPath } from "@/lib/bff"
@@ -249,10 +249,10 @@ export function SecuritySessions({
     startTransition(async () => {
       try {
         await post(path)
-        toast.success(successMessage)
+        toast.add({ type: "success", title: successMessage })
         router.refresh()
       } catch {
-        toast.error("Session update failed. Try again.")
+        toast.add({ type: "error", title: "Session update failed. Try again." })
       } finally {
         setDialogTarget(null)
         setPendingPath(null)

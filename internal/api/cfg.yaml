@@ -3,5 +3,3 @@ output: api.gen.go
 generate:
   models: true
   client: true
-  chi-server: true
-  embedded-spec: true

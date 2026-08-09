@@ -79,7 +79,7 @@ export function AppSidebar({
               render={<Link href="/" />}
             >
               <ServerIcon className="size-5!" />
-              <span className="text-base font-semibold">Bektinet</span>
+              <span className="text-base font-semibold">Intern</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

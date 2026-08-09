@@ -6,7 +6,7 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   description: |
-    V1 API contract for an internal site such as `intern.corp.example.com`.
+    V1 API contract for Intern at `intern.bekti.com`.
 
     Authentication modes:
 
@@ -15,15 +15,13 @@ info:
 
     Authorization is enforced server-side. Admin-only operations require membership in the configured admin group set, which defaults to `Super-Users`.
 servers:
-  - url: https://intern.corp.invalid
+  - url: https://intern.bekti.com
     description: Production
-  - url: http://intern.corp.test
-    description: Local development through the dev auth proxy
+  - url: http://intern-api:8080
+    description: Local Compose network
 tags:
   - name: Profile
-    description: Current-user identity, preferences, and session management.
-  - name: Dashboard
-    description: Dashboard summary data for the authenticated user.
+    description: Current-user identity and session management.
   - name: Networks
     description: VLAN and network device management operations.
   - name: Auth
@@ -47,30 +45,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Profile'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-  /api/v1/profile/preferences:
-    patch:
-      operationId: patchProfilePreferences
-      tags: [Profile]
-      summary: Update current user preferences.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ProfilePreferencesPatch'
-      responses:
-        '200':
-          description: Updated preferences.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProfilePreferences'
-        '400':
-          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/v1/profile/sessions:
@@ -265,22 +239,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /api/v1/dashboard:
-    get:
-      operationId: getDashboard
-      tags: [Dashboard]
-      summary: Get dashboard summary data.
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Dashboard payload.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Dashboard'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
   /api/v1/networks/vlans:
     get:
       operationId: listVlans
@@ -756,20 +714,6 @@ components:
             type: string
         is_admin:
           type: boolean
-    ProfilePreferences:
-      type: object
-      properties:
-        timezone:
-          type: string
-        locale:
-          type: string
-    ProfilePreferencesPatch:
-      type: object
-      properties:
-        timezone:
-          type: string
-        locale:
-          type: string
     AuthSession:
       type: object
       required:
@@ -882,53 +826,6 @@ components:
             $ref: '#/components/schemas/AuditLogEntry'
         pagination:
           $ref: '#/components/schemas/AuditLogPagination'
-    Dashboard:
-      type: object
-      required: [welcome_message, profile, network_summary]
-      properties:
-        welcome_message:
-          type: string
-        profile:
-          $ref: '#/components/schemas/Profile'
-        network_summary:
-          $ref: '#/components/schemas/NetworkSummary'
-        weather:
-          $ref: '#/components/schemas/WeatherSummary'
-    NetworkSummary:
-      type: object
-      required: [device_count, vlan_count]
-      properties:
-        device_count:
-          type: integer
-          format: int64
-          minimum: 0
-        vlan_count:
-          type: integer
-          format: int64
-          minimum: 0
-    WeatherSummary:
-      type: object
-      required: [location_name, timezone, current]
-      properties:
-        location_name:
-          type: string
-        timezone:
-          type: string
-        current:
-          $ref: '#/components/schemas/WeatherCurrent'
-    WeatherCurrent:
-      type: object
-      required: [temperature_c, wind_speed_kph, weather_code]
-      properties:
-        temperature_c:
-          type: number
-          format: float
-        wind_speed_kph:
-          type: number
-          format: float
-        weather_code:
-          type: integer
-          format: int32
     Vlan:
       type: object
       required:

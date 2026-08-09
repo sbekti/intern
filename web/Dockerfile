@@ -1,45 +1,54 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:22-alpine3.23 AS deps
+FROM node:22-alpine3.23 AS deps
 
 WORKDIR /app
-
 RUN apk add --no-cache libc6-compat
-
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
+COPY web/package.json ./web/package.json
 RUN npm ci
 
-FROM --platform=$BUILDPLATFORM node:22-alpine3.23 AS build
+FROM node:22-alpine3.23 AS build
 
 WORKDIR /app
-
 ENV NEXT_TELEMETRY_DISABLED=1
-
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/web/node_modules ./web/node_modules
 COPY --from=deps /app/package.json ./package.json
 COPY --from=deps /app/package-lock.json ./package-lock.json
+COPY --from=deps /app/web/package.json ./web/package.json
+COPY web ./web
+RUN npm --workspace web run build
 
-COPY app ./app
-COPY components ./components
-COPY hooks ./hooks
-COPY lib ./lib
-COPY public ./public
-COPY components.json eslint.config.mjs next.config.mjs package.json package-lock.json postcss.config.mjs tsconfig.json ./
-RUN npm run build
+FROM node:22-alpine3.23 AS dev
+
+WORKDIR /app
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/web/node_modules ./web/node_modules
+COPY --from=deps /app/package.json ./package.json
+COPY --from=deps /app/package-lock.json ./package-lock.json
+COPY --from=deps /app/.npmrc ./.npmrc
+COPY web ./web
+
+EXPOSE 3000
+CMD ["npm", "--workspace", "web", "run", "dev", "--", "--hostname", "0.0.0.0", "--port", "3000"]
 
 FROM node:22-alpine3.23 AS runner
 
 WORKDIR /app
-
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-COPY --from=build /app/public ./public
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/web/.next/standalone ./
+COPY --from=build /app/web/public ./web/public
+COPY --from=build /app/web/.next/static ./web/.next/static
 
 EXPOSE 3000
-
-CMD ["node", "server.js"]
+CMD ["node", "web/server.js"]

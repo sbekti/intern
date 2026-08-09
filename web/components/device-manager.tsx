@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { startTransition, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/toast"
 import {
   MonitorSmartphoneIcon,
   PencilIcon,
@@ -200,7 +200,7 @@ export function DeviceManager({
       return
     }
 
-    toast.success(editing ? "Device updated" : "Device created")
+    toast.add({ type: "success", title: editing ? "Device updated" : "Device created" })
     setDialogOpen(false)
     setSubmitting(false)
     startTransition(() => router.refresh())
@@ -222,11 +222,11 @@ export function DeviceManager({
 
     if (!response.ok) {
       setDeletingBusy(false)
-      toast.error(await parseApiError(response))
+      toast.add({ type: "error", title: await parseApiError(response) })
       return
     }
 
-    toast.success("Device deleted")
+    toast.add({ type: "success", title: "Device deleted" })
     setDeleting(null)
     setDeletingBusy(false)
     startTransition(() => router.refresh())

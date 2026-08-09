@@ -8,24 +8,6 @@ export type Profile = {
   is_admin: boolean
 }
 
-export type Dashboard = {
-  welcome_message: string
-  profile: Profile
-  network_summary: {
-    device_count: number
-    vlan_count: number
-  }
-  weather?: {
-    location_name: string
-    timezone: string
-    current: {
-      temperature_c: number
-      wind_speed_kph: number
-      weather_code: number
-    }
-  }
-}
-
 export type Vlan = {
   name: string
   vlan_id: number
@@ -118,13 +100,42 @@ export async function resolveApiBaseUrl() {
   return `${proto}://${host}`
 }
 
-export async function buildForwardHeaders() {
-  const requestHeaders = await headers()
+export async function buildForwardHeaders(
+  source?: Pick<Headers, "get">
+) {
+  const requestHeaders = source ?? (await headers())
   const outbound = new Headers()
+
+  const devIdentityEnabled = process.env.INTERN_DEV_IDENTITY_ENABLED === "true"
+  if (process.env.NODE_ENV === "production" && devIdentityEnabled) {
+    throw new Error("development identity injection is disabled in production")
+  }
+
+  if (devIdentityEnabled) {
+    const required = (name: string) => {
+      const value = process.env[name]?.trim()
+      if (!value) {
+        throw new Error(`Missing required development identity setting ${name}`)
+      }
+      return value
+    }
+
+    // Browser credentials and identity headers are intentionally discarded.
+    // The server-owned development identity replaces them on every request.
+    outbound.set("authorization", "")
+    outbound.set(required("INTERN_DEV_IDENTITY_MARKER_HEADER"), required("INTERN_DEV_IDENTITY_MARKER"))
+    outbound.set("remote-user", required("INTERN_DEV_IDENTITY_USER"))
+    outbound.set("remote-name", required("INTERN_DEV_IDENTITY_NAME"))
+    outbound.set("remote-email", required("INTERN_DEV_IDENTITY_EMAIL"))
+    outbound.set("remote-groups", required("INTERN_DEV_IDENTITY_GROUPS"))
+    return outbound
+  }
 
   const passthrough = [
     "authorization",
     "cookie",
+    "x-forwarded-for",
+    "x-real-ip",
     "x-intern-forward-auth",
     "remote-user",
     "remote-name",
@@ -185,10 +196,6 @@ async function getJson<T>(path: string): Promise<ApiResult<T>> {
 
 export function getProfile() {
   return getJson<Profile>("/api/v1/profile")
-}
-
-export function getDashboard() {
-  return getJson<Dashboard>("/api/v1/dashboard")
 }
 
 export function listVlans() {

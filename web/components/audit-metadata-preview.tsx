@@ -1,7 +1,7 @@
 "use client"
 
 import { CopyIcon } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/toast"
 
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -129,9 +129,9 @@ export function AuditMetadataPreview({
   async function copyMetadata() {
     try {
       await copyText(formatted.full)
-      toast.success("Metadata copied.")
+      toast.add({ type: "success", title: "Metadata copied." })
     } catch {
-      toast.error("Metadata copy failed.")
+      toast.add({ type: "error", title: "Metadata copy failed." })
     }
   }
 

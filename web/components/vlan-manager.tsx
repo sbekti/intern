@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { startTransition, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { toast } from "@/components/ui/toast"
 import { NetworkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import type { Vlan } from "@/lib/api"
@@ -155,7 +155,7 @@ export function VlanManager({
       return
     }
 
-    toast.success(editing ? "VLAN updated" : "VLAN created")
+    toast.add({ type: "success", title: editing ? "VLAN updated" : "VLAN created" })
     setDialogOpen(false)
     setSubmitting(false)
     startTransition(() => router.refresh())
@@ -174,11 +174,11 @@ export function VlanManager({
 
     if (!response.ok) {
       setDeletingBusy(false)
-      toast.error(await parseApiError(response))
+      toast.add({ type: "error", title: await parseApiError(response) })
       return
     }
 
-    toast.success("VLAN deleted")
+    toast.add({ type: "success", title: "VLAN deleted" })
     setDeleting(null)
     setDeletingBusy(false)
     startTransition(() => router.refresh())

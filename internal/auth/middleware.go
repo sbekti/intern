@@ -9,6 +9,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 
+	"github.com/sbekti/intern-api/internal/apierror"
 	"github.com/sbekti/intern-api/internal/config"
 	"github.com/sbekti/intern-api/internal/requestmeta"
 )
@@ -70,7 +71,7 @@ func (a *Authenticator) OptionalPrincipalMiddleware() func(http.Handler) http.Ha
 					next.ServeHTTP(w, r)
 					return
 				}
-				http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+				apierror.Write(w, http.StatusUnauthorized, "unauthorized", "authentication failed")
 				return
 			}
 

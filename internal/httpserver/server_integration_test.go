@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -19,6 +20,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/sbekti/intern-api/internal/api"
@@ -33,7 +35,7 @@ import (
 	"github.com/sbekti/intern-api/internal/vlans"
 )
 
-func TestHandlerIntegrationTrustedForwardAuthPersistsUser(t *testing.T) {
+func TestHandlerIntegrationProfileLookupIsReadOnly(t *testing.T) {
 	t.Parallel()
 
 	testEnv := newHandlerIntegrationEnv(t)
@@ -59,12 +61,8 @@ func TestHandlerIntegrationTrustedForwardAuthPersistsUser(t *testing.T) {
 		t.Fatalf("expected non-admin profile, got %#v", profile)
 	}
 
-	user, err := testEnv.queries.GetUserByUsername(context.Background(), db.GetUserByUsernameParams{Username: "alice"})
-	if err != nil {
-		t.Fatalf("expected persisted user row, got %v", err)
-	}
-	if user.Email != "alice@example.com" || len(user.Groups) != 1 || user.Groups[0] != "Users" {
-		t.Fatalf("unexpected persisted user %#v", user)
+	if _, err := testEnv.queries.GetUserByUsername(context.Background(), db.GetUserByUsernameParams{Username: "alice"}); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("profile lookup mutated users table, err=%v", err)
 	}
 }
 
@@ -869,7 +867,6 @@ type handlerIntegrationEnv struct {
 	cfg               config.Config
 	handler           http.Handler
 	pg                *testutil.PostgresContainer
-	redis             *testutil.RedisContainer
 	queries           *db.Queries
 	sessionService    *sessions.Service
 	clientAuthService *clientauth.Service
@@ -880,14 +877,13 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 
 	pg := testutil.StartPostgres(t)
 	queries := db.New(pg.Pool)
-	cfg := integrationHandlerConfig(pg.URL, "redis://127.0.0.1:6379/0")
+	cfg := integrationHandlerConfig(pg.URL)
 
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pg.Pool))
 	sessionService := sessions.NewService(queries)
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
 		UserStore:         queries,
-		DashboardStore:    queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
 		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
 		SessionService:    sessionService,
@@ -908,9 +904,8 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	t.Helper()
 
 	pg := testutil.StartPostgres(t)
-	redisContainer := testutil.StartRedis(t)
 	queries := db.New(pg.Pool)
-	cfg := integrationHandlerConfig(pg.URL, redisContainer.URL)
+	cfg := integrationHandlerConfig(pg.URL)
 	cfg.Auth.RateLimit.DeviceCodeCreate = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
 	cfg.Auth.RateLimit.DeviceTokenExchange = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
 	cfg.Auth.RateLimit.DeviceDecision = config.AuthRateLimitRule{Limit: 1, Window: time.Minute}
@@ -922,31 +917,27 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
 		UserStore:         queries,
-		DashboardStore:    queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
 		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
 		SessionService:    sessionService,
 		ClientAuthService: clientAuthService,
-		AuthSpamService:   authspam.NewService(redisContainer.Client, cfg.Auth.RateLimit),
+		AuthSpamService:   authspam.NewService(cfg.Auth.RateLimit),
 	})
 
 	return handlerIntegrationEnv{
 		cfg:               cfg,
 		handler:           handler,
 		pg:                pg,
-		redis:             redisContainer,
 		queries:           queries,
 		sessionService:    sessionService,
 		clientAuthService: clientAuthService,
 	}
 }
 
-func integrationHandlerConfig(databaseURL, redisURL string) config.Config {
+func integrationHandlerConfig(databaseURL string) config.Config {
 	cfg := config.Config{
 		Server:   config.ServerConfig{Addr: ":8080"},
 		Database: config.DatabaseConfig{URL: databaseURL},
-		Redis:    config.RedisConfig{URL: redisURL},
-		Weather:  config.WeatherConfig{BaseURL: "https://weather.example.test", LocationName: "Example Home", Latitude: 40.7128, Longitude: -74.0060, CacheTTL: 15 * time.Minute},
 		LogLevel: config.LogLevelInfo,
 		Auth: config.AuthConfig{
 			PublicBaseURL:      "https://intern.corp.example.com",
