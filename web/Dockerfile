@@ -40,6 +40,8 @@ CMD ["npm", "--workspace", "web", "run", "dev", "--", "--hostname", "0.0.0.0", "
 
 FROM node:22-alpine3.23 AS runner
 
+LABEL org.opencontainers.image.source="https://github.com/sbekti/intern"
+
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

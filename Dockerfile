@@ -20,6 +20,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -modfile=tools/
 
 FROM alpine:3.23
 
+LABEL org.opencontainers.image.source="https://github.com/sbekti/intern"
+
 WORKDIR /app
 RUN apk add --no-cache ca-certificates
 COPY --from=build /out/intern-api /usr/local/bin/intern-api
