@@ -89,7 +89,7 @@ jobs:
         id: homebrew-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ vars.HOMEBREW_PUBLISHER_CLIENT_ID }}
+          client-id: ${{ vars.HOMEBREW_PUBLISHER_CLIENT_ID }}
           private-key: ${{ secrets.HOMEBREW_PUBLISHER_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: homebrew-tap
