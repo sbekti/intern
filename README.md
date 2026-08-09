@@ -6,7 +6,20 @@ The API preserves authentication, authorization, sessions, audit logs, VLAN and 
 
 ## Development
 
-Copy `.env.example` to `.env`, replace every placeholder, and run:
+Copy `.env.example` to `.env` and replace every placeholder. Before starting the
+development stack, keep this production database port-forward running:
+
+```sh
+kubectl -n db port-forward service/postgres-rw 15432:5432 --address 127.0.0.1,172.17.0.1
+```
+
+Set `INTERN_API_DATABASE_URL` to the forwarded host URL, such as
+`postgres://user:password@host.docker.internal:15432/intern?sslmode=require`.
+Compose provides the `host.docker.internal` host gateway, and SSL remains
+required. This is the production database: use real credentials carefully and
+remember that development actions perform real writes.
+
+Then run:
 
 ```sh
 npm ci
