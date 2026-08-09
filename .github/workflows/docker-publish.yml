@@ -23,7 +23,7 @@ jobs:
         include:
           - image: ghcr.io/sbekti/intern-api
             file: ./Dockerfile
-          - image: ghcr.io/sbekti/intern-www
+          - image: ghcr.io/sbekti/intern-api-web
             file: ./web/Dockerfile
     permissions:
       contents: read
