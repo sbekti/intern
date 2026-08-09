@@ -47,10 +47,10 @@ jobs:
         run: go test ./...
 
       - name: Build API
-        run: go build ./cmd/intern-api
+        run: go build -o "${RUNNER_TEMP}/intern-api" ./cmd/intern-api
 
       - name: Build CLI
-        run: go build ./cmd/internctl
+        run: go build -o "${RUNNER_TEMP}/internctl" ./cmd/internctl
 
       - name: Setup Node
         uses: actions/setup-node@v6
