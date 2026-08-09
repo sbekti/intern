@@ -1,0 +1,812 @@
+package cli
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/sbekti/internctl/internal/api"
+	"github.com/sbekti/internctl/internal/buildinfo"
+	"github.com/sbekti/internctl/internal/config"
+	"github.com/sbekti/internctl/internal/session"
+)
+
+func authSessionPageJSON(items string, limit int32, offset int32, total int64) string {
+	return fmt.Sprintf(`{"items":%s,"pagination":{"limit":%d,"offset":%d,"total":%d}}`, items, limit, offset, total)
+}
+
+func writeLoggedInProfile(t *testing.T, configDir string, serverURL string) *session.Manager {
+	t.Helper()
+
+	cfg := config.File{
+		Profiles: map[string]config.Profile{
+			config.DefaultProfile: {
+				ServerURL:    serverURL,
+				TokenBackend: "file",
+			},
+		},
+	}
+	if err := config.Save(configDir, cfg); err != nil {
+		t.Fatalf("Save config returned error: %v", err)
+	}
+
+	manager := session.NewManager(configDir)
+	if _, err := manager.Save(config.DefaultProfile, session.BackendFile, session.Data{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		TokenType:    "Bearer",
+		ExpiresAt:    time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("Save session returned error: %v", err)
+	}
+
+	return manager
+}
+
+func TestLoginPersistsProfileAndSession(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	profileName := "login-test"
+	var createRequest struct {
+		ClientName string `json:"client_name"`
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/auth/device_codes":
+			if err := json.NewDecoder(r.Body).Decode(&createRequest); err != nil {
+				t.Fatalf("decode create request: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"device_code":"device-code","user_code":"ABCD-EFGH","verification_uri":"https://intern.corp.example.com/auth/device","verification_uri_complete":"https://intern.corp.example.com/auth/device?user_code=ABCD-EFGH","expires_in":60,"interval":1}`))
+		case "/api/v1/auth/tokens":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"access-token","token_type":"Bearer","expires_in_seconds":900,"refresh_token":"refresh-token"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{
+		"login",
+		"--profile", profileName,
+		"--config-dir", configDir,
+		"--server", server.URL,
+		"--token-backend", "file",
+		"--client-name", "example-host",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	if createRequest.ClientName != "example-host" {
+		t.Fatalf("client_name = %q, want %q", createRequest.ClientName, "example-host")
+	}
+	if !strings.Contains(stdout.String(), "Login successful.") {
+		t.Fatalf("stdout missing success message: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Verification URL: https://intern.corp.example.com/auth/device?user_code=ABCD-EFGH") {
+		t.Fatalf("stdout missing derived verification URL: %s", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q, want empty", stderr.String())
+	}
+
+	cfg, err := config.Load(configDir)
+	if err != nil {
+		t.Fatalf("Load config returned error: %v", err)
+	}
+	profile := config.GetProfile(cfg, profileName)
+	if profile.ServerURL != server.URL {
+		t.Fatalf("server URL = %q, want %q", profile.ServerURL, server.URL)
+	}
+	if profile.TokenBackend != "file" {
+		t.Fatalf("token backend = %q, want %q", profile.TokenBackend, "file")
+	}
+
+	manager := session.NewManager(configDir)
+	data, actualBackend, err := manager.Load(profileName, session.BackendFile)
+	if err != nil {
+		t.Fatalf("Load session returned error: %v", err)
+	}
+	if actualBackend != session.BackendFile {
+		t.Fatalf("backend = %q, want %q", actualBackend, session.BackendFile)
+	}
+	if data.RefreshToken != "refresh-token" {
+		t.Fatalf("refresh token = %q, want %q", data.RefreshToken, "refresh-token")
+	}
+}
+
+func TestLogoutClearsLocalSessionOnRemoteFailure(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	cfg := config.File{
+		Profiles: map[string]config.Profile{
+			config.DefaultProfile: {
+				ServerURL:    "https://example.com",
+				TokenBackend: "file",
+			},
+		},
+	}
+	if err := config.Save(configDir, cfg); err != nil {
+		t.Fatalf("Save config returned error: %v", err)
+	}
+
+	manager := session.NewManager(configDir)
+	if _, err := manager.Save(config.DefaultProfile, session.BackendFile, session.Data{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		TokenType:    "Bearer",
+		ExpiresAt:    time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("Save session returned error: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/auth/logout" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	profile := config.GetProfile(cfg, config.DefaultProfile)
+	profile.ServerURL = server.URL
+	cfg.Profiles[config.DefaultProfile] = profile
+	if err := config.Save(configDir, cfg); err != nil {
+		t.Fatalf("Save config returned error: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"logout", "--config-dir", configDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Signed out.") {
+		t.Fatalf("stdout missing sign-out message: %s", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "Remote logout failed; local session cleared") {
+		t.Fatalf("stderr missing warning: %s", stderr.String())
+	}
+	if _, _, err := manager.Load(config.DefaultProfile, session.BackendFile); !errors.Is(err, session.ErrSessionNotFound) {
+		t.Fatalf("session still present, err = %v", err)
+	}
+}
+
+func TestLoginRefusesToReplaceExistingSessionWithoutForce(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	cfg := config.File{
+		Profiles: map[string]config.Profile{
+			config.DefaultProfile: {
+				ServerURL:    "https://example.com",
+				TokenBackend: "file",
+			},
+		},
+	}
+	if err := config.Save(configDir, cfg); err != nil {
+		t.Fatalf("Save config returned error: %v", err)
+	}
+
+	manager := session.NewManager(configDir)
+	if _, err := manager.Save(config.DefaultProfile, session.BackendFile, session.Data{
+		AccessToken:  "access-token",
+		RefreshToken: "refresh-token",
+		TokenType:    "Bearer",
+		ExpiresAt:    time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatalf("Save session returned error: %v", err)
+	}
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"login", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `profile "default" is already signed in`) {
+		t.Fatalf("error = %q, want existing session message", err.Error())
+	}
+}
+
+func TestVlansListPrintsTable(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/vlans" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer access-token" {
+			t.Fatalf("Authorization header = %q, want %q", got, "Bearer access-token")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"name":"guest","vlan_id":10,"description":"Guest devices","created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}]}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"vlan", "list", "--config-dir", configDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "VLAN ID") || !strings.Contains(output, "NAME") || !strings.Contains(output, "DESCRIPTION") {
+		t.Fatalf("stdout missing table headers: %s", output)
+	}
+	if !strings.Contains(output, "guest") || !strings.Contains(output, "10") {
+		t.Fatalf("stdout missing VLAN row: %s", output)
+	}
+}
+
+func TestVersionCommandPrintsBuildInfo(t *testing.T) {
+	t.Parallel()
+
+	originalVersion := buildinfo.Version
+	originalCommit := buildinfo.Commit
+	originalDate := buildinfo.Date
+	originalDefaultServerURL := config.DefaultServerURL
+
+	buildinfo.Version = "v9.9.9"
+	buildinfo.Commit = "deadbeef"
+	buildinfo.Date = "2026-03-15T12:34:56Z"
+	config.DefaultServerURL = "https://intern.corp.bekti.com"
+
+	t.Cleanup(func() {
+		buildinfo.Version = originalVersion
+		buildinfo.Commit = originalCommit
+		buildinfo.Date = originalDate
+		config.DefaultServerURL = originalDefaultServerURL
+	})
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetArgs([]string{"version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	output := stdout.String()
+	for _, expected := range []string{
+		"version: v9.9.9",
+		"commit: deadbeef",
+		"built: 2026-03-15T12:34:56Z",
+		"default_server: https://intern.corp.bekti.com",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("output missing %q: %s", expected, output)
+		}
+	}
+}
+
+func TestDevicesListRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"forbidden","message":"admin access required"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	cmd.SetOut(new(bytes.Buffer))
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"device", "list", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "admin access is required to list devices") {
+		t.Fatalf("error = %q, want admin access message", err.Error())
+	}
+}
+
+func TestVlansListJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/vlans" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"name":"guest","vlan_id":10,"description":"Guest devices","created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}]}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"vlan", "list", "--config-dir", configDir, "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), `"name": "guest"`) || !strings.Contains(stdout.String(), `"vlan_id": 10`) {
+		t.Fatalf("stdout missing JSON VLAN fields: %s", stdout.String())
+	}
+}
+
+func TestVlansCreatePrintsCreatedMessage(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	var request api.VlanWrite
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/vlans" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"name":"iot","vlan_id":20,"description":"IoT devices","created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{
+		"vlan", "create",
+		"--config-dir", configDir,
+		"--name", "iot",
+		"--vlan-id", "20",
+		"--description", "IoT devices",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if request.Name != "iot" || request.VlanId != 20 {
+		t.Fatalf("unexpected create request: %+v", request)
+	}
+	if request.Description == nil || *request.Description != "IoT devices" {
+		t.Fatalf("description = %+v, want IoT devices", request.Description)
+	}
+	if !strings.Contains(stdout.String(), "Created VLAN 20 (iot).") {
+		t.Fatalf("stdout missing create confirmation: %s", stdout.String())
+	}
+}
+
+func TestVlansDeleteRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/vlans/42" || r.Method != http.MethodDelete {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"forbidden","message":"admin access required"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	cmd.SetOut(new(bytes.Buffer))
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"vlan", "delete", "42", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "admin access is required to delete VLANs") {
+		t.Fatalf("error = %q, want admin access message", err.Error())
+	}
+}
+
+func TestVlansDeleteShowsReferencedDeviceMessage(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/vlans/334" || r.Method != http.MethodDelete {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"conflict","message":"this VLAN is still assigned to one or more devices; reassign or delete those devices before deleting the VLAN"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	cmd.SetOut(new(bytes.Buffer))
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"vlan", "delete", "334", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "still assigned to one or more devices") {
+		t.Fatalf("error = %q, want referenced-device message", err.Error())
+	}
+}
+
+func TestDevicesCreatePrintsCreatedMessage(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	var request api.NetworkDeviceWrite
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":false,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{
+		"device", "create",
+		"--config-dir", configDir,
+		"--name", "Kitchen TV",
+		"--mac-address", "aa:bb:cc:dd:ee:ff",
+		"--vlan-id", "1",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if request.DisplayName != "Kitchen TV" || request.MacAddress != "aa:bb:cc:dd:ee:ff" || request.VlanId != 1 {
+		t.Fatalf("unexpected create request: %+v", request)
+	}
+	if !strings.Contains(stdout.String(), "Created device Kitchen TV (00000000-0000-0000-0000-000000000123).") {
+		t.Fatalf("stdout missing create confirmation: %s", stdout.String())
+	}
+}
+
+func TestDevicesListPrintsIDAndSupportsJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":true,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}]}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	tableCmd := NewRootCommand()
+	var tableOut bytes.Buffer
+	tableCmd.SetOut(&tableOut)
+	tableCmd.SetErr(new(bytes.Buffer))
+	tableCmd.SetArgs([]string{"device", "list", "--config-dir", configDir})
+
+	if err := tableCmd.Execute(); err != nil {
+		t.Fatalf("table Execute returned error: %v", err)
+	}
+	if !strings.Contains(tableOut.String(), "00000000-0000-0000-0000-000000000123") || !strings.Contains(tableOut.String(), "STATUS") || !strings.Contains(tableOut.String(), "disabled") {
+		t.Fatalf("table output missing device id: %s", tableOut.String())
+	}
+	if strings.Index(tableOut.String(), "VLAN") > strings.Index(tableOut.String(), "STATUS") {
+		t.Fatalf("expected VLAN column before STATUS: %s", tableOut.String())
+	}
+
+	jsonCmd := NewRootCommand()
+	var jsonOut bytes.Buffer
+	jsonCmd.SetOut(&jsonOut)
+	jsonCmd.SetErr(new(bytes.Buffer))
+	jsonCmd.SetArgs([]string{"device", "list", "--config-dir", configDir, "--output", "json"})
+
+	if err := jsonCmd.Execute(); err != nil {
+		t.Fatalf("json Execute returned error: %v", err)
+	}
+	if !strings.Contains(jsonOut.String(), `"id": "00000000-0000-0000-0000-000000000123"`) || !strings.Contains(jsonOut.String(), `"display_name": "Kitchen TV"`) || !strings.Contains(jsonOut.String(), `"disabled": true`) {
+		t.Fatalf("json output missing device fields: %s", jsonOut.String())
+	}
+}
+
+func TestDevicesDisableAndEnableCommandsPatchDisabledState(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	requests := make([]api.NetworkDevicePatch, 0, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices/00000000-0000-0000-0000-000000000123" || r.Method != http.MethodPatch {
+			http.NotFound(w, r)
+			return
+		}
+		var request api.NetworkDevicePatch
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		requests = append(requests, request)
+
+		disabled := request.Disabled != nil && *request.Disabled
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"id":"00000000-0000-0000-0000-000000000123","display_name":"Kitchen TV","mac_address":"aa:bb:cc:dd:ee:ff","disabled":%t,"vlan":{"name":"trusted","vlan_id":1},"created_at":"2026-03-13T00:00:00Z","updated_at":"2026-03-13T00:00:00Z"}`, disabled)))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	disableCmd := NewRootCommand()
+	var disableOut bytes.Buffer
+	disableCmd.SetOut(&disableOut)
+	disableCmd.SetErr(new(bytes.Buffer))
+	disableCmd.SetArgs([]string{"device", "disable", "00000000-0000-0000-0000-000000000123", "--config-dir", configDir})
+	if err := disableCmd.Execute(); err != nil {
+		t.Fatalf("disable Execute returned error: %v", err)
+	}
+
+	enableCmd := NewRootCommand()
+	var enableOut bytes.Buffer
+	enableCmd.SetOut(&enableOut)
+	enableCmd.SetErr(new(bytes.Buffer))
+	enableCmd.SetArgs([]string{"device", "enable", "00000000-0000-0000-0000-000000000123", "--config-dir", configDir})
+	if err := enableCmd.Execute(); err != nil {
+		t.Fatalf("enable Execute returned error: %v", err)
+	}
+
+	if len(requests) != 2 {
+		t.Fatalf("expected 2 patch requests, got %d", len(requests))
+	}
+	if requests[0].Disabled == nil || !*requests[0].Disabled {
+		t.Fatalf("expected first request to disable device, got %+v", requests[0])
+	}
+	if requests[1].Disabled == nil || *requests[1].Disabled {
+		t.Fatalf("expected second request to enable device, got %+v", requests[1])
+	}
+	if !strings.Contains(disableOut.String(), "Disabled device Kitchen TV (00000000-0000-0000-0000-000000000123).") {
+		t.Fatalf("stdout missing disable confirmation: %s", disableOut.String())
+	}
+	if !strings.Contains(enableOut.String(), "Enabled device Kitchen TV (00000000-0000-0000-0000-000000000123).") {
+		t.Fatalf("stdout missing enable confirmation: %s", enableOut.String())
+	}
+}
+
+func TestDevicesDeleteRequiresAdmin(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/networks/devices/00000000-0000-0000-0000-000000000123" || r.Method != http.MethodDelete {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"forbidden","message":"admin access required"}`))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	cmd.SetOut(new(bytes.Buffer))
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"device", "delete", "00000000-0000-0000-0000-000000000123", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "admin access is required to delete devices") {
+		t.Fatalf("error = %q, want admin access message", err.Error())
+	}
+}
+
+func TestSessionListPrintsCurrentSessionAndPagination(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/profile/sessions" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("limit"); got != "20" {
+			t.Fatalf("limit = %q, want 20", got)
+		}
+		if got := r.URL.Query().Get("offset"); got != "0" {
+			t.Fatalf("offset = %q, want 0", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(authSessionPageJSON(
+			`[{"id":"00000000-0000-0000-0000-000000000111","username":"bob","client_name":"internctl","created_at":"2026-03-13T00:00:00Z","expires_at":"2026-03-14T00:00:00Z","idle_expires_at":"2026-03-13T12:00:00Z","last_used_at":"2026-03-13T01:00:00Z","is_current":true}]`,
+			20, 0, 1,
+		)))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"session", "list", "--config-dir", configDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, "CURRENT") || !strings.Contains(output, "yes") || !strings.Contains(output, "internctl") {
+		t.Fatalf("stdout missing session table fields: %s", output)
+	}
+	if !strings.Contains(output, "Page 1 of 1 (20 per page, 1 total)") {
+		t.Fatalf("stdout missing page summary: %s", output)
+	}
+}
+
+func TestSessionListAllJSONUsesAdminEndpoint(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/auth/sessions" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("limit"); got != "5" {
+			t.Fatalf("limit = %q, want 5", got)
+		}
+		if got := r.URL.Query().Get("offset"); got != "5" {
+			t.Fatalf("offset = %q, want 5", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(authSessionPageJSON(
+			`[{"id":"00000000-0000-0000-0000-000000000222","username":"alice","client_name":"mobile","created_at":"2026-03-13T00:00:00Z","expires_at":"2026-03-14T00:00:00Z","idle_expires_at":"2026-03-13T12:00:00Z","is_current":false}]`,
+			5, 5, 17,
+		)))
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"session", "list", "--config-dir", configDir, "--all", "--page", "2", "--page-size", "5", "--output", "json"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+
+	output := stdout.String()
+	if !strings.Contains(output, `"username": "alice"`) || !strings.Contains(output, `"total": 17`) {
+		t.Fatalf("stdout missing admin session JSON fields: %s", output)
+	}
+}
+
+func TestSessionRevokeAllPromptsAndAborts(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetIn(strings.NewReader("n\n"))
+	cmd.SetArgs([]string{"session", "revoke-all", "--config-dir", configDir})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if err.Error() != "aborted" {
+		t.Fatalf("error = %q, want aborted", err.Error())
+	}
+	if !strings.Contains(stdout.String(), "Revoke all of your other client sessions? [y/N]: ") {
+		t.Fatalf("stdout missing confirmation prompt: %s", stdout.String())
+	}
+}
+
+func TestSessionRevokeAllAdminWithYes(t *testing.T) {
+	t.Parallel()
+
+	configDir := t.TempDir()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/auth/sessions/revoke_all" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	writeLoggedInProfile(t, configDir, server.URL)
+
+	cmd := NewRootCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(new(bytes.Buffer))
+	cmd.SetArgs([]string{"session", "revoke-all", "--config-dir", configDir, "--all", "--yes"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Revoked all client sessions across all users.") {
+		t.Fatalf("stdout missing revoke-all confirmation: %s", stdout.String())
+	}
+}
