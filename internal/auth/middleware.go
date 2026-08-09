@@ -9,9 +9,9 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 
-	"github.com/sbekti/intern-api/internal/apierror"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/apierror"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 var (

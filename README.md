@@ -42,4 +42,17 @@ Integration tests use isolated ephemeral PostgreSQL containers and are opt-in wi
 
 ## Releases
 
-`.goreleaser.yaml` is prepared for the local `v0.2.0` release line. It builds future `internctl` archives and Homebrew updates; this checkpoint does not tag, publish, or modify the Homebrew tap.
+Intern is maintained as one monorepo. The first release merged into this repository
+is `v0.2.0`. Releases are tag-driven and use signed tags: push a signed `v*.*.*` tag
+to run the release workflow. It validates the Go and web workspaces, then publishes
+`internctl` release artifacts and updates `sbekti/homebrew-tap/Casks`. The Docker
+workflow signs the published GHCR images.
+
+Before creating a release, configure these repository-scoped GitHub values without
+committing credentials:
+
+- Variable: `HOMEBREW_PUBLISHER_CLIENT_ID`
+- Secret: `HOMEBREW_PUBLISHER_PRIVATE_KEY`
+
+The workflow exchanges these values for a short-lived GitHub App token scoped to the
+`homebrew-tap` repository.

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/session"
 )
 
 var ErrUnauthorized = errors.New("unauthorized")

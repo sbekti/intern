@@ -11,15 +11,15 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sbekti/intern-api/internal/auditlogs"
-	"github.com/sbekti/intern-api/internal/authspam"
-	"github.com/sbekti/intern-api/internal/clientauth"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/devices"
-	"github.com/sbekti/intern-api/internal/httpserver"
-	"github.com/sbekti/intern-api/internal/sessions"
-	"github.com/sbekti/intern-api/internal/vlans"
+	"github.com/sbekti/intern/internal/auditlogs"
+	"github.com/sbekti/intern/internal/authspam"
+	"github.com/sbekti/intern/internal/clientauth"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/httpserver"
+	"github.com/sbekti/intern/internal/sessions"
+	"github.com/sbekti/intern/internal/vlans"
 )
 
 func main() {

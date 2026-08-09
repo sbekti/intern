@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/sbekti/intern-api/internal/api"
+	"github.com/sbekti/intern/internal/api"
 )
 
 // Write emits the ordinary API error envelope used outside device-flow OAuth errors.

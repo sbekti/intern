@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/session"
 )
 
 func TestClientGetProfileRefreshesOn401(t *testing.T) {

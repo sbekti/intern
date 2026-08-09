@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern/internal/config"
 )
 
 func TestIsAdmin(t *testing.T) {

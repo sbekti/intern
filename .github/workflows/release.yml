@@ -1,0 +1,115 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal)
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Verify Go module files
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+          go -C tools mod tidy
+          git diff --exit-code -- tools/go.mod tools/go.sum
+
+      - name: Verify generated Go files
+        run: |
+          go generate ./internal/api ./internal/db
+          git diff --exit-code -- internal/api/api.gen.go internal/db
+
+      - name: Test Go
+        run: go test ./...
+
+      - name: Build API
+        run: go build ./cmd/intern-api
+
+      - name: Build CLI
+        run: go build ./cmd/internctl
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Lint web
+        run: npm run lint
+
+      - name: Typecheck web
+        run: npm run typecheck
+
+      - name: Build web
+        run: npm run build
+
+      - name: Verify Homebrew publisher credentials
+        env:
+          HOMEBREW_PUBLISHER_CLIENT_ID: ${{ vars.HOMEBREW_PUBLISHER_CLIENT_ID }}
+          HOMEBREW_PUBLISHER_PRIVATE_KEY: ${{ secrets.HOMEBREW_PUBLISHER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$HOMEBREW_PUBLISHER_CLIENT_ID" ]; then
+            echo "::error::HOMEBREW_PUBLISHER_CLIENT_ID is not configured"
+            exit 1
+          fi
+          if [ -z "$HOMEBREW_PUBLISHER_PRIVATE_KEY" ]; then
+            echo "::error::HOMEBREW_PUBLISHER_PRIVATE_KEY is not configured"
+            exit 1
+          fi
+
+      - name: Create Homebrew publisher token
+        id: homebrew-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ vars.HOMEBREW_PUBLISHER_CLIENT_ID }}
+          private-key: ${{ secrets.HOMEBREW_PUBLISHER_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: homebrew-tap
+          permission-contents: write
+
+      - name: Verify Homebrew publisher token
+        env:
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.homebrew-token.outputs.token }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_GITHUB_TOKEN" ]; then
+            echo "::error::The Homebrew publisher token was not created"
+            exit 1
+          fi
+
+      - name: Release internctl
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ steps.homebrew-token.outputs.token }}

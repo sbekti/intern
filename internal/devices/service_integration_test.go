@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/testutil"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/testutil"
 )
 
 func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T) {

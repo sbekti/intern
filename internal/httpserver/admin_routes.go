@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auditlogs"
-	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auditlogs"
+	"github.com/sbekti/intern/internal/auth"
 )
 
 func registerAdminRoutes(

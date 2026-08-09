@@ -6,10 +6,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/identity"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/identity"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.Handler {

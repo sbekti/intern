@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/db"
 )
 
 type fakeQuerier struct {

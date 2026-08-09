@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auditlogs"
-	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auditlogs"
+	"github.com/sbekti/intern/internal/auth"
 )
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

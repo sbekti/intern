@@ -11,7 +11,7 @@ import (
 
 	keyring "github.com/zalando/go-keyring"
 
-	"github.com/sbekti/intern-api/internal/cli/config"
+	"github.com/sbekti/intern/internal/cli/config"
 )
 
 const (

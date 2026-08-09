@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sbekti/intern-api/internal/apierror"
-	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern/internal/apierror"
+	"github.com/sbekti/intern/internal/config"
 )
 
 type Authorizer struct {

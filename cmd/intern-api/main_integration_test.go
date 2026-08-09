@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/testutil"
+	"github.com/sbekti/intern/internal/testutil"
 )
 
 const helperProcessEnv = "GO_WANT_INTERN_API_HELPER_PROCESS"

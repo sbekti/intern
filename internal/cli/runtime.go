@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sbekti/intern-api/internal/cli/config"
-	"github.com/sbekti/intern-api/internal/httpclient"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/cli/config"
+	"github.com/sbekti/intern/internal/httpclient"
+	"github.com/sbekti/intern/internal/session"
 )
 
 type Runtime struct {

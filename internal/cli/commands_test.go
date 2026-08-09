@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/buildinfo"
-	"github.com/sbekti/intern-api/internal/cli/config"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/buildinfo"
+	"github.com/sbekti/intern/internal/cli/config"
+	"github.com/sbekti/intern/internal/session"
 )
 
 func authSessionPageJSON(items string, limit int32, offset int32, total int64) string {

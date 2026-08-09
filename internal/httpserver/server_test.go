@@ -19,16 +19,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auditlogs"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/authspam"
-	"github.com/sbekti/intern-api/internal/clientauth"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/devices"
-	"github.com/sbekti/intern-api/internal/requestmeta"
-	"github.com/sbekti/intern-api/internal/vlans"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auditlogs"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/authspam"
+	"github.com/sbekti/intern/internal/clientauth"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/requestmeta"
+	"github.com/sbekti/intern/internal/vlans"
 )
 
 func TestBootstrapRoutes(t *testing.T) {

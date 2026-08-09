@@ -9,7 +9,7 @@ import (
 
 	jwt "github.com/golang-jwt/jwt/v5"
 
-	"github.com/sbekti/intern-api/internal/config"
+	"github.com/sbekti/intern/internal/config"
 )
 
 func TestAuthenticateRequestForwardHeaders(t *testing.T) {

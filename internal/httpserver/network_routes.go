@@ -5,10 +5,10 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/identity"
-	"github.com/sbekti/intern-api/internal/vlans"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/identity"
+	"github.com/sbekti/intern/internal/vlans"
 )
 
 func registerNetworkRoutes(

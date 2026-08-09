@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/authspam"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/authspam"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 type deviceFlowRateLimitScope string

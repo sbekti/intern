@@ -46,7 +46,9 @@ jobs:
         run: go test ./...
 
       - name: Build
-        run: go build ./cmd/intern-api
+        run: |
+          go build ./cmd/intern-api
+          go build ./cmd/internctl
 
   web:
     runs-on: ubuntu-latest

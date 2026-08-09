@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auditlogs"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/devices"
-	"github.com/sbekti/intern-api/internal/identity"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auditlogs"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/identity"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 type response struct {

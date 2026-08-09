@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/db"
 )
 
 type Querier interface {

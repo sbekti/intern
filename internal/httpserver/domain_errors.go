@@ -5,11 +5,11 @@ import (
 	"net/http"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/clientauth"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/devices"
-	"github.com/sbekti/intern-api/internal/vlans"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/clientauth"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/vlans"
 )
 
 func handleVLANError(w http.ResponseWriter, err error) {

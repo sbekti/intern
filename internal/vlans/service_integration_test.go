@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/testutil"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/testutil"
 )
 
 func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {

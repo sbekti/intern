@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/httpclient"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/httpclient"
+	"github.com/sbekti/intern/internal/session"
 )
 
 func TestWaitForDeviceApprovalPendingThenSuccess(t *testing.T) {

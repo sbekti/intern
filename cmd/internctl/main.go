@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sbekti/intern-api/internal/cli"
+	"github.com/sbekti/intern/internal/cli"
 )
 
 func main() {

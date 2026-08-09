@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sbekti/intern-api/internal/cli/config"
-	"github.com/sbekti/intern-api/internal/httpclient"
-	"github.com/sbekti/intern-api/internal/session"
+	"github.com/sbekti/intern/internal/cli/config"
+	"github.com/sbekti/intern/internal/httpclient"
+	"github.com/sbekti/intern/internal/session"
 )
 
 func newLogoutCommand(options *RootOptions) *cobra.Command {

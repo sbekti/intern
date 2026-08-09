@@ -3,7 +3,7 @@ package httpserver
 import (
 	"net/http"
 
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 func clientInfoMiddleware(resolver *requestmeta.IPResolver) func(http.Handler) http.Handler {

@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sbekti/intern-api/internal/buildinfo"
-	"github.com/sbekti/intern-api/internal/cli/config"
+	"github.com/sbekti/intern/internal/buildinfo"
+	"github.com/sbekti/intern/internal/cli/config"
 )
 
 func newVersionCommand() *cobra.Command {

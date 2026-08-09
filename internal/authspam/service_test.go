@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 func TestRateLimitKey(t *testing.T) {

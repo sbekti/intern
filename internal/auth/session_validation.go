@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/sbekti/intern-api/internal/apierror"
+	"github.com/sbekti/intern/internal/apierror"
 )
 
 type SessionValidator interface {

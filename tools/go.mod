@@ -1,4 +1,4 @@
-module github.com/sbekti/intern-api/tools
+module github.com/sbekti/intern/tools
 
 go 1.26.1
 

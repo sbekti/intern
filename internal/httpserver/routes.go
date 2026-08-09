@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/sbekti/intern-api/internal/auth"
+	"github.com/sbekti/intern/internal/auth"
 )
 
 func registerAPIRoutes(

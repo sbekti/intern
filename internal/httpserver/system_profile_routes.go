@@ -5,9 +5,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/identity"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/identity"
 )
 
 func registerSystemProfileRoutes(

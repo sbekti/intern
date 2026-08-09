@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/sbekti/intern-api/internal/apierror"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/db"
+	"github.com/sbekti/intern/internal/apierror"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/db"
 )
 
 type UserStore interface {

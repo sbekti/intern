@@ -19,11 +19,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sbekti/intern-api/internal/api"
-	"github.com/sbekti/intern-api/internal/auth"
-	"github.com/sbekti/intern-api/internal/config"
-	"github.com/sbekti/intern-api/internal/db"
-	"github.com/sbekti/intern-api/internal/requestmeta"
+	"github.com/sbekti/intern/internal/api"
+	"github.com/sbekti/intern/internal/auth"
+	"github.com/sbekti/intern/internal/config"
+	"github.com/sbekti/intern/internal/db"
+	"github.com/sbekti/intern/internal/requestmeta"
 )
 
 var (
