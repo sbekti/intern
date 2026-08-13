@@ -2,34 +2,68 @@
 
 Intern is a Go API, `internctl` CLI, and Next.js authenticated web app in one repository.
 
-The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, and RADIUS synchronization. The authenticated home route intentionally contains no dashboard content; it only renders the application shell.
+The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, and RADIUS synchronization. The authenticated home route shows live IAD2 CPU and memory utilization from Prometheus.
 
 ## Development
 
-Copy `.env.example` to `.env` and replace every placeholder. Before starting the
-development stack, keep these production database and Prometheus port-forwards
-running:
+Intern development connects to the production PostgreSQL and Prometheus services.
+The API does not migrate or seed the database, but actions in the development UI
+can still write production data.
+
+Copy the example configuration and replace every `replace-with-...` placeholder:
 
 ```sh
-kubectl -n db port-forward service/postgres-rw 15432:5432 --address 127.0.0.1,172.17.0.1
-kubectl -n monitoring port-forward service/prometheus-kube-prometheus-prometheus 19090:9090 --address 127.0.0.1,172.17.0.1
+cp .env.example .env
 ```
 
 Set `INTERN_API_DATABASE_URL` to the forwarded host URL, such as
 `postgres://user:password@host.docker.internal:15432/intern?sslmode=require`.
 Set `INTERN_PROMETHEUS_BASE_URL` to `http://host.docker.internal:19090`. Compose
-provides the `host.docker.internal` host gateway, and database SSL remains
-required. These connect to production services: use real credentials carefully
-and remember that development actions perform real writes.
+provides the `host.docker.internal` host gateway, and database SSL remains required.
+Use credentials with only the permissions needed for your work.
 
-Then run:
+### Common commands
+
+Run the helper from the repository root:
 
 ```sh
-npm ci
-npm run dev
+# Show the available options.
+./scripts/dev.sh --help
+
+# Start without development identity injection.
+./scripts/dev.sh
+
+# Start as the development user configured in .env.
+./scripts/dev.sh --dev-identity
+
+# The npm wrapper accepts the same option.
+npm run dev -- --dev-identity
 ```
 
-The root command runs Docker Compose watch directly. Compose starts only `intern-api` and `intern-web`; the API has no published host port and connects to the explicitly configured database URL. It never migrates or seeds the database. The web app is published on the configured bind address and port.
+The helper discovers the Docker bridge address, starts both Kubernetes
+port-forwards, and runs the Compose watch stack. Keep it in the foreground and
+press Ctrl-C once to stop the stack and both port-forwards. After changing `.env`,
+stop and restart the helper so Compose reads the new values.
+
+Open the app locally or check that it is responding:
+
+```sh
+curl --head http://127.0.0.1:3000
+```
+
+The web app listens on `0.0.0.0:3000` by default, so it is also available at
+`http://<host-ip>:3000` when the host firewall allows it. The API has no published
+host port. With `--dev-identity`, every client that can reach the web app acts as
+the development user configured in `.env`. Use this option only on a trusted
+network, choose the least privileged groups needed, and stop the server when you
+finish.
+
+If a previous Compose run was force-killed and left containers behind, clean them
+up before starting again:
+
+```sh
+docker compose down --remove-orphans
+```
 
 ## Verification and generation
 

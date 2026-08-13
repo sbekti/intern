@@ -4,7 +4,7 @@
   "private": true,
   "workspaces": ["web"],
   "scripts": {
-    "dev": "docker compose up --build --watch --remove-orphans",
+    "dev": "./scripts/dev.sh",
     "build": "npm --workspace web run build",
     "lint": "npm --workspace web run lint",
     "test:web": "npm --workspace web run test",
