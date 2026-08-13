@@ -1,12 +1,13 @@
 {
   "name": "intern",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "workspaces": ["web"],
   "scripts": {
     "dev": "docker compose up --build --watch --remove-orphans",
     "build": "npm --workspace web run build",
     "lint": "npm --workspace web run lint",
+    "test:web": "npm --workspace web run test",
     "typecheck": "npm --workspace web run typecheck",
     "format": "npm --workspace web run format"
   },

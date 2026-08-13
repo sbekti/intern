@@ -47,6 +47,7 @@ services:
       target: dev
     environment:
       INTERN_API_BASE_URL: "http://intern-api:8080"
+      INTERN_PROMETHEUS_BASE_URL: "${INTERN_PROMETHEUS_BASE_URL:?set the Prometheus base URL}"
       INTERN_DEV_IDENTITY_ENABLED: "${INTERN_DEV_IDENTITY_ENABLED:?set development identity mode explicitly}"
       INTERN_DEV_IDENTITY_MARKER_HEADER: "${INTERN_DEV_IDENTITY_MARKER_HEADER:?set the development identity marker header}"
       INTERN_DEV_IDENTITY_MARKER: "${INTERN_DEV_IDENTITY_MARKER:?set the development identity marker value}"
@@ -58,6 +59,8 @@ services:
       - intern-api
     ports:
       - "${INTERN_WEB_BIND:-0.0.0.0}:${INTERN_WEB_PORT:?set the web port}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     develop:
       watch:
         - action: sync
