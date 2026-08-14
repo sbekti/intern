@@ -48,6 +48,7 @@ services:
     environment:
       INTERN_API_BASE_URL: "http://intern-api:8080"
       INTERN_PROMETHEUS_BASE_URL: "${INTERN_PROMETHEUS_BASE_URL:?set the Prometheus base URL}"
+      AUTH_PUBLIC_BASE_URL: "${AUTH_PUBLIC_BASE_URL:?set the public application URL}"
       INTERN_DEV_IDENTITY_ENABLED: "${INTERN_DEV_IDENTITY_ENABLED:?set development identity mode explicitly}"
       INTERN_DEV_IDENTITY_MARKER_HEADER: "${INTERN_DEV_IDENTITY_MARKER_HEADER:?set the development identity marker header}"
       INTERN_DEV_IDENTITY_MARKER: "${INTERN_DEV_IDENTITY_MARKER:?set the development identity marker value}"

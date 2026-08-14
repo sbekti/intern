@@ -6,21 +6,26 @@ The API preserves authentication, authorization, sessions, audit logs, VLAN and 
 
 ## Development
 
-Intern development connects to the production PostgreSQL and Prometheus services.
-The API does not migrate or seed the database, but actions in the development UI
-can still write production data.
+Intern development connects to the production PostgreSQL and Prometheus services
+available through the current kubectl context. The API does not migrate or seed
+the database, but actions in the development UI can still write production data.
 
-Copy the example configuration and replace every `replace-with-...` placeholder:
+Copy the non-secret local configuration:
 
 ```sh
 cp .env.example .env
 ```
 
-Set `INTERN_API_DATABASE_URL` to the forwarded host URL, such as
-`postgres://user:password@host.docker.internal:15432/intern?sslmode=require`.
-Set `INTERN_PROMETHEUS_BASE_URL` to `http://host.docker.internal:19090`. Compose
-provides the `host.docker.internal` host gateway, and database SSL remains required.
-Use credentials with only the permissions needed for your work.
+The defaults work at `http://127.0.0.1:3000`. To open Intern from another
+machine, change `AUTH_PUBLIC_BASE_URL` in `.env` to the URL used by your browser,
+such as `http://<host-ip>:3000`. This is the only host-specific setting.
+
+At startup, the helper reads only `INTERN_API_DATABASE_URL` from
+`intern-backend-secret` in the current Kubernetes namespace. It rewrites the host
+to the local PostgreSQL port-forward and passes the URL to Compose without
+printing or storing it in `.env`. Fresh local-only JWT and forward-auth secrets
+are generated for every run. Docker administrators can still inspect container
+environment variables.
 
 ### Common commands
 
@@ -30,14 +35,11 @@ Run the helper from the repository root:
 # Show the available options.
 ./scripts/dev.sh --help
 
-# Start without development identity injection.
-./scripts/dev.sh
-
 # Start as the development user configured in .env.
-./scripts/dev.sh --dev-identity
+npm run dev
 
-# The npm wrapper accepts the same option.
-npm run dev -- --dev-identity
+# Stop the Intern Compose development stack.
+npm run dev -- stop
 ```
 
 The helper discovers the Docker bridge address, starts both Kubernetes
@@ -53,16 +55,15 @@ curl --head http://127.0.0.1:3000
 
 The web app listens on `0.0.0.0:3000` by default, so it is also available at
 `http://<host-ip>:3000` when the host firewall allows it. The API has no published
-host port. With `--dev-identity`, every client that can reach the web app acts as
-the development user configured in `.env`. Use this option only on a trusted
-network, choose the least privileged groups needed, and stop the server when you
-finish.
+host port. Every client that can reach the web app acts as the administrator
+configured in `.env` and can modify production-backed data. Run it only on a
+trusted network and stop the server when you finish.
 
-If a previous Compose run was force-killed and left containers behind, clean them
-up before starting again:
+The stop command is safe to run when no stack is active. A normally running
+helper exits when its Compose stack stops and cleans up both port-forwards:
 
 ```sh
-docker compose down --remove-orphans
+npm run dev -- stop
 ```
 
 ## Verification and generation

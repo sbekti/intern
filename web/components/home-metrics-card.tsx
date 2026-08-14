@@ -9,6 +9,7 @@ import {
   type LiveHorizonStatus,
   type TimeRange,
   type TimeSeriesLoader,
+  type TimeSeriesPoint,
 } from "@/components/live-horizon"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -37,6 +38,7 @@ const positiveColors = [
   "var(--horizon-positive-3)",
   "var(--horizon-positive-4)",
 ] as const
+const previewExtent = [0, 100] as const
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
@@ -80,6 +82,22 @@ function metricLoader(
     }
 
     return body.points
+  }
+}
+
+function bandPreviewLoader(stepSeconds: number): TimeSeriesLoader {
+  const values = [25, 50, 75, 100] as const
+
+  return async ({ start, end }) => {
+    const points: TimeSeriesPoint[] = []
+    let index = 0
+
+    for (let timestamp = start; timestamp <= end; timestamp += stepSeconds) {
+      points.push([timestamp, values[index % values.length]])
+      index += 1
+    }
+
+    return points
   }
 }
 
@@ -128,6 +146,7 @@ function MetricLane({
   rulerTimestamp,
   onRulerTimestampChange,
   preset,
+  extent,
 }: {
   label: string
   load: TimeSeriesLoader
@@ -136,6 +155,7 @@ function MetricLane({
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
+  extent?: readonly [minimum: number, maximum: number]
 }) {
   const point = snapshot.rulerPoint ?? snapshot.latestPoint
 
@@ -152,6 +172,7 @@ function MetricLane({
         onRulerTimestampChange={onRulerTimestampChange}
         onStateChange={onStateChange}
         positiveColors={positiveColors}
+        extent={extent}
         extentHeadroom={0.5}
         height={64}
       />
@@ -208,6 +229,7 @@ export function HomeMetricsCard() {
   const [preset, setPreset] = useState<TimePreset>(defaultTimePreset)
   const [cpu, setCpu] = useState(emptySnapshot)
   const [memory, setMemory] = useState(emptySnapshot)
+  const [bandPreview, setBandPreview] = useState(emptySnapshot)
   const [rulerTimestamp, setRulerTimestamp] = useState<number | null>(null)
   const loadCpu = useMemo(
     () => metricLoader("cpu", preset.stepSeconds),
@@ -215,6 +237,10 @@ export function HomeMetricsCard() {
   )
   const loadMemory = useMemo(
     () => metricLoader("memory", preset.stepSeconds),
+    [preset.stepSeconds]
+  )
+  const loadBandPreview = useMemo(
+    () => bandPreviewLoader(preset.stepSeconds),
     [preset.stepSeconds]
   )
   const handleCpuChange = useCallback(
@@ -236,6 +262,7 @@ export function HomeMetricsCard() {
     setPreset(next)
     setCpu(emptySnapshot)
     setMemory(emptySnapshot)
+    setBandPreview(emptySnapshot)
     setRulerTimestamp(null)
   }, [])
 
@@ -283,10 +310,20 @@ export function HomeMetricsCard() {
             onRulerTimestampChange={setRulerTimestamp}
             preset={preset}
           />
+          <MetricLane
+            label="Color bands preview"
+            load={loadBandPreview}
+            snapshot={bandPreview}
+            onStateChange={setBandPreview}
+            rulerTimestamp={rulerTimestamp}
+            onRulerTimestampChange={setRulerTimestamp}
+            preset={preset}
+            extent={previewExtent}
+          />
         </div>
       </CardContent>
       <CardFooter className="text-xs text-muted-foreground">
-        Point to either lane to inspect both metrics at the same time.
+        Point to a lane to inspect its value.
       </CardFooter>
     </Card>
   )
