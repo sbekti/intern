@@ -219,7 +219,11 @@ export function formatMetricValue(value: number, format: MetricFormat) {
     return `${value.toFixed(1)}%`
   }
 
-  const units = ["b/s", "kb/s", "Mb/s", "Gb/s", "Tb/s"] as const
+  if (value === 0) {
+    return "0 bps"
+  }
+
+  const units = ["bps", "kbps", "Mbps", "Gbps", "Tbps"] as const
   let scaled = Math.abs(value)
   let unit = 0
   while (scaled >= 1000 && unit < units.length - 1) {
@@ -227,6 +231,17 @@ export function formatMetricValue(value: number, format: MetricFormat) {
     unit += 1
   }
 
+  scaled = Number(scaled.toPrecision(2))
+  if (scaled >= 1000 && unit < units.length - 1) {
+    scaled /= 1000
+    unit += 1
+  }
+
   const signed = value < 0 ? -scaled : scaled
-  return `${signed.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
+  const formatted = new Intl.NumberFormat(undefined, {
+    minimumSignificantDigits: 2,
+    maximumSignificantDigits: 2,
+    useGrouping: false,
+  }).format(signed)
+  return `${formatted} ${units[unit]}`
 }

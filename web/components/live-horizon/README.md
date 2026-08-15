@@ -19,6 +19,7 @@ the available width while retaining incremental updates.
 
 Pointer movement controls the ruler. Use the controlled `rulerTimestamp` and
 `onRulerTimestampChange` props to synchronize rulers across multiple charts.
+Set `interactive` to `false` when a parent surface owns pointer tracking.
 
 To extract it, copy this directory into a React library and export `index.ts`.
 The public dependency is React; the renderer uses standard browser Canvas APIs.

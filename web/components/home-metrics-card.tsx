@@ -1,14 +1,26 @@
 "use client"
 
-import { useCallback, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 
 import {
+  clampedLabelPosition,
   isTimeSeriesPayload,
   LiveHorizon,
+  overlappingTickIndexes,
   type LiveHorizonSnapshot,
   type LiveHorizonStatus,
   type TimeRange,
   type TimeSeriesLoader,
+  timeRangeFraction,
+  timeRangeTimestampAtFraction,
+  timeRangeTicks,
 } from "@/components/live-horizon"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -27,16 +39,16 @@ import {
   type ClientMetricSeries,
   type MetricFormat,
 } from "@/lib/metrics-config"
+import {
+  defaultMetricTimePreset,
+  type MetricTimePreset,
+  type MetricTimePresetId,
+  metricTimePresets,
+  metricTimeRangePath,
+} from "@/lib/metric-time-range"
 import { cn } from "@/lib/utils"
 
-const timePresets = [
-  { id: "1h", durationSeconds: 60 * 60, stepSeconds: 10 },
-  { id: "6h", durationSeconds: 6 * 60 * 60, stepSeconds: 10 },
-  { id: "24h", durationSeconds: 24 * 60 * 60, stepSeconds: 60 },
-  { id: "7d", durationSeconds: 7 * 24 * 60 * 60, stepSeconds: 300 },
-] as const
-type TimePreset = (typeof timePresets)[number]
-const defaultTimePreset = timePresets[1]
+type TimePreset = MetricTimePreset
 const positiveColors = [
   "var(--horizon-positive-1)",
   "var(--horizon-positive-2)",
@@ -53,11 +65,46 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
 })
+const hourFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+})
+const secondsFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+})
+const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+})
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
   hour: "numeric",
+  minute: "2-digit",
 })
+
+function formatStaticTimestamp(timestamp: number) {
+  const date = new Date(timestamp * 1000)
+  if (date.getHours() === 0 && date.getMinutes() === 0) {
+    return dateFormatter.format(date)
+  }
+
+  return (date.getMinutes() === 0 ? hourFormatter : timeFormatter).format(date)
+}
+
+function formatFocusTimestamp(
+  timestamp: number,
+  durationSeconds: number,
+  stepSeconds: number
+) {
+  if (durationSeconds >= 24 * 60 * 60) {
+    return dateTimeFormatter.format(timestamp * 1000)
+  }
+  return (stepSeconds < 60 ? secondsFormatter : timeFormatter).format(
+    timestamp * 1000
+  )
+}
 
 const emptySnapshot: LiveHorizonSnapshot = {
   status: "loading",
@@ -177,6 +224,7 @@ function MetricSeriesChart({
       rulerTimestamp={rulerTimestamp}
       onRulerTimestampChange={onRulerTimestampChange}
       onStateChange={handleStateChange}
+      interactive={false}
       positiveColors={colors}
       extent={extent}
       height={height}
@@ -190,9 +238,10 @@ function pointFor(snapshot: LiveHorizonSnapshot | undefined) {
 
 function metricReadout(
   snapshot: LiveHorizonSnapshot | undefined,
-  format: MetricFormat
+  format: MetricFormat,
+  focused: boolean
 ) {
-  const point = pointFor(snapshot)
+  const point = focused ? snapshot?.rulerPoint : pointFor(snapshot)
   if (point) {
     return formatMetricValue(point[1], format)
   }
@@ -207,6 +256,7 @@ function MetricLane({
   lane,
   loaders,
   snapshots,
+  range,
   onSnapshotChange,
   rulerTimestamp,
   onRulerTimestampChange,
@@ -216,21 +266,26 @@ function MetricLane({
   lane: ClientMetricLane
   loaders: Readonly<Record<string, TimeSeriesLoader>>
   snapshots: Readonly<Record<string, LiveHorizonSnapshot>>
+  range: TimeRange | null
   onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
 }) {
+  const focusFraction = timeRangeFraction(range, rulerTimestamp)
+  const focused = focusFraction !== null
   const configuredSeries = lane.series.map((series) => ({
     series,
     key: seriesKey(group.id, lane.id, series.id),
   }))
-  const readout = configuredSeries
-    .map(({ series, key }) => {
-      const value = metricReadout(snapshots[key], lane.format)
-      return lane.series.length === 1 ? value : `${series.label} ${value}`
-    })
-    .join(", ")
+  const readouts = configuredSeries.map(({ series, key }) => ({
+    series,
+    value: metricReadout(snapshots[key], lane.format, focused),
+  }))
+  const readoutStyle =
+    focusFraction === null
+      ? undefined
+      : { right: `calc(${(1 - focusFraction) * 100}% + 0.5rem)` }
   const sharedProps = {
     extent: lane.extent,
     rulerTimestamp,
@@ -246,7 +301,7 @@ function MetricLane({
           {...sharedProps}
           metricKey={configuredSeries[0].key}
           load={loaders[configuredSeries[0].key]}
-          height={64}
+          height={30}
           colors={positiveColors}
           ariaLabel={`${group.title}: ${lane.label}.`}
           className="bg-muted/20"
@@ -257,7 +312,7 @@ function MetricLane({
             {...sharedProps}
             metricKey={configuredSeries[0].key}
             load={loaders[configuredSeries[0].key]}
-            height={32}
+            height={30}
             colors={positiveColors}
             ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[0].series.label}.`}
             className="bg-muted/20"
@@ -268,7 +323,7 @@ function MetricLane({
                 {...sharedProps}
                 metricKey={configuredSeries[1].key}
                 load={loaders[configuredSeries[1].key]}
-                height={32}
+                height={30}
                 colors={negativeColors}
                 ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[1].series.label}.`}
                 className="bg-muted/20"
@@ -277,51 +332,154 @@ function MetricLane({
           </div>
         </div>
       )}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 text-sm">
-        <span className="horizon-label">
+      <div className="pointer-events-none absolute inset-0 text-sm">
+        <span className="absolute top-1/2 left-2 -translate-y-1/2 rounded-sm bg-background/70 px-1.5 py-0.5 font-medium whitespace-nowrap backdrop-blur-xs">
           {lane.label}
         </span>
-        <output className="horizon-label tabular-nums">
-          {readout}
-        </output>
+        {readouts.length === 1 ? (
+          <output
+            className="horizon-label absolute top-1/2 right-2 -translate-y-1/2 tabular-nums"
+            style={readoutStyle}
+          >
+            {readouts[0].value}
+          </output>
+        ) : (
+          readouts.map(({ series, value }) => (
+            <output
+              key={series.id}
+              className={cn(
+                "horizon-label absolute right-2 -translate-y-1/2 tabular-nums",
+                series.side === "bottom" ? "top-3/4" : "top-1/4"
+              )}
+              style={readoutStyle}
+            >
+              {series.label} {value}
+            </output>
+          ))
+        )}
       </div>
     </div>
+  )
+}
+
+function TimeAxisTick({
+  position,
+  width,
+  hidden,
+  children,
+}: {
+  position: number
+  width: number
+  hidden: boolean
+  children: string
+}) {
+  const [labelWidth, setLabelWidth] = useState(0)
+  const measureLabel = useCallback((element: HTMLSpanElement | null) => {
+    if (element) {
+      setLabelWidth(element.getBoundingClientRect().width)
+    }
+  }, [])
+  const left = clampedLabelPosition(position, width, labelWidth)
+
+  return (
+    <span
+      ref={measureLabel}
+      className={cn(
+        "absolute top-0 -translate-x-1/2 text-center whitespace-nowrap transition-opacity duration-[250ms] ease-linear",
+        hidden && "opacity-0"
+      )}
+      style={{ left }}
+    >
+      {children}
+    </span>
   )
 }
 
 function TimeAxis({
   range,
   durationSeconds,
+  stepSeconds,
+  rulerTimestamp,
 }: {
   range: TimeRange | null
   durationSeconds: number
+  stepSeconds: number
+  rulerTimestamp: number | null
 }) {
-  const ticks = [0, 0.25, 0.5, 0.75, 1]
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(0)
+  const [focusLabelWidth, setFocusLabelWidth] = useState(0)
+  const focusFraction = timeRangeFraction(range, rulerTimestamp)
+  const ticks = useMemo(() => timeRangeTicks(range, width), [range, width])
+  const tickPositions = useMemo(
+    () =>
+      ticks.map(
+        (timestamp) => (timeRangeFraction(range, timestamp) ?? 0) * width
+      ),
+    [range, ticks, width]
+  )
+  const focusLabel =
+    rulerTimestamp === null
+      ? null
+      : formatFocusTimestamp(rulerTimestamp, durationSeconds, stepSeconds)
+  const measureFocusLabel = useCallback(
+    (element: HTMLSpanElement | null) => {
+      if (element && focusLabel) {
+        setFocusLabelWidth(element.getBoundingClientRect().width)
+      }
+    },
+    [focusLabel]
+  )
+  const focusPosition =
+    focusFraction === null
+      ? null
+      : clampedLabelPosition(focusFraction * width, width, focusLabelWidth)
+  const overlappingTicks = useMemo(
+    () =>
+      new Set(
+        overlappingTickIndexes(tickPositions, focusPosition, focusLabelWidth)
+      ),
+    [focusLabelWidth, focusPosition, tickPositions]
+  )
+
+  useEffect(() => {
+    const element = containerRef.current
+    if (!element) {
+      return
+    }
+
+    const measure = () => setWidth(Math.max(1, Math.floor(element.clientWidth)))
+    measure()
+
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <div className="grid grid-cols-5 text-[11px] text-muted-foreground tabular-nums">
-      {ticks.map((fraction, index) => {
-        const timestamp = range
-          ? range.start + (range.end - range.start) * fraction
-          : null
-        return (
-          <span
-            key={fraction}
-            className={cn(
-              "text-center",
-              index === 0 && "text-left",
-              index === ticks.length - 1 && "text-right"
-            )}
-          >
-            {timestamp === null
-              ? null
-              : (durationSeconds >= 24 * 60 * 60
-                  ? dateTimeFormatter
-                  : timeFormatter
-                ).format(timestamp * 1000)}
-          </span>
-        )
-      })}
+    <div
+      ref={containerRef}
+      className="relative h-4 text-[11px] text-muted-foreground tabular-nums"
+    >
+      {ticks.map((timestamp, index) => (
+        <TimeAxisTick
+          key={timestamp}
+          position={tickPositions[index]}
+          width={width}
+          hidden={overlappingTicks.has(index)}
+        >
+          {formatStaticTimestamp(timestamp)}
+        </TimeAxisTick>
+      ))}
+      {focusPosition !== null && focusLabel !== null ? (
+        <span
+          ref={measureFocusLabel}
+          className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-sm bg-card px-1 text-center whitespace-nowrap text-foreground"
+          style={{ left: focusPosition }}
+        >
+          {focusLabel}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -351,6 +509,17 @@ function MetricsGroupCard({
   )
   const status = combinedStatus(groupSnapshots)
   const range = groupSnapshots.find((snapshot) => snapshot.range)?.range ?? null
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const timestamp = timeRangeTimestampAtFraction(
+      range,
+      (event.clientX - bounds.left) / Math.max(1, bounds.width),
+      preset.stepSeconds
+    )
+    if (timestamp !== null) {
+      onRulerTimestampChange(timestamp)
+    }
+  }
 
   return (
     <Card>
@@ -360,12 +529,29 @@ function MetricsGroupCard({
           <CardDescription>{group.subtitle}</CardDescription>
         ) : null}
         <CardAction>
-          <Badge variant={badgeVariant(status)}>{statusLabel(status)}</Badge>
+          <Badge className="h-6 px-2.5 py-1" variant={badgeVariant(status)}>
+            {status === "live" ? (
+              <span
+                className="size-1.5 shrink-0 animate-pulse rounded-full bg-destructive motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            ) : null}
+            {statusLabel(status)}
+          </Badge>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-1">
-        <TimeAxis range={range} durationSeconds={preset.durationSeconds} />
-        <div className="flex flex-col">
+        <TimeAxis
+          range={range}
+          durationSeconds={preset.durationSeconds}
+          stepSeconds={preset.stepSeconds}
+          rulerTimestamp={rulerTimestamp}
+        />
+        <div
+          className="flex touch-none flex-col"
+          onPointerMove={handlePointerMove}
+          onPointerLeave={() => onRulerTimestampChange(null)}
+        >
           {group.lanes.map((lane) => (
             <MetricLane
               key={lane.id}
@@ -373,6 +559,7 @@ function MetricsGroupCard({
               lane={lane}
               loaders={loaders}
               snapshots={snapshots}
+              range={range}
               onSnapshotChange={onSnapshotChange}
               rulerTimestamp={rulerTimestamp}
               onRulerTimestampChange={onRulerTimestampChange}
@@ -387,10 +574,16 @@ function MetricsGroupCard({
 
 export function HomeMetricsDashboard({
   groups,
+  initialPresetId,
 }: {
   groups: readonly ClientMetricGroup[] | null
+  initialPresetId: MetricTimePresetId
 }) {
-  const [preset, setPreset] = useState<TimePreset>(defaultTimePreset)
+  const [preset, setPreset] = useState<TimePreset>(
+    () =>
+      metricTimePresets.find(({ id }) => id === initialPresetId) ??
+      defaultMetricTimePreset
+  )
   const [snapshots, setSnapshots] = useState<
     Record<string, LiveHorizonSnapshot>
   >({})
@@ -420,16 +613,31 @@ export function HomeMetricsDashboard({
     },
     []
   )
-  const handlePresetChange = useCallback((values: string[]) => {
-    const next = timePresets.find(({ id }) => id === values[0])
-    if (!next) {
-      return
-    }
-
-    setPreset(next)
-    setSnapshots({})
-    setRulerTimestamp(null)
+  const replaceRangeQuery = useCallback((presetId: MetricTimePresetId) => {
+    window.history.replaceState(
+      null,
+      "",
+      metricTimeRangePath(window.location.href, presetId)
+    )
   }, [])
+  const handlePresetChange = useCallback(
+    (values: string[]) => {
+      const next = metricTimePresets.find(({ id }) => id === values[0])
+      if (!next) {
+        return
+      }
+
+      setPreset(next)
+      setSnapshots({})
+      setRulerTimestamp(null)
+      replaceRangeQuery(next.id)
+    },
+    [replaceRangeQuery]
+  )
+
+  useEffect(() => {
+    replaceRangeQuery(initialPresetId)
+  }, [initialPresetId, replaceRangeQuery])
 
   if (!groups) {
     return (
@@ -455,7 +663,7 @@ export function HomeMetricsDashboard({
           size="sm"
           spacing={0}
         >
-          {timePresets.map(({ id }) => (
+          {metricTimePresets.map(({ id }) => (
             <ToggleGroupItem key={id} value={id} aria-label={`Last ${id}`}>
               {id}
             </ToggleGroupItem>

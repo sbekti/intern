@@ -11,8 +11,13 @@ export type {
   TimeSeriesPoint,
 } from "./model"
 export {
+  clampedLabelPosition,
   isTimeSeriesPayload,
   mergeTimeSeriesPoints,
+  overlappingTickIndexes,
   parseBoundedTimeRange,
+  timeRangeFraction,
+  timeRangeTimestampAtFraction,
+  timeRangeTicks,
   timeSeriesExtent,
 } from "./model"

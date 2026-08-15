@@ -11,7 +11,10 @@ import {
 
 import {
   mergeTimeSeriesPoints,
+  timeRangeFraction,
+  timeRangeTimestampAtFraction,
   timeSeriesExtent,
+  type TimeRange,
   type TimeSeriesLoader,
   type TimeSeriesPoint,
 } from "./model"
@@ -23,7 +26,7 @@ export type LiveHorizonSnapshot = {
   status: LiveHorizonStatus
   latestPoint: TimeSeriesPoint | null
   rulerPoint: TimeSeriesPoint | null
-  range: { start: number; end: number } | null
+  range: TimeRange | null
 }
 
 export type LiveHorizonProps = {
@@ -35,6 +38,7 @@ export type LiveHorizonProps = {
   rulerTimestamp?: number | null
   onRulerTimestampChange?: (timestamp: number | null) => void
   onStateChange?: (snapshot: LiveHorizonSnapshot) => void
+  interactive?: boolean
   height?: number
   bands?: number
   extent?: readonly [minimum: number, maximum: number]
@@ -102,6 +106,7 @@ export function LiveHorizon({
   rulerTimestamp: controlledRulerTimestamp,
   onRulerTimestampChange,
   onStateChange,
+  interactive = true,
   height = 120,
   bands = 4,
   extent,
@@ -119,9 +124,7 @@ export function LiveHorizon({
   const pointsRef = useRef<readonly TimeSeriesPoint[]>([])
   const [width, setWidth] = useState(0)
   const [points, setPoints] = useState<readonly TimeSeriesPoint[]>([])
-  const [range, setRange] = useState<{ start: number; end: number } | null>(
-    null
-  )
+  const [range, setRange] = useState<TimeRange | null>(null)
   const [status, setStatus] = useState<LiveHorizonStatus>("loading")
   const [internalRulerTimestamp, setInternalRulerTimestamp] = useState<
     number | null
@@ -320,39 +323,29 @@ export function LiveHorizon({
   const moveRuler = useCallback(
     (clientX: number) => {
       const element = containerRef.current
-      if (!element || !range || visiblePoints.length === 0) {
+      if (!element || !range) {
         return
       }
 
       const bounds = element.getBoundingClientRect()
-      const fraction = Math.min(
-        1,
-        Math.max(0, (clientX - bounds.left) / Math.max(1, bounds.width))
+      const timestamp = timeRangeTimestampAtFraction(
+        range,
+        (clientX - bounds.left) / Math.max(1, bounds.width),
+        stepSeconds
       )
-      const target = range.start + fraction * (range.end - range.start)
-      let nearest = visiblePoints[0]
-      for (const point of visiblePoints) {
-        if (Math.abs(point[0] - target) < Math.abs(nearest[0] - target)) {
-          nearest = point
-        }
+      if (timestamp !== null) {
+        setRulerTimestamp(timestamp)
       }
-      setRulerTimestamp(nearest[0])
     },
-    [range, setRulerTimestamp, visiblePoints]
+    [range, setRulerTimestamp, stepSeconds]
   )
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
     moveRuler(event.clientX)
   }
 
-  const rulerLeft =
-    range &&
-    range.end > range.start &&
-    rulerTimestamp !== null &&
-    rulerTimestamp >= range.start &&
-    rulerTimestamp <= range.end
-      ? `${((rulerTimestamp - range.start) / (range.end - range.start)) * 100}%`
-      : null
+  const rulerFraction = timeRangeFraction(range, rulerTimestamp)
+  const rulerLeft = rulerFraction === null ? null : `${rulerFraction * 100}%`
 
   return (
     <div
@@ -367,8 +360,8 @@ export function LiveHorizon({
       }}
       role="img"
       aria-label={ariaLabel}
-      onPointerMove={handlePointerMove}
-      onPointerLeave={() => setRulerTimestamp(null)}
+      onPointerMove={interactive ? handlePointerMove : undefined}
+      onPointerLeave={interactive ? () => setRulerTimestamp(null) : undefined}
     >
       <canvas
         ref={canvasRef}

@@ -2,11 +2,11 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { parseBoundedTimeRange } from "@/components/live-horizon/model"
+import { metricTimeSteps } from "@/lib/metric-time-range"
 import { findMetricSeries } from "@/lib/metrics-config"
 import { readMetricsConfig } from "@/lib/metrics-config-server"
 import { parsePrometheusMatrix, parsePrometheusStep } from "@/lib/prometheus"
 
-const allowedSteps = [10, 30, 60, 300] as const
 const maxSteps = 4096
 const upstreamTimeoutMs = 5_000
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
   const stepSeconds = parsePrometheusStep(
     request.nextUrl.searchParams.get("step"),
-    allowedSteps
+    metricTimeSteps
   )
   if (!stepSeconds) {
     return errorResponse("Invalid metric step.", 400)
