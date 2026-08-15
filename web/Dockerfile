@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json .npmrc ./
 COPY web/package.json ./web/package.json
-RUN npm ci --foreground-scripts --loglevel verbose
+RUN npm ci --install-strategy=hoisted --foreground-scripts --loglevel verbose
 
 FROM node:22-alpine3.23 AS build
 
