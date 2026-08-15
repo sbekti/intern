@@ -47,8 +47,18 @@ export type LiveHorizonProps = {
   serverDelaySeconds?: number
 }
 
-const defaultPositiveColors = ["#d1fae5", "#6ee7b7", "#10b981", "#047857"]
-const defaultNegativeColors = ["#fee2e2", "#fca5a5", "#ef4444", "#b91c1c"]
+const defaultPositiveColors = [
+  "var(--horizon-positive-1)",
+  "var(--horizon-positive-2)",
+  "var(--horizon-positive-3)",
+  "var(--horizon-positive-4)",
+]
+const defaultNegativeColors = [
+  "var(--horizon-negative-1)",
+  "var(--horizon-negative-2)",
+  "var(--horizon-negative-3)",
+  "var(--horizon-negative-4)",
+]
 function alignedEnd(stepSeconds: number, serverDelaySeconds: number) {
   return (
     Math.floor((Date.now() / 1000 - serverDelaySeconds) / stepSeconds) *

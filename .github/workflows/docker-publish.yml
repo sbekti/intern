@@ -61,7 +61,6 @@ jobs:
         uses: docker/build-push-action@v7
         env:
           BUILDKIT_PROGRESS: plain
-          BUILDKIT_COLORS: never
         with:
           context: .
           file: ${{ matrix.file }}
