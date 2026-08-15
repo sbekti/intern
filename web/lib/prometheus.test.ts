@@ -4,10 +4,10 @@ import test from "node:test"
 import { parsePrometheusMatrix, parsePrometheusStep } from "./prometheus.ts"
 
 test("accepts only allowlisted Prometheus query steps", () => {
-  assert.equal(parsePrometheusStep("30", [30, 60, 300]), 30)
-  assert.equal(parsePrometheusStep("15", [30, 60, 300]), null)
-  assert.equal(parsePrometheusStep("30.5", [30, 60, 300]), null)
-  assert.equal(parsePrometheusStep(null, [30, 60, 300]), null)
+  assert.equal(parsePrometheusStep("10", [10, 30, 60, 300]), 10)
+  assert.equal(parsePrometheusStep("15", [10, 30, 60, 300]), null)
+  assert.equal(parsePrometheusStep("30.5", [10, 30, 60, 300]), null)
+  assert.equal(parsePrometheusStep(null, [10, 30, 60, 300]), null)
 })
 
 test("parses one ordered Prometheus matrix series", () => {

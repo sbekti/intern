@@ -25,12 +25,13 @@ import {
   type ClientMetricGroup,
   type ClientMetricLane,
   type ClientMetricSeries,
+  type MetricFormat,
 } from "@/lib/metrics-config"
 import { cn } from "@/lib/utils"
 
 const timePresets = [
-  { id: "1h", durationSeconds: 60 * 60, stepSeconds: 30 },
-  { id: "6h", durationSeconds: 6 * 60 * 60, stepSeconds: 30 },
+  { id: "1h", durationSeconds: 60 * 60, stepSeconds: 10 },
+  { id: "6h", durationSeconds: 6 * 60 * 60, stepSeconds: 10 },
   { id: "24h", durationSeconds: 24 * 60 * 60, stepSeconds: 60 },
   { id: "7d", durationSeconds: 7 * 24 * 60 * 60, stepSeconds: 300 },
 ] as const
@@ -187,6 +188,20 @@ function pointFor(snapshot: LiveHorizonSnapshot | undefined) {
   return snapshot?.rulerPoint ?? snapshot?.latestPoint ?? null
 }
 
+function metricReadout(
+  snapshot: LiveHorizonSnapshot | undefined,
+  format: MetricFormat
+) {
+  const point = pointFor(snapshot)
+  if (point) {
+    return formatMetricValue(point[1], format)
+  }
+  if (!snapshot || snapshot.status === "loading") {
+    return "Loading"
+  }
+  return snapshot.status === "unavailable" ? "Unavailable" : "No data"
+}
+
 function MetricLane({
   group,
   lane,
@@ -212,11 +227,10 @@ function MetricLane({
   }))
   const readout = configuredSeries
     .map(({ series, key }) => {
-      const point = pointFor(snapshots[key])
-      const value = point ? formatMetricValue(point[1], lane.format) : "—"
+      const value = metricReadout(snapshots[key], lane.format)
       return lane.series.length === 1 ? value : `${series.label} ${value}`
     })
-    .join(" · ")
+    .join(", ")
   const sharedProps = {
     extent: lane.extent,
     rulerTimestamp,
@@ -248,7 +262,7 @@ function MetricLane({
             ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[0].series.label}.`}
             className="bg-muted/20"
           />
-          <div className="border-t border-border/60">
+          <div>
             <div className="-scale-y-100">
               <MetricSeriesChart
                 {...sharedProps}
@@ -263,11 +277,11 @@ function MetricLane({
           </div>
         </div>
       )}
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-2 text-sm">
-        <span className="rounded-sm bg-background/80 px-1.5 py-0.5 font-medium backdrop-blur-xs">
+      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 text-sm">
+        <span className="horizon-label">
           {lane.label}
         </span>
-        <output className="rounded-sm bg-background/80 px-1.5 py-0.5 font-semibold tabular-nums backdrop-blur-xs">
+        <output className="horizon-label tabular-nums">
           {readout}
         </output>
       </div>
@@ -300,7 +314,7 @@ function TimeAxis({
             )}
           >
             {timestamp === null
-              ? "—"
+              ? null
               : (durationSeconds >= 24 * 60 * 60
                   ? dateTimeFormatter
                   : timeFormatter

@@ -20,12 +20,13 @@ The defaults work at `http://127.0.0.1:3000`. To open Intern from another
 machine, change `AUTH_PUBLIC_BASE_URL` in `.env` to the URL used by your browser,
 such as `http://<host-ip>:3000`. This is the only host-specific setting.
 
-At startup, the helper reads only `INTERN_API_DATABASE_URL` from
-`intern-backend-secret` in the current Kubernetes namespace. It rewrites the host
-to the local PostgreSQL port-forward and passes the URL to Compose without
-printing or storing it in `.env`. Fresh local-only JWT and forward-auth secrets
-are generated for every run. Docker administrators can still inspect container
-environment variables.
+At startup, the helper reads `INTERN_API_DATABASE_URL` and the deployed metrics
+ConfigMap from the current Kubernetes namespace. It rewrites the database host
+to the local PostgreSQL port-forward and mounts the metrics definition from a
+temporary file, without storing either value in `.env`. The temporary metrics
+file is removed when the helper exits. Fresh local-only JWT and forward-auth
+secrets are generated for every run. Docker administrators can still inspect
+container environment variables and bind mounts.
 
 ### Common commands
 
@@ -45,7 +46,8 @@ npm run dev -- stop
 The helper discovers the Docker bridge address, starts both Kubernetes
 port-forwards, and runs the Compose watch stack. Keep it in the foreground and
 press Ctrl-C once to stop the stack and both port-forwards. After changing `.env`,
-stop and restart the helper so Compose reads the new values.
+stop and restart the helper so Compose reads the new values. Restart it after a
+metrics ConfigMap update to load the deployed definition again.
 
 Open the app locally or check that it is responding:
 

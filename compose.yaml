@@ -64,7 +64,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./web/config/metrics.example.yaml:/etc/intern/metrics/metrics.yaml:ro
+      - ${INTERN_METRICS_CONFIG_SOURCE:-./web/config/metrics.example.yaml}:/etc/intern/metrics/metrics.yaml:ro
     develop:
       watch:
         - action: sync

@@ -6,7 +6,7 @@ import { findMetricSeries } from "@/lib/metrics-config"
 import { readMetricsConfig } from "@/lib/metrics-config-server"
 import { parsePrometheusMatrix, parsePrometheusStep } from "@/lib/prometheus"
 
-const allowedSteps = [30, 60, 300] as const
+const allowedSteps = [10, 30, 60, 300] as const
 const maxSteps = 4096
 const upstreamTimeoutMs = 5_000
 

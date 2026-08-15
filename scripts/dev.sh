@@ -109,17 +109,36 @@ unset cluster_database_url
 export AUTH_JWT_HMAC_SECRET="$(openssl rand -hex 32)"
 export INTERN_DEV_IDENTITY_MARKER="$(openssl rand -hex 32)"
 
-docker compose config --quiet
-
+dev_runtime_dir="$(mktemp -d)"
+dev_metrics_config="$dev_runtime_dir/metrics.yaml"
 port_forward_pids=()
 
 cleanup() {
-  ((${#port_forward_pids[@]} > 0)) || return
-  kill "${port_forward_pids[@]}" 2>/dev/null || true
-  wait "${port_forward_pids[@]}" 2>/dev/null || true
+  if ((${#port_forward_pids[@]} > 0)); then
+    kill "${port_forward_pids[@]}" 2>/dev/null || true
+    wait "${port_forward_pids[@]}" 2>/dev/null || true
+  fi
+  rm -f -- "$dev_metrics_config"
+  rmdir -- "$dev_runtime_dir" 2>/dev/null || true
 }
 
 trap cleanup EXIT
+
+if ! kubectl get configmap intern-frontend-metrics \
+  -o 'jsonpath={.data.metrics\.yaml}' >"$dev_metrics_config"; then
+  printf '%s\n' 'Could not read metrics.yaml from intern-frontend-metrics in the current namespace.' >&2
+  exit 1
+fi
+if [[ ! -s "$dev_metrics_config" ]]; then
+  printf '%s\n' 'metrics.yaml is missing from intern-frontend-metrics.' >&2
+  exit 1
+fi
+chmod 755 "$dev_runtime_dir"
+chmod 644 "$dev_metrics_config"
+export INTERN_METRICS_CONFIG_SOURCE="$dev_metrics_config"
+printf '%s\n' 'Production metrics configuration loaded.'
+
+docker compose config --quiet
 
 start_forward() {
   local label=$1 namespace=$2 service=$3 local_port=$4 remote_port=$5
