@@ -1,8 +1,8 @@
 # Live Horizon
 
 `LiveHorizon` is a small React and Canvas time-series chart. It has no knowledge
-of Prometheus, Intern, or IAD2. A caller supplies an asynchronous loader and any
-site-specific labels, colors, and styling.
+of Prometheus, Intern, or a specific deployment. A caller supplies an
+asynchronous loader and any site-specific labels, colors, and styling.
 
 By default, the color bands use a symmetric extent derived from the visible
 points, matching Cubism's behavior. Pass `extentHeadroom` to pad the automatic

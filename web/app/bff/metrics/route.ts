@@ -2,16 +2,13 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 
 import { parseBoundedTimeRange } from "@/components/live-horizon/model"
+import { findMetricSeries } from "@/lib/metrics-config"
+import { readMetricsConfig } from "@/lib/metrics-config-server"
 import { parsePrometheusMatrix, parsePrometheusStep } from "@/lib/prometheus"
 
 const allowedSteps = [30, 60, 300] as const
 const maxSteps = 4096
 const upstreamTimeoutMs = 5_000
-const metricQueries = {
-  cpu: '100 * (1 - avg(rate(node_cpu_seconds_total{job="node-exporter",mode="idle"}[5m])))',
-  memory:
-    '100 * (1 - sum(node_memory_MemAvailable_bytes{job="node-exporter"}) / sum(node_memory_MemTotal_bytes{job="node-exporter"}))',
-} as const
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json(
@@ -33,14 +30,18 @@ function prometheusBaseUrl() {
   }
 }
 
-function metricQuery(name: string | null) {
-  return name && Object.hasOwn(metricQueries, name)
-    ? metricQueries[name as keyof typeof metricQueries]
-    : null
-}
-
 export async function GET(request: NextRequest) {
-  const query = metricQuery(request.nextUrl.searchParams.get("metric"))
+  const config = readMetricsConfig()
+  if (!config) {
+    return errorResponse("Metrics service unavailable.", 503)
+  }
+
+  const query = findMetricSeries(
+    config,
+    request.nextUrl.searchParams.get("group"),
+    request.nextUrl.searchParams.get("lane"),
+    request.nextUrl.searchParams.get("series")
+  )?.promql
   if (!query) {
     return errorResponse("Unknown metric.", 400)
   }

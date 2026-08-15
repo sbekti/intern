@@ -9,7 +9,6 @@ import {
   type LiveHorizonStatus,
   type TimeRange,
   type TimeSeriesLoader,
-  type TimeSeriesPoint,
 } from "@/components/live-horizon"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -17,11 +16,16 @@ import {
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  formatMetricValue,
+  type ClientMetricGroup,
+  type ClientMetricLane,
+  type ClientMetricSeries,
+} from "@/lib/metrics-config"
 import { cn } from "@/lib/utils"
 
 const timePresets = [
@@ -38,7 +42,12 @@ const positiveColors = [
   "var(--horizon-positive-3)",
   "var(--horizon-positive-4)",
 ] as const
-const previewExtent = [0, 100] as const
+const negativeColors = [
+  "var(--horizon-negative-1)",
+  "var(--horizon-negative-2)",
+  "var(--horizon-negative-3)",
+  "var(--horizon-negative-4)",
+] as const
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
   minute: "2-digit",
@@ -56,48 +65,40 @@ const emptySnapshot: LiveHorizonSnapshot = {
   range: null,
 }
 
+function seriesKey(groupId: string, laneId: string, seriesId: string) {
+  return `${groupId}/${laneId}/${seriesId}`
+}
+
 function metricLoader(
-  metric: "cpu" | "memory",
+  groupId: string,
+  laneId: string,
+  series: ClientMetricSeries,
   stepSeconds: number
 ): TimeSeriesLoader {
   return async (range, signal) => {
     const query = new URLSearchParams({
-      metric,
+      group: groupId,
+      lane: laneId,
+      series: series.id,
       step: String(stepSeconds),
       start: String(range.start),
       end: String(range.end),
     })
-    const response = await fetch(`/bff/metrics/node?${query}`, {
+    const response = await fetch(`/bff/metrics?${query}`, {
       cache: "no-store",
       signal,
     })
 
     if (!response.ok) {
-      throw new Error(`${metric} metric request failed`)
+      throw new Error(`${series.label} metric request failed`)
     }
 
     const body: unknown = await response.json()
     if (!isTimeSeriesPayload(body, stepSeconds)) {
-      throw new Error(`${metric} metric response was invalid`)
+      throw new Error(`${series.label} metric response was invalid`)
     }
 
     return body.points
-  }
-}
-
-function bandPreviewLoader(stepSeconds: number): TimeSeriesLoader {
-  const values = [25, 50, 75, 100] as const
-
-  return async ({ start, end }) => {
-    const points: TimeSeriesPoint[] = []
-    let index = 0
-
-    for (let timestamp = start; timestamp <= end; timestamp += stepSeconds) {
-      points.push([timestamp, values[index % values.length]])
-      index += 1
-    }
-
-    return points
   }
 }
 
@@ -134,54 +135,140 @@ function combinedStatus(snapshots: readonly LiveHorizonSnapshot[]) {
   return "live" as const
 }
 
-function formatValue(value: number) {
-  return `${value.toFixed(1)}%`
+function MetricSeriesChart({
+  metricKey,
+  load,
+  extent,
+  height,
+  colors,
+  ariaLabel,
+  className,
+  rulerTimestamp,
+  onRulerTimestampChange,
+  onSnapshotChange,
+  preset,
+}: {
+  metricKey: string
+  load: TimeSeriesLoader
+  extent: readonly [minimum: number, maximum: number]
+  height: number
+  colors: readonly string[]
+  ariaLabel: string
+  className?: string
+  rulerTimestamp: number | null
+  onRulerTimestampChange: (timestamp: number | null) => void
+  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
+  preset: TimePreset
+}) {
+  const handleStateChange = useCallback(
+    (snapshot: LiveHorizonSnapshot) => onSnapshotChange(metricKey, snapshot),
+    [metricKey, onSnapshotChange]
+  )
+
+  return (
+    <LiveHorizon
+      key={`${metricKey}-${preset.id}`}
+      load={load}
+      stepSeconds={preset.stepSeconds}
+      windowSeconds={preset.durationSeconds}
+      ariaLabel={ariaLabel}
+      className={className}
+      rulerTimestamp={rulerTimestamp}
+      onRulerTimestampChange={onRulerTimestampChange}
+      onStateChange={handleStateChange}
+      positiveColors={colors}
+      extent={extent}
+      height={height}
+    />
+  )
+}
+
+function pointFor(snapshot: LiveHorizonSnapshot | undefined) {
+  return snapshot?.rulerPoint ?? snapshot?.latestPoint ?? null
 }
 
 function MetricLane({
-  label,
-  load,
-  snapshot,
-  onStateChange,
+  group,
+  lane,
+  loaders,
+  snapshots,
+  onSnapshotChange,
   rulerTimestamp,
   onRulerTimestampChange,
   preset,
-  extent,
 }: {
-  label: string
-  load: TimeSeriesLoader
-  snapshot: LiveHorizonSnapshot
-  onStateChange: (snapshot: LiveHorizonSnapshot) => void
+  group: ClientMetricGroup
+  lane: ClientMetricLane
+  loaders: Readonly<Record<string, TimeSeriesLoader>>
+  snapshots: Readonly<Record<string, LiveHorizonSnapshot>>
+  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
-  extent?: readonly [minimum: number, maximum: number]
 }) {
-  const point = snapshot.rulerPoint ?? snapshot.latestPoint
+  const configuredSeries = lane.series.map((series) => ({
+    series,
+    key: seriesKey(group.id, lane.id, series.id),
+  }))
+  const readout = configuredSeries
+    .map(({ series, key }) => {
+      const point = pointFor(snapshots[key])
+      const value = point ? formatMetricValue(point[1], lane.format) : "—"
+      return lane.series.length === 1 ? value : `${series.label} ${value}`
+    })
+    .join(" · ")
+  const sharedProps = {
+    extent: lane.extent,
+    rulerTimestamp,
+    onRulerTimestampChange,
+    onSnapshotChange,
+    preset,
+  }
 
   return (
-    <div className="relative">
-      <LiveHorizon
-        key={`${label}-${preset.id}`}
-        load={load}
-        stepSeconds={preset.stepSeconds}
-        windowSeconds={preset.durationSeconds}
-        ariaLabel={`Live IAD2 ${label.toLowerCase()} horizon chart.`}
-        className="border-y border-border/60 bg-muted/20"
-        rulerTimestamp={rulerTimestamp}
-        onRulerTimestampChange={onRulerTimestampChange}
-        onStateChange={onStateChange}
-        positiveColors={positiveColors}
-        extent={extent}
-        extentHeadroom={0.5}
-        height={64}
-      />
+    <div className="relative border-y border-border/60">
+      {configuredSeries.length === 1 ? (
+        <MetricSeriesChart
+          {...sharedProps}
+          metricKey={configuredSeries[0].key}
+          load={loaders[configuredSeries[0].key]}
+          height={64}
+          colors={positiveColors}
+          ariaLabel={`${group.title}: ${lane.label}.`}
+          className="bg-muted/20"
+        />
+      ) : (
+        <div className="flex flex-col">
+          <MetricSeriesChart
+            {...sharedProps}
+            metricKey={configuredSeries[0].key}
+            load={loaders[configuredSeries[0].key]}
+            height={32}
+            colors={positiveColors}
+            ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[0].series.label}.`}
+            className="bg-muted/20"
+          />
+          <div className="border-t border-border/60">
+            <div className="-scale-y-100">
+              <MetricSeriesChart
+                {...sharedProps}
+                metricKey={configuredSeries[1].key}
+                load={loaders[configuredSeries[1].key]}
+                height={32}
+                colors={negativeColors}
+                ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[1].series.label}.`}
+                className="bg-muted/20"
+              />
+            </div>
+          </div>
+        </div>
+      )}
       <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-2 text-sm">
         <span className="rounded-sm bg-background/80 px-1.5 py-0.5 font-medium backdrop-blur-xs">
-          {label}
+          {lane.label}
         </span>
         <output className="rounded-sm bg-background/80 px-1.5 py-0.5 font-semibold tabular-nums backdrop-blur-xs">
-          {point ? formatValue(point[1]) : "—"}
+          {readout}
         </output>
       </div>
     </div>
@@ -225,34 +312,100 @@ function TimeAxis({
   )
 }
 
-export function HomeMetricsCard() {
+function MetricsGroupCard({
+  group,
+  loaders,
+  snapshots,
+  onSnapshotChange,
+  rulerTimestamp,
+  onRulerTimestampChange,
+  preset,
+}: {
+  group: ClientMetricGroup
+  loaders: Readonly<Record<string, TimeSeriesLoader>>
+  snapshots: Readonly<Record<string, LiveHorizonSnapshot>>
+  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
+  rulerTimestamp: number | null
+  onRulerTimestampChange: (timestamp: number | null) => void
+  preset: TimePreset
+}) {
+  const groupSnapshots = group.lanes.flatMap((lane) =>
+    lane.series.map(
+      (series) =>
+        snapshots[seriesKey(group.id, lane.id, series.id)] ?? emptySnapshot
+    )
+  )
+  const status = combinedStatus(groupSnapshots)
+  const range = groupSnapshots.find((snapshot) => snapshot.range)?.range ?? null
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{group.title}</CardTitle>
+        {group.subtitle ? (
+          <CardDescription>{group.subtitle}</CardDescription>
+        ) : null}
+        <CardAction>
+          <Badge variant={badgeVariant(status)}>{statusLabel(status)}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        <TimeAxis range={range} durationSeconds={preset.durationSeconds} />
+        <div className="flex flex-col">
+          {group.lanes.map((lane) => (
+            <MetricLane
+              key={lane.id}
+              group={group}
+              lane={lane}
+              loaders={loaders}
+              snapshots={snapshots}
+              onSnapshotChange={onSnapshotChange}
+              rulerTimestamp={rulerTimestamp}
+              onRulerTimestampChange={onRulerTimestampChange}
+              preset={preset}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function HomeMetricsDashboard({
+  groups,
+}: {
+  groups: readonly ClientMetricGroup[] | null
+}) {
   const [preset, setPreset] = useState<TimePreset>(defaultTimePreset)
-  const [cpu, setCpu] = useState(emptySnapshot)
-  const [memory, setMemory] = useState(emptySnapshot)
-  const [bandPreview, setBandPreview] = useState(emptySnapshot)
+  const [snapshots, setSnapshots] = useState<
+    Record<string, LiveHorizonSnapshot>
+  >({})
   const [rulerTimestamp, setRulerTimestamp] = useState<number | null>(null)
-  const loadCpu = useMemo(
-    () => metricLoader("cpu", preset.stepSeconds),
-    [preset.stepSeconds]
-  )
-  const loadMemory = useMemo(
-    () => metricLoader("memory", preset.stepSeconds),
-    [preset.stepSeconds]
-  )
-  const loadBandPreview = useMemo(
-    () => bandPreviewLoader(preset.stepSeconds),
-    [preset.stepSeconds]
-  )
-  const handleCpuChange = useCallback(
-    (snapshot: LiveHorizonSnapshot) => setCpu(snapshot),
+  const loaders = useMemo(() => {
+    if (!groups) {
+      return {}
+    }
+
+    return Object.fromEntries(
+      groups.flatMap((group) =>
+        group.lanes.flatMap((lane) =>
+          lane.series.map((series) => {
+            const key = seriesKey(group.id, lane.id, series.id)
+            return [
+              key,
+              metricLoader(group.id, lane.id, series, preset.stepSeconds),
+            ]
+          })
+        )
+      )
+    )
+  }, [groups, preset.stepSeconds])
+  const handleSnapshotChange = useCallback(
+    (key: string, snapshot: LiveHorizonSnapshot) => {
+      setSnapshots((current) => ({ ...current, [key]: snapshot }))
+    },
     []
   )
-  const handleMemoryChange = useCallback(
-    (snapshot: LiveHorizonSnapshot) => setMemory(snapshot),
-    []
-  )
-  const status = combinedStatus([cpu, memory])
-  const range = cpu.range ?? memory.range
   const handlePresetChange = useCallback((values: string[]) => {
     const next = timePresets.find(({ id }) => id === values[0])
     if (!next) {
@@ -260,71 +413,53 @@ export function HomeMetricsCard() {
     }
 
     setPreset(next)
-    setCpu(emptySnapshot)
-    setMemory(emptySnapshot)
-    setBandPreview(emptySnapshot)
+    setSnapshots({})
     setRulerTimestamp(null)
   }, [])
 
+  if (!groups) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Metrics unavailable</CardTitle>
+          <CardDescription>
+            Check the frontend metrics configuration.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
   return (
-    <Card className="border-border/70 shadow-xs">
-      <CardHeader>
-        <CardTitle>IAD2 live metrics</CardTitle>
-        <CardDescription>Node utilization from Prometheus.</CardDescription>
-        <CardAction className="flex items-center gap-2">
-          <Badge variant={badgeVariant(status)}>{statusLabel(status)}</Badge>
-          <ToggleGroup
-            aria-label="Metric time range"
-            value={[preset.id]}
-            onValueChange={handlePresetChange}
-            variant="outline"
-            size="sm"
-            spacing={0}
-          >
-            {timePresets.map(({ id }) => (
-              <ToggleGroupItem key={id} value={id} aria-label={`Last ${id}`}>
-                {id}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-1">
-        <TimeAxis range={range} durationSeconds={preset.durationSeconds} />
-        <div className="flex flex-col">
-          <MetricLane
-            label="CPU utilization"
-            load={loadCpu}
-            snapshot={cpu}
-            onStateChange={handleCpuChange}
-            rulerTimestamp={rulerTimestamp}
-            onRulerTimestampChange={setRulerTimestamp}
-            preset={preset}
-          />
-          <MetricLane
-            label="Memory utilization"
-            load={loadMemory}
-            snapshot={memory}
-            onStateChange={handleMemoryChange}
-            rulerTimestamp={rulerTimestamp}
-            onRulerTimestampChange={setRulerTimestamp}
-            preset={preset}
-          />
-          <MetricLane
-            label="Color bands preview"
-            load={loadBandPreview}
-            snapshot={bandPreview}
-            onStateChange={setBandPreview}
-            rulerTimestamp={rulerTimestamp}
-            onRulerTimestampChange={setRulerTimestamp}
-            preset={preset}
-            extent={previewExtent}
-          />
-        </div>
-      </CardContent>
-      <CardFooter className="text-xs text-muted-foreground">
-        Point to a lane to inspect its value.
-      </CardFooter>
-    </Card>
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <ToggleGroup
+          aria-label="Metric time range"
+          value={[preset.id]}
+          onValueChange={handlePresetChange}
+          variant="outline"
+          size="sm"
+          spacing={0}
+        >
+          {timePresets.map(({ id }) => (
+            <ToggleGroupItem key={id} value={id} aria-label={`Last ${id}`}>
+              {id}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      {groups.map((group) => (
+        <MetricsGroupCard
+          key={group.id}
+          group={group}
+          loaders={loaders}
+          snapshots={snapshots}
+          onSnapshotChange={handleSnapshotChange}
+          rulerTimestamp={rulerTimestamp}
+          onRulerTimestampChange={setRulerTimestamp}
+          preset={preset}
+        />
+      ))}
+    </div>
   )
 }

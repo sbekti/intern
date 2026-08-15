@@ -1,0 +1,23 @@
+groups:
+  - id: host
+    title: Host metrics
+    subtitle: Node utilization from Prometheus.
+    lanes:
+      - id: cpu
+        label: CPU utilization
+        format: percent
+        extent: [0, 100]
+        series:
+          - id: value
+            label: CPU
+            promql: >-
+              100 * (1 - avg(rate(node_cpu_seconds_total{job="node-exporter",mode="idle"}[5m])))
+      - id: memory
+        label: Memory utilization
+        format: percent
+        extent: [0, 100]
+        series:
+          - id: value
+            label: Memory
+            promql: >-
+              100 * (1 - sum(node_memory_MemAvailable_bytes{job="node-exporter"}) / sum(node_memory_MemTotal_bytes{job="node-exporter"}))

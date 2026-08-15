@@ -2,7 +2,7 @@
 
 Intern is a Go API, `internctl` CLI, and Next.js authenticated web app in one repository.
 
-The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, and RADIUS synchronization. The authenticated home route shows live IAD2 CPU and memory utilization from Prometheus.
+The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, and RADIUS synchronization. The authenticated home route shows live host metrics from Prometheus.
 
 ## Development
 

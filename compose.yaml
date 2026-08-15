@@ -48,6 +48,7 @@ services:
     environment:
       INTERN_API_BASE_URL: "http://intern-api:8080"
       INTERN_PROMETHEUS_BASE_URL: "${INTERN_PROMETHEUS_BASE_URL:?set the Prometheus base URL}"
+      INTERN_METRICS_CONFIG_PATH: "/etc/intern/metrics/metrics.yaml"
       AUTH_PUBLIC_BASE_URL: "${AUTH_PUBLIC_BASE_URL:?set the public application URL}"
       INTERN_DEV_IDENTITY_ENABLED: "${INTERN_DEV_IDENTITY_ENABLED:?set development identity mode explicitly}"
       INTERN_DEV_IDENTITY_MARKER_HEADER: "${INTERN_DEV_IDENTITY_MARKER_HEADER:?set the development identity marker header}"
@@ -62,6 +63,8 @@ services:
       - "${INTERN_WEB_BIND:-0.0.0.0}:${INTERN_WEB_PORT:?set the web port}:3000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./web/config/metrics.example.yaml:/etc/intern/metrics/metrics.yaml:ro
     develop:
       watch:
         - action: sync
