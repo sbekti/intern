@@ -333,7 +333,7 @@ function MetricLane({
         </div>
       )}
       <div className="pointer-events-none absolute inset-0 text-sm">
-        <span className="absolute top-1/2 left-2 -translate-y-1/2 rounded-sm bg-background/70 px-1.5 py-0.5 font-medium whitespace-nowrap backdrop-blur-xs">
+        <span className="horizon-label absolute top-1/2 left-2 -translate-y-1/2 whitespace-nowrap">
           {lane.label}
         </span>
         {readouts.length === 1 ? (
