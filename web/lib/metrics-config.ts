@@ -1,4 +1,4 @@
-export const metricFormats = ["percent", "bits-per-second"] as const
+export const metricFormats = ["percent", "bits-per-second", "count"] as const
 export type MetricFormat = (typeof metricFormats)[number]
 
 export type MetricSeriesSide = "top" | "bottom"
@@ -217,6 +217,10 @@ export function findMetricSeries(
 export function formatMetricValue(value: number, format: MetricFormat) {
   if (format === "percent") {
     return `${value.toFixed(1)}%`
+  }
+
+  if (format === "count") {
+    return Math.round(value).toString()
   }
 
   if (value === 0) {

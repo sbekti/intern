@@ -62,6 +62,16 @@ test("removes PromQL from client configuration", () => {
   })
 })
 
+test("accepts count lanes", () => {
+  const countConfig = structuredClone(validConfig)
+  countConfig.groups[0].lanes[0].format = "count"
+
+  assert.equal(
+    parseMetricsConfig(countConfig)?.groups[0].lanes[0].format,
+    "count"
+  )
+})
+
 test("rejects duplicate IDs and incomplete split lanes", () => {
   const duplicateGroups = structuredClone(validConfig)
   duplicateGroups.groups.push(duplicateGroups.groups[0])
@@ -72,7 +82,7 @@ test("rejects duplicate IDs and incomplete split lanes", () => {
   assert.equal(parseMetricsConfig(duplicateSides), null)
 })
 
-test("formats percent and SI traffic values", () => {
+test("formats percent, SI traffic, and count values", () => {
   assert.equal(formatMetricValue(52.345, "percent"), "52.3%")
   assert.equal(formatMetricValue(0, "bits-per-second"), "0 bps")
   assert.equal(formatMetricValue(800, "bits-per-second"), "800 bps")
@@ -82,4 +92,6 @@ test("formats percent and SI traffic values", () => {
   assert.equal(formatMetricValue(999_000, "bits-per-second"), "1.0 Mbps")
   assert.equal(formatMetricValue(1_000_000_000, "bits-per-second"), "1.0 Gbps")
   assert.equal(formatMetricValue(-1_230, "bits-per-second"), "-1.2 kbps")
+  assert.equal(formatMetricValue(0, "count"), "0")
+  assert.equal(formatMetricValue(7.24, "count"), "7")
 })
