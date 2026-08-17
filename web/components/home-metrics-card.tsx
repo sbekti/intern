@@ -132,14 +132,15 @@ function badgeVariant(status: MetricsSeriesStatus) {
   return "destructive" as const
 }
 
+const SERIES_STATUS_LABELS = {
+  loading: "Loading",
+  live: "Live",
+  stale: "Stale",
+  unavailable: "Unavailable",
+} as const
+
 function statusLabel(status: MetricsSeriesStatus) {
-  if (status === "loading") {
-    return "Loading"
-  }
-  if (status === "unavailable") {
-    return "Unavailable"
-  }
-  return status === "live" ? "Live" : "Stale"
+  return SERIES_STATUS_LABELS[status]
 }
 
 function combinedStatus(snapshots: readonly MetricsSeriesSnapshot[]) {
@@ -215,24 +216,38 @@ function pointFor(
   return null
 }
 
+type SeriesReadout = { kind: "value" | "state"; text: string }
+
 function metricReadout(
   snapshot: MetricsSeriesSnapshot | undefined,
   format: MetricFormat,
   focused: boolean,
   range: TimeRange | null,
   rulerTimestamp: number | null
-) {
+): SeriesReadout {
   const point = focused
     ? (snapshot?.points.find(([timestamp]) => timestamp === rulerTimestamp) ??
       null)
     : pointFor(snapshot, range)
   if (point) {
-    return formatMetricValue(point[1], format)
+    return { kind: "value", text: formatMetricValue(point[1], format) }
   }
   if (!snapshot || snapshot.status === "loading") {
-    return "Loading"
+    return { kind: "state", text: SERIES_STATUS_LABELS.loading }
   }
-  return snapshot.status === "unavailable" ? "Unavailable" : "No data"
+  return {
+    kind: "state",
+    text:
+      snapshot.status === "unavailable"
+        ? SERIES_STATUS_LABELS.unavailable
+        : "No data",
+  }
+}
+
+function formatReadout(readout: SeriesReadout, seriesLabel: string | null) {
+  return seriesLabel !== null && readout.kind === "value"
+    ? `${seriesLabel} ${readout.text}`
+    : readout.text
 }
 
 function MetricLane({
@@ -260,7 +275,7 @@ function MetricLane({
   }))
   const readouts = configuredSeries.map(({ series, key }) => ({
     series,
-    value: metricReadout(
+    readout: metricReadout(
       snapshot?.series[key] ?? emptySnapshot,
       lane.format,
       focused,
@@ -324,27 +339,25 @@ function MetricLane({
         <span className="horizon-label absolute top-1/2 left-2 -translate-y-1/2 whitespace-nowrap">
           {lane.label}
         </span>
-        {readouts.length === 1 ? (
+        {readouts.map(({ series, readout }) => (
           <output
-            className="horizon-label absolute top-1/2 right-2 -translate-y-1/2 tabular-nums"
+            key={series.id}
+            className={cn(
+              "horizon-label absolute right-2 -translate-y-1/2 tabular-nums",
+              readouts.length === 1
+                ? "top-1/2"
+                : series.side === "bottom"
+                  ? "top-3/4"
+                  : "top-1/4"
+            )}
             style={readoutStyle}
           >
-            {readouts[0].value}
+            {formatReadout(
+              readout,
+              readouts.length === 1 ? null : series.label
+            )}
           </output>
-        ) : (
-          readouts.map(({ series, value }) => (
-            <output
-              key={series.id}
-              className={cn(
-                "horizon-label absolute right-2 -translate-y-1/2 tabular-nums",
-                series.side === "bottom" ? "top-3/4" : "top-1/4"
-              )}
-              style={readoutStyle}
-            >
-              {series.label} {value}
-            </output>
-          ))
-        )}
+        ))}
       </div>
     </div>
   )
