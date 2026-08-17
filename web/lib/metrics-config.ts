@@ -4,6 +4,7 @@ export const metricFormats = [
   "count",
   "requests-per-second",
   "duration-seconds",
+  "availability",
 ] as const
 export type MetricFormat = (typeof metricFormats)[number]
 
@@ -220,6 +221,14 @@ function significantNumber(value: number, minimumSignificantDigits = 1) {
 export function formatMetricValue(value: number, format: MetricFormat) {
   if (format === "percent") {
     return `${value.toFixed(1)}%`
+  }
+
+  if (format === "availability") {
+    const availability = Math.min(100, Math.max(0, 100 - value))
+    return `${new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: 3,
+      useGrouping: false,
+    }).format(availability)}%`
   }
 
   if (format === "count") {

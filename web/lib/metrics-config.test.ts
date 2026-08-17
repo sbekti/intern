@@ -67,8 +67,12 @@ test("accepts count lanes", () => {
   )
 })
 
-test("accepts request rate and duration lanes", () => {
-  for (const format of ["requests-per-second", "duration-seconds"]) {
+test("accepts request rate, duration, and availability lanes", () => {
+  for (const format of [
+    "requests-per-second",
+    "duration-seconds",
+    "availability",
+  ]) {
     const config = structuredClone(validConfig)
     config.groups[0].lanes[0].format = format
     assert.equal(parseMetricsConfig(config)?.groups[0].lanes[0].format, format)
@@ -104,4 +108,11 @@ test("formats metric values", () => {
   assert.equal(formatMetricValue(0.1234, "duration-seconds"), "123 ms")
   assert.equal(formatMetricValue(0.9996, "duration-seconds"), "1 s")
   assert.equal(formatMetricValue(1.234, "duration-seconds"), "1.2 s")
+  assert.equal(formatMetricValue(0, "availability"), "100%")
+  assert.equal(formatMetricValue(0.001, "availability"), "99.999%")
+  assert.equal(formatMetricValue(0.01, "availability"), "99.99%")
+  assert.equal(formatMetricValue(0.1, "availability"), "99.9%")
+  assert.equal(formatMetricValue(0.5, "availability"), "99.5%")
+  assert.equal(formatMetricValue(1, "availability"), "99%")
+  assert.equal(formatMetricValue(100, "availability"), "0%")
 })
