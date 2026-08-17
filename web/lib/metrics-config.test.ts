@@ -67,6 +67,14 @@ test("accepts count lanes", () => {
   )
 })
 
+test("accepts request rate and duration lanes", () => {
+  for (const format of ["requests-per-second", "duration-seconds"]) {
+    const config = structuredClone(validConfig)
+    config.groups[0].lanes[0].format = format
+    assert.equal(parseMetricsConfig(config)?.groups[0].lanes[0].format, format)
+  }
+})
+
 test("rejects duplicate IDs and incomplete split lanes", () => {
   const duplicateGroups = structuredClone(validConfig)
   duplicateGroups.groups.push(duplicateGroups.groups[0])
@@ -77,7 +85,7 @@ test("rejects duplicate IDs and incomplete split lanes", () => {
   assert.equal(parseMetricsConfig(duplicateSides), null)
 })
 
-test("formats percent, SI traffic, and count values", () => {
+test("formats metric values", () => {
   assert.equal(formatMetricValue(52.345, "percent"), "52.3%")
   assert.equal(formatMetricValue(0, "bits-per-second"), "0 bps")
   assert.equal(formatMetricValue(800, "bits-per-second"), "800 bps")
@@ -89,4 +97,11 @@ test("formats percent, SI traffic, and count values", () => {
   assert.equal(formatMetricValue(-1_230, "bits-per-second"), "-1.2 kbps")
   assert.equal(formatMetricValue(0, "count"), "0")
   assert.equal(formatMetricValue(7.24, "count"), "7")
+  assert.equal(formatMetricValue(0, "requests-per-second"), "0 RPS")
+  assert.equal(formatMetricValue(0.456, "requests-per-second"), "0.46 RPS")
+  assert.equal(formatMetricValue(12.34, "requests-per-second"), "12 RPS")
+  assert.equal(formatMetricValue(0, "duration-seconds"), "0 ms")
+  assert.equal(formatMetricValue(0.1234, "duration-seconds"), "123 ms")
+  assert.equal(formatMetricValue(0.9996, "duration-seconds"), "1 s")
+  assert.equal(formatMetricValue(1.234, "duration-seconds"), "1.2 s")
 })

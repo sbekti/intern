@@ -1,4 +1,10 @@
-export const metricFormats = ["percent", "bits-per-second", "count"] as const
+export const metricFormats = [
+  "percent",
+  "bits-per-second",
+  "count",
+  "requests-per-second",
+  "duration-seconds",
+] as const
 export type MetricFormat = (typeof metricFormats)[number]
 
 export type MetricSeriesSide = "top" | "bottom"
@@ -203,6 +209,14 @@ export function clientMetricGroups(config: MetricsConfig): ClientMetricGroup[] {
   }))
 }
 
+function significantNumber(value: number, minimumSignificantDigits = 1) {
+  return new Intl.NumberFormat(undefined, {
+    minimumSignificantDigits,
+    maximumSignificantDigits: 2,
+    useGrouping: false,
+  }).format(value)
+}
+
 export function formatMetricValue(value: number, format: MetricFormat) {
   if (format === "percent") {
     return `${value.toFixed(1)}%`
@@ -210,6 +224,19 @@ export function formatMetricValue(value: number, format: MetricFormat) {
 
   if (format === "count") {
     return Math.round(value).toString()
+  }
+
+  if (format === "requests-per-second") {
+    return `${significantNumber(value)} RPS`
+  }
+
+  if (format === "duration-seconds") {
+    const milliseconds = Math.round(value * 1000)
+    if (Math.abs(milliseconds) < 1000) {
+      return `${milliseconds} ms`
+    }
+
+    return `${significantNumber(value)} s`
   }
 
   if (value === 0) {
@@ -231,10 +258,6 @@ export function formatMetricValue(value: number, format: MetricFormat) {
   }
 
   const signed = value < 0 ? -scaled : scaled
-  const formatted = new Intl.NumberFormat(undefined, {
-    minimumSignificantDigits: 2,
-    maximumSignificantDigits: 2,
-    useGrouping: false,
-  }).format(signed)
+  const formatted = significantNumber(signed, 2)
   return `${formatted} ${units[unit]}`
 }

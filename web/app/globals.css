@@ -92,7 +92,6 @@
 }
 
 .horizon-label {
-    color: var(--foreground);
     font-weight: 400;
     line-height: 30px;
     margin-inline: 6px;

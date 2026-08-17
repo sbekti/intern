@@ -320,7 +320,7 @@ function MetricLane({
           </div>
         </div>
       )}
-      <div className="pointer-events-none absolute inset-0 text-sm">
+      <div className="pointer-events-none absolute inset-0 text-xs text-muted-foreground">
         <span className="horizon-label absolute top-1/2 left-2 -translate-y-1/2 whitespace-nowrap">
           {lane.label}
         </span>
