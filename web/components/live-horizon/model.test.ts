@@ -3,7 +3,6 @@ import test from "node:test"
 
 import {
   clampedLabelPosition,
-  isTimeSeriesPayload,
   mergeTimeSeriesPoints,
   overlappingTickIndexes,
   parseBoundedTimeRange,
@@ -123,36 +122,6 @@ test("merges overlap by timestamp and drops expired points", () => {
       [130, 30],
       [160, 40],
     ]
-  )
-})
-
-test("validates a generic time-series payload", () => {
-  assert.equal(
-    isTimeSeriesPayload(
-      {
-        step_seconds: 30,
-        start: 100,
-        end: 130,
-        points: [
-          [100, 12.5],
-          [130, 18],
-        ],
-      },
-      30
-    ),
-    true
-  )
-  assert.equal(
-    isTimeSeriesPayload(
-      {
-        step_seconds: 60,
-        start: 100,
-        end: 130,
-        points: [[100, 12.5]],
-      },
-      30
-    ),
-    false
   )
 })
 

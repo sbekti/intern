@@ -3,7 +3,6 @@ import test from "node:test"
 
 import {
   clientMetricGroups,
-  findMetricSeries,
   formatMetricValue,
   parseMetricsConfig,
 } from "./metrics-config.ts"
@@ -44,10 +43,6 @@ test("parses groups, lanes, and split-direction series", () => {
   const config = parseMetricsConfig(validConfig)
   assert.ok(config)
   assert.equal(config.groups[0].lanes[0].extent[1], 300_000_000)
-  assert.equal(
-    findMetricSeries(config, "edge", "wan", "negative")?.promql,
-    "negative_query"
-  )
 })
 
 test("removes PromQL from client configuration", () => {

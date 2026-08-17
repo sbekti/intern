@@ -203,17 +203,6 @@ export function clientMetricGroups(config: MetricsConfig): ClientMetricGroup[] {
   }))
 }
 
-export function findMetricSeries(
-  config: MetricsConfig,
-  groupId: string | null,
-  laneId: string | null,
-  seriesId: string | null
-) {
-  const group = config.groups.find(({ id }) => id === groupId)
-  const lane = group?.lanes.find(({ id }) => id === laneId)
-  return lane?.series.find(({ id }) => id === seriesId) ?? null
-}
-
 export function formatMetricValue(value: number, format: MetricFormat) {
   if (format === "percent") {
     return `${value.toFixed(1)}%`

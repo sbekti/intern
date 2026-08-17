@@ -1,18 +1,8 @@
 export { LiveHorizon } from "./live-horizon"
-export type {
-  LiveHorizonProps,
-  LiveHorizonSnapshot,
-  LiveHorizonStatus,
-} from "./live-horizon"
-export type {
-  TimeRange,
-  TimeSeriesLoader,
-  TimeSeriesPayload,
-  TimeSeriesPoint,
-} from "./model"
+export type { LiveHorizonProps } from "./live-horizon"
+export type { TimeRange, TimeSeriesPoint } from "./model"
 export {
   clampedLabelPosition,
-  isTimeSeriesPayload,
   mergeTimeSeriesPoints,
   overlappingTickIndexes,
   parseBoundedTimeRange,

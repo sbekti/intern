@@ -11,13 +11,10 @@ import {
 
 import {
   clampedLabelPosition,
-  isTimeSeriesPayload,
   LiveHorizon,
   overlappingTickIndexes,
-  type LiveHorizonSnapshot,
-  type LiveHorizonStatus,
   type TimeRange,
-  type TimeSeriesLoader,
+  type TimeSeriesPoint,
   timeRangeFraction,
   timeRangeTimestampAtFraction,
   timeRangeTicks,
@@ -36,7 +33,6 @@ import {
   formatMetricValue,
   type ClientMetricGroup,
   type ClientMetricLane,
-  type ClientMetricSeries,
   type MetricFormat,
 } from "@/lib/metrics-config"
 import {
@@ -46,6 +42,13 @@ import {
   metricTimePresets,
   metricTimeRangePath,
 } from "@/lib/metric-time-range"
+import { useMetricsSnapshot } from "@/hooks/use-metrics-snapshot"
+import {
+  metricsSnapshotSeriesKey,
+  type MetricsDashboardSnapshot,
+  type MetricsSeriesSnapshot,
+  type MetricsSeriesStatus,
+} from "@/lib/metrics-snapshot-client"
 import { cn } from "@/lib/utils"
 
 type TimePreset = MetricTimePreset
@@ -106,51 +109,20 @@ function formatFocusTimestamp(
   )
 }
 
-const emptySnapshot: LiveHorizonSnapshot = {
+const emptySnapshot: MetricsSeriesSnapshot = {
   status: "loading",
-  latestPoint: null,
-  rulerPoint: null,
-  range: null,
+  points: [],
 }
 
 function seriesKey(groupId: string, laneId: string, seriesId: string) {
-  return `${groupId}/${laneId}/${seriesId}`
+  return metricsSnapshotSeriesKey({
+    group: groupId,
+    lane: laneId,
+    series: seriesId,
+  })
 }
 
-function metricLoader(
-  groupId: string,
-  laneId: string,
-  series: ClientMetricSeries,
-  stepSeconds: number
-): TimeSeriesLoader {
-  return async (range, signal) => {
-    const query = new URLSearchParams({
-      group: groupId,
-      lane: laneId,
-      series: series.id,
-      step: String(stepSeconds),
-      start: String(range.start),
-      end: String(range.end),
-    })
-    const response = await fetch(`/bff/metrics?${query}`, {
-      cache: "no-store",
-      signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`${series.label} metric request failed`)
-    }
-
-    const body: unknown = await response.json()
-    if (!isTimeSeriesPayload(body, stepSeconds)) {
-      throw new Error(`${series.label} metric response was invalid`)
-    }
-
-    return body.points
-  }
-}
-
-function badgeVariant(status: LiveHorizonStatus) {
+function badgeVariant(status: MetricsSeriesStatus) {
   if (status === "live") {
     return "outline" as const
   }
@@ -160,7 +132,7 @@ function badgeVariant(status: LiveHorizonStatus) {
   return "destructive" as const
 }
 
-function statusLabel(status: LiveHorizonStatus) {
+function statusLabel(status: MetricsSeriesStatus) {
   if (status === "loading") {
     return "Loading"
   }
@@ -170,7 +142,7 @@ function statusLabel(status: LiveHorizonStatus) {
   return status === "live" ? "Live" : "Stale"
 }
 
-function combinedStatus(snapshots: readonly LiveHorizonSnapshot[]) {
+function combinedStatus(snapshots: readonly MetricsSeriesSnapshot[]) {
   if (snapshots.some(({ status }) => status === "unavailable")) {
     return "unavailable" as const
   }
@@ -185,7 +157,8 @@ function combinedStatus(snapshots: readonly LiveHorizonSnapshot[]) {
 
 function MetricSeriesChart({
   metricKey,
-  load,
+  points,
+  range,
   extent,
   height,
   colors,
@@ -193,11 +166,11 @@ function MetricSeriesChart({
   className,
   rulerTimestamp,
   onRulerTimestampChange,
-  onSnapshotChange,
   preset,
 }: {
   metricKey: string
-  load: TimeSeriesLoader
+  points: readonly TimeSeriesPoint[]
+  range: TimeRange | null
   extent: readonly [minimum: number, maximum: number]
   height: number
   colors: readonly string[]
@@ -205,25 +178,18 @@ function MetricSeriesChart({
   className?: string
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
-  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
   preset: TimePreset
 }) {
-  const handleStateChange = useCallback(
-    (snapshot: LiveHorizonSnapshot) => onSnapshotChange(metricKey, snapshot),
-    [metricKey, onSnapshotChange]
-  )
-
   return (
     <LiveHorizon
       key={`${metricKey}-${preset.id}`}
-      load={load}
+      points={points}
+      range={range}
       stepSeconds={preset.stepSeconds}
-      windowSeconds={preset.durationSeconds}
       ariaLabel={ariaLabel}
       className={className}
       rulerTimestamp={rulerTimestamp}
       onRulerTimestampChange={onRulerTimestampChange}
-      onStateChange={handleStateChange}
       interactive={false}
       positiveColors={colors}
       extent={extent}
@@ -232,16 +198,34 @@ function MetricSeriesChart({
   )
 }
 
-function pointFor(snapshot: LiveHorizonSnapshot | undefined) {
-  return snapshot?.rulerPoint ?? snapshot?.latestPoint ?? null
+function pointFor(
+  snapshot: MetricsSeriesSnapshot | undefined,
+  range: TimeRange | null
+) {
+  if (!snapshot || !range) {
+    return null
+  }
+
+  for (let index = snapshot.points.length - 1; index >= 0; index -= 1) {
+    const point = snapshot.points[index]
+    if (point[0] >= range.start && point[0] <= range.end) {
+      return point
+    }
+  }
+  return null
 }
 
 function metricReadout(
-  snapshot: LiveHorizonSnapshot | undefined,
+  snapshot: MetricsSeriesSnapshot | undefined,
   format: MetricFormat,
-  focused: boolean
+  focused: boolean,
+  range: TimeRange | null,
+  rulerTimestamp: number | null
 ) {
-  const point = focused ? snapshot?.rulerPoint : pointFor(snapshot)
+  const point = focused
+    ? (snapshot?.points.find(([timestamp]) => timestamp === rulerTimestamp) ??
+      null)
+    : pointFor(snapshot, range)
   if (point) {
     return formatMetricValue(point[1], format)
   }
@@ -254,20 +238,16 @@ function metricReadout(
 function MetricLane({
   group,
   lane,
-  loaders,
-  snapshots,
+  snapshot,
   range,
-  onSnapshotChange,
   rulerTimestamp,
   onRulerTimestampChange,
   preset,
 }: {
   group: ClientMetricGroup
   lane: ClientMetricLane
-  loaders: Readonly<Record<string, TimeSeriesLoader>>
-  snapshots: Readonly<Record<string, LiveHorizonSnapshot>>
+  snapshot: MetricsDashboardSnapshot | null
   range: TimeRange | null
-  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
@@ -280,7 +260,13 @@ function MetricLane({
   }))
   const readouts = configuredSeries.map(({ series, key }) => ({
     series,
-    value: metricReadout(snapshots[key], lane.format, focused),
+    value: metricReadout(
+      snapshot?.series[key] ?? emptySnapshot,
+      lane.format,
+      focused,
+      range,
+      rulerTimestamp
+    ),
   }))
   const readoutStyle =
     focusFraction === null
@@ -290,7 +276,6 @@ function MetricLane({
     extent: lane.extent,
     rulerTimestamp,
     onRulerTimestampChange,
-    onSnapshotChange,
     preset,
   }
 
@@ -300,7 +285,8 @@ function MetricLane({
         <MetricSeriesChart
           {...sharedProps}
           metricKey={configuredSeries[0].key}
-          load={loaders[configuredSeries[0].key]}
+          points={snapshot?.series[configuredSeries[0].key]?.points ?? []}
+          range={range}
           height={30}
           colors={positiveColors}
           ariaLabel={`${group.title}: ${lane.label}.`}
@@ -311,7 +297,8 @@ function MetricLane({
           <MetricSeriesChart
             {...sharedProps}
             metricKey={configuredSeries[0].key}
-            load={loaders[configuredSeries[0].key]}
+            points={snapshot?.series[configuredSeries[0].key]?.points ?? []}
+            range={range}
             height={30}
             colors={positiveColors}
             ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[0].series.label}.`}
@@ -322,7 +309,8 @@ function MetricLane({
               <MetricSeriesChart
                 {...sharedProps}
                 metricKey={configuredSeries[1].key}
-                load={loaders[configuredSeries[1].key]}
+                points={snapshot?.series[configuredSeries[1].key]?.points ?? []}
+                range={range}
                 height={30}
                 colors={negativeColors}
                 ariaLabel={`${group.title}: ${lane.label} ${configuredSeries[1].series.label}.`}
@@ -486,17 +474,15 @@ function TimeAxis({
 
 function MetricsGroupCard({
   group,
-  loaders,
-  snapshots,
-  onSnapshotChange,
+  snapshot,
+  range,
   rulerTimestamp,
   onRulerTimestampChange,
   preset,
 }: {
   group: ClientMetricGroup
-  loaders: Readonly<Record<string, TimeSeriesLoader>>
-  snapshots: Readonly<Record<string, LiveHorizonSnapshot>>
-  onSnapshotChange: (key: string, snapshot: LiveHorizonSnapshot) => void
+  snapshot: MetricsDashboardSnapshot | null
+  range: TimeRange | null
   rulerTimestamp: number | null
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
@@ -504,11 +490,11 @@ function MetricsGroupCard({
   const groupSnapshots = group.lanes.flatMap((lane) =>
     lane.series.map(
       (series) =>
-        snapshots[seriesKey(group.id, lane.id, series.id)] ?? emptySnapshot
+        snapshot?.series[seriesKey(group.id, lane.id, series.id)] ??
+        emptySnapshot
     )
   )
   const status = combinedStatus(groupSnapshots)
-  const range = groupSnapshots.find((snapshot) => snapshot.range)?.range ?? null
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect()
     const timestamp = timeRangeTimestampAtFraction(
@@ -557,10 +543,8 @@ function MetricsGroupCard({
               key={lane.id}
               group={group}
               lane={lane}
-              loaders={loaders}
-              snapshots={snapshots}
+              snapshot={snapshot}
               range={range}
-              onSnapshotChange={onSnapshotChange}
               rulerTimestamp={rulerTimestamp}
               onRulerTimestampChange={onRulerTimestampChange}
               preset={preset}
@@ -584,35 +568,9 @@ export function HomeMetricsDashboard({
       metricTimePresets.find(({ id }) => id === initialPresetId) ??
       defaultMetricTimePreset
   )
-  const [snapshots, setSnapshots] = useState<
-    Record<string, LiveHorizonSnapshot>
-  >({})
+  const snapshot = useMetricsSnapshot(groups, preset)
+  const range = snapshot?.range ?? null
   const [rulerTimestamp, setRulerTimestamp] = useState<number | null>(null)
-  const loaders = useMemo(() => {
-    if (!groups) {
-      return {}
-    }
-
-    return Object.fromEntries(
-      groups.flatMap((group) =>
-        group.lanes.flatMap((lane) =>
-          lane.series.map((series) => {
-            const key = seriesKey(group.id, lane.id, series.id)
-            return [
-              key,
-              metricLoader(group.id, lane.id, series, preset.stepSeconds),
-            ]
-          })
-        )
-      )
-    )
-  }, [groups, preset.stepSeconds])
-  const handleSnapshotChange = useCallback(
-    (key: string, snapshot: LiveHorizonSnapshot) => {
-      setSnapshots((current) => ({ ...current, [key]: snapshot }))
-    },
-    []
-  )
   const replaceRangeQuery = useCallback((presetId: MetricTimePresetId) => {
     window.history.replaceState(
       null,
@@ -628,7 +586,6 @@ export function HomeMetricsDashboard({
       }
 
       setPreset(next)
-      setSnapshots({})
       setRulerTimestamp(null)
       replaceRangeQuery(next.id)
     },
@@ -674,9 +631,8 @@ export function HomeMetricsDashboard({
         <MetricsGroupCard
           key={group.id}
           group={group}
-          loaders={loaders}
-          snapshots={snapshots}
-          onSnapshotChange={handleSnapshotChange}
+          snapshot={snapshot}
+          range={range}
           rulerTimestamp={rulerTimestamp}
           onRulerTimestampChange={setRulerTimestamp}
           preset={preset}

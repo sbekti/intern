@@ -10,34 +10,22 @@ import {
 } from "react"
 
 import {
-  mergeTimeSeriesPoints,
   timeRangeFraction,
   timeRangeTimestampAtFraction,
   timeSeriesExtent,
   type TimeRange,
-  type TimeSeriesLoader,
   type TimeSeriesPoint,
 } from "./model"
 import { HorizonRenderer, type HorizonMode } from "./renderer"
 
-export type LiveHorizonStatus = "loading" | "live" | "stale" | "unavailable"
-
-export type LiveHorizonSnapshot = {
-  status: LiveHorizonStatus
-  latestPoint: TimeSeriesPoint | null
-  rulerPoint: TimeSeriesPoint | null
-  range: TimeRange | null
-}
-
 export type LiveHorizonProps = {
-  load: TimeSeriesLoader
+  points: readonly TimeSeriesPoint[]
+  range: TimeRange | null
   stepSeconds: number
-  windowSeconds?: number
   ariaLabel: string
   className?: string
   rulerTimestamp?: number | null
   onRulerTimestampChange?: (timestamp: number | null) => void
-  onStateChange?: (snapshot: LiveHorizonSnapshot) => void
   interactive?: boolean
   height?: number
   bands?: number
@@ -47,8 +35,6 @@ export type LiveHorizonProps = {
   negativeColors?: readonly string[]
   mode?: HorizonMode
   overlapSteps?: number
-  maxPoints?: number
-  serverDelaySeconds?: number
 }
 
 const defaultPositiveColors = [
@@ -63,19 +49,6 @@ const defaultNegativeColors = [
   "var(--horizon-negative-3)",
   "var(--horizon-negative-4)",
 ]
-function alignedEnd(stepSeconds: number, serverDelaySeconds: number) {
-  return (
-    Math.floor((Date.now() / 1000 - serverDelaySeconds) / stepSeconds) *
-    stepSeconds
-  )
-}
-
-function nextRefreshDelay(stepSeconds: number, serverDelaySeconds: number) {
-  const stepMilliseconds = stepSeconds * 1000
-  const delayedNow = Date.now() - serverDelaySeconds * 1000
-  return stepMilliseconds - (delayedNow % stepMilliseconds) + 250
-}
-
 function resolveColor(element: HTMLElement, color: string) {
   const match = color.match(/^var\((--[^)]+)\)$/)
   return match
@@ -83,29 +56,14 @@ function resolveColor(element: HTMLElement, color: string) {
     : color
 }
 
-function pointInRange(
-  points: readonly TimeSeriesPoint[],
-  start: number,
-  end: number
-) {
-  for (let index = points.length - 1; index >= 0; index -= 1) {
-    const point = points[index]
-    if (point[0] <= end && point[0] >= start) {
-      return point
-    }
-  }
-  return null
-}
-
 export function LiveHorizon({
-  load,
+  points,
+  range,
   stepSeconds,
-  windowSeconds,
   ariaLabel,
   className,
   rulerTimestamp: controlledRulerTimestamp,
   onRulerTimestampChange,
-  onStateChange,
   interactive = true,
   height = 120,
   bands = 4,
@@ -115,26 +73,19 @@ export function LiveHorizon({
   negativeColors = defaultNegativeColors,
   mode = "offset",
   overlapSteps = 6,
-  maxPoints = 4096,
-  serverDelaySeconds = 5,
 }: LiveHorizonProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rendererRef = useRef<HorizonRenderer | null>(null)
-  const pointsRef = useRef<readonly TimeSeriesPoint[]>([])
   const [width, setWidth] = useState(0)
-  const [points, setPoints] = useState<readonly TimeSeriesPoint[]>([])
-  const [range, setRange] = useState<TimeRange | null>(null)
-  const [status, setStatus] = useState<LiveHorizonStatus>("loading")
   const [internalRulerTimestamp, setInternalRulerTimestamp] = useState<
     number | null
   >(null)
   const [themeRevision, setThemeRevision] = useState(0)
   const measured = width > 0
-  const columnCount =
-    windowSeconds === undefined
-      ? width
-      : Math.floor(windowSeconds / stepSeconds) + 1
+  const columnCount = range
+    ? Math.floor((range.end - range.start) / stepSeconds) + 1
+    : width
 
   useEffect(() => {
     const element = containerRef.current
@@ -161,81 +112,6 @@ export function LiveHorizon({
     })
     return () => observer.disconnect()
   }, [])
-
-  useEffect(() => {
-    if (!measured) {
-      return
-    }
-
-    let active = true
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let controller: AbortController | undefined
-
-    const refresh = async () => {
-      const end = alignedEnd(stepSeconds, serverDelaySeconds)
-      const start = end - (columnCount - 1) * stepSeconds
-      const current = pointsRef.current
-      const earliest = current[0]?.[0]
-      const latest = current[current.length - 1]?.[0]
-      const requestStart =
-        earliest === undefined || earliest > start || latest === undefined
-          ? start
-          : Math.max(start, latest - overlapSteps * stepSeconds)
-
-      controller = new AbortController()
-      try {
-        const incoming = await load(
-          { start: requestStart, end },
-          controller.signal
-        )
-        if (!active) {
-          return
-        }
-        if (incoming.length === 0 && current.length === 0) {
-          throw new Error("The time-series loader returned no points")
-        }
-
-        const retentionStart = end - (maxPoints - 1) * stepSeconds
-        const merged = mergeTimeSeriesPoints(current, incoming, retentionStart)
-        pointsRef.current = merged
-        setPoints(merged)
-        setRange({ start, end })
-        setStatus("live")
-      } catch (error) {
-        if (
-          !active ||
-          (error instanceof DOMException && error.name === "AbortError")
-        ) {
-          return
-        }
-        setStatus(pointsRef.current.length > 0 ? "stale" : "unavailable")
-      } finally {
-        if (active) {
-          timer = setTimeout(
-            refresh,
-            nextRefreshDelay(stepSeconds, serverDelaySeconds)
-          )
-        }
-      }
-    }
-
-    void refresh()
-    return () => {
-      active = false
-      controller?.abort()
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [
-    columnCount,
-    load,
-    maxPoints,
-    measured,
-    overlapSteps,
-    serverDelaySeconds,
-    stepSeconds,
-  ])
 
   const visiblePoints = useMemo(
     () =>
@@ -268,6 +144,7 @@ export function LiveHorizon({
     const canvas = canvasRef.current
     const container = containerRef.current
     if (!canvas || !container || !range || !measured) {
+      rendererRef.current?.reset()
       return
     }
 
@@ -306,19 +183,6 @@ export function LiveHorizon({
     stepSeconds,
     themeRevision,
   ])
-
-  const rulerPoint =
-    rulerTimestamp === null
-      ? null
-      : (visiblePoints.find(([timestamp]) => timestamp === rulerTimestamp) ??
-        null)
-  const latestPoint = range
-    ? pointInRange(visiblePoints, range.start, range.end)
-    : null
-
-  useEffect(() => {
-    onStateChange?.({ status, latestPoint, rulerPoint, range })
-  }, [latestPoint, onStateChange, range, rulerPoint, status])
 
   const moveRuler = useCallback(
     (clientX: number) => {
