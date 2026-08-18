@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine3.23 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine3.24 AS build
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -18,7 +18,7 @@ COPY internal ./internal
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /out/intern-api ./cmd/intern-api
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -modfile=tools/go.mod -o /out/goose github.com/pressly/goose/v3/cmd/goose
 
-FROM alpine:3.23
+FROM alpine:3.24
 
 LABEL org.opencontainers.image.source="https://github.com/sbekti/intern"
 
