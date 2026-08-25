@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -18,6 +20,7 @@ type Config struct {
 	Auth          AuthConfig
 	TrustedProxy  TrustedProxyConfig
 	Authorization AuthorizationConfig
+	RADIUSMAB     RADIUSMABConfig
 }
 
 type ServerConfig struct{ Addr string }
@@ -60,6 +63,13 @@ type TrustedProxyConfig struct {
 }
 
 type AuthorizationConfig struct{ AdminGroups []string }
+
+type RADIUSMABConfig struct{ TokenHashes []RADIUSMABTokenHash }
+
+type RADIUSMABTokenHash struct {
+	Site   string
+	SHA256 [sha256.Size]byte
+}
 
 type LogLevel string
 
@@ -135,6 +145,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	radiusMABTokenHashes, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	if err != nil {
+		return Config{}, err
+	}
 
 	cfg := Config{
 		Server:   ServerConfig{Addr: envOrDefault("INTERN_API_ADDR", ":8080")},
@@ -168,6 +182,7 @@ func Load() (Config, error) {
 			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", ""),
 		},
 		Authorization: AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
+		RADIUSMAB:     RADIUSMABConfig{TokenHashes: radiusMABTokenHashes},
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -337,4 +352,31 @@ func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, er
 		return 0, fmt.Errorf("invalid %s: %w", key, err)
 	}
 	return parsed, nil
+}
+
+func envRADIUSMABTokenHashes(key string) ([]RADIUSMABTokenHash, error) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil, nil
+	}
+
+	entries := strings.Split(raw, ",")
+	hashes := make([]RADIUSMABTokenHash, 0, len(entries))
+	seen := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		site, hash, ok := strings.Cut(strings.TrimSpace(entry), "=")
+		site = strings.TrimSpace(site)
+		if !ok || site == "" || seen[site] {
+			return nil, fmt.Errorf("%s must contain unique site=sha256 entries", key)
+		}
+		decoded, err := hex.DecodeString(strings.TrimSpace(hash))
+		if err != nil || len(decoded) != sha256.Size {
+			return nil, fmt.Errorf("%s hash for %q must be 64 hexadecimal characters", key, site)
+		}
+		var tokenHash [sha256.Size]byte
+		copy(tokenHash[:], decoded)
+		hashes = append(hashes, RADIUSMABTokenHash{Site: site, SHA256: tokenHash})
+		seen[site] = true
+	}
+	return hashes, nil
 }

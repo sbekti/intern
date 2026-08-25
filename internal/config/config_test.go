@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/netip"
 	"testing"
 	"time"
@@ -65,5 +67,34 @@ func TestLoadDoesNotProvideInsecureJWTDefaults(t *testing.T) {
 	}
 	if _, err := Load(); err == nil {
 		t.Fatal("expected missing required configuration to fail closed")
+	}
+}
+
+func TestEnvRADIUSMABTokenHashes(t *testing.T) {
+	first := sha256.Sum256([]byte("first-token"))
+	second := sha256.Sum256([]byte("second-token"))
+	t.Setenv("RADIUS_MAB_TOKEN_HASHES", fmt.Sprintf("site-one=%x,site-two=%x", first, second))
+
+	hashes, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	if err != nil {
+		t.Fatalf("parse token hashes: %v", err)
+	}
+	if len(hashes) != 2 || hashes[0].Site != "site-one" || hashes[0].SHA256 != first || hashes[1].Site != "site-two" || hashes[1].SHA256 != second {
+		t.Fatalf("unexpected token hashes: %#v", hashes)
+	}
+}
+
+func TestEnvRADIUSMABTokenHashesRejectsInvalidEntries(t *testing.T) {
+	for name, value := range map[string]string{
+		"missing site":   "=0123",
+		"invalid hash":   "site-one=0123",
+		"duplicate site": fmt.Sprintf("site-one=%064x,site-one=%064x", 1, 2),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("RADIUS_MAB_TOKEN_HASHES", value)
+			if _, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES"); err == nil {
+				t.Fatal("invalid token hashes unexpectedly parsed")
+			}
+		})
 	}
 }

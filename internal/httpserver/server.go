@@ -32,28 +32,33 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	router.Use(middleware.RequestID)
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
-	router.Use(clientInfoMiddleware(clientIPResolver))
-	router.Use(authenticator.OptionalPrincipalMiddleware())
-	router.Use(auth.RequireActiveBearerSession(deps.SessionService))
-	router.Use(userSyncer.Middleware())
 
-	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, response{Status: "ok"})
+	registerRADIUSMABRoutes(router, logger, cfg.RADIUSMAB, deviceService)
+
+	router.Group(func(r chi.Router) {
+		r.Use(clientInfoMiddleware(clientIPResolver))
+		r.Use(authenticator.OptionalPrincipalMiddleware())
+		r.Use(auth.RequireActiveBearerSession(deps.SessionService))
+		r.Use(userSyncer.Middleware())
+
+		r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, response{Status: "ok"})
+		})
+
+		r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+			if deps.DatabasePinger == nil {
+				writeJSON(w, http.StatusServiceUnavailable, response{Status: "unavailable"})
+				return
+			}
+			if err := deps.DatabasePinger.Ping(r.Context()); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, response{Status: "unavailable"})
+				return
+			}
+			writeJSON(w, http.StatusOK, response{Status: "ok"})
+		})
+
+		registerAPIRoutes(r, logger, authorizer, vlanService, deviceService, clientAuthService, authSpamService, sessionService, auditLogService)
 	})
-
-	router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		if deps.DatabasePinger == nil {
-			writeJSON(w, http.StatusServiceUnavailable, response{Status: "unavailable"})
-			return
-		}
-		if err := deps.DatabasePinger.Ping(r.Context()); err != nil {
-			writeJSON(w, http.StatusServiceUnavailable, response{Status: "unavailable"})
-			return
-		}
-		writeJSON(w, http.StatusOK, response{Status: "ok"})
-	})
-
-	registerAPIRoutes(router, logger, authorizer, vlanService, deviceService, clientAuthService, authSpamService, sessionService, auditLogService)
 
 	return router
 }
