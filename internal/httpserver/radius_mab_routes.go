@@ -20,7 +20,6 @@ func registerRADIUSMABRoutes(router chi.Router, logger *slog.Logger, cfg config.
 	authenticate := radiusMABTokenMiddleware(logger, cfg.TokenHashes)
 	handler := radiusMABSnapshotHandler(logger, deviceService)
 	router.With(authenticate).Get(radiusMABSnapshotPath, handler)
-	router.With(authenticate).Head(radiusMABSnapshotPath, handler)
 }
 
 func radiusMABTokenMiddleware(logger *slog.Logger, hashes []config.RADIUSMABTokenHash) func(http.Handler) http.Handler {
@@ -72,18 +71,8 @@ func radiusMABSnapshotHandler(logger *slog.Logger, deviceService DeviceService) 
 			return
 		}
 
-		body := renderRADIUSMABSnapshot(records)
-		digest := sha256.Sum256(body)
-		etag := fmt.Sprintf("\"%x\"", digest)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("ETag", etag)
-		if r.Header.Get("If-None-Match") == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-		if r.Method != http.MethodHead {
-			_, _ = w.Write(body)
-		}
+		_, _ = w.Write(renderRADIUSMABSnapshot(records))
 	}
 }
 
@@ -98,12 +87,14 @@ func renderRADIUSMABSnapshot(records []devices.DeviceRecord) []byte {
 		return active[i].Device.MacAddress < active[j].Device.MacAddress
 	})
 
-	var body strings.Builder
-	body.WriteString("# radius-site-mab-v1\n")
+	var entries strings.Builder
 	for _, record := range active {
 		mac := strings.ToLower(strings.ReplaceAll(record.Device.MacAddress, ":", ""))
-		fmt.Fprintf(&body, "%s Cleartext-Password := \"%s\"\n", mac, mac)
-		fmt.Fprintf(&body, "\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"%d\"\n\n", record.Device.VlanID)
+		fmt.Fprintf(&entries, "%s Cleartext-Password := \"%s\"\n", mac, mac)
+		fmt.Fprintf(&entries, "\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"%d\"\n\n", record.Device.VlanID)
 	}
-	return []byte(body.String())
+
+	entryText := entries.String()
+	revision := sha256.Sum256([]byte(entryText))
+	return []byte(fmt.Sprintf("# radius-site-mab-v1\n# revision=%x\n%s", revision, entryText))
 }

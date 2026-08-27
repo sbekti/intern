@@ -298,11 +298,12 @@ func TestHandlerIntegrationRADIUSMABSnapshotFromDeviceInventory(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("snapshot status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	want := "# radius-site-mab-v1\n" +
+	entries :=
 		"020000000001 Cleartext-Password := \"020000000001\"\n" +
-		"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"1\"\n\n" +
-		"020000000002 Cleartext-Password := \"020000000002\"\n" +
-		"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"20\"\n\n"
+			"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"1\"\n\n" +
+			"020000000002 Cleartext-Password := \"020000000002\"\n" +
+			"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"20\"\n\n"
+	want := expectedRADIUSMABSnapshot(entries)
 	if rec.Body.String() != want {
 		t.Fatalf("snapshot body = %q, want %q", rec.Body.String(), want)
 	}
