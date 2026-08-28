@@ -96,5 +96,5 @@ func renderRADIUSMABSnapshot(records []devices.DeviceRecord) []byte {
 
 	entryText := entries.String()
 	revision := sha256.Sum256([]byte(entryText))
-	return []byte(fmt.Sprintf("# radius-site-mab-v1\n# revision=%x\n%s", revision, entryText))
+	return []byte(fmt.Sprintf("# radius-mab-v1\n# revision=%x\n%s", revision, entryText))
 }

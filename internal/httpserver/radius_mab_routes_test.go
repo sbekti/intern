@@ -111,5 +111,5 @@ func newRADIUSMABTestHandler(t *testing.T, records []devices.DeviceRecord) http.
 
 func expectedRADIUSMABSnapshot(entries string) string {
 	revision := sha256.Sum256([]byte(entries))
-	return fmt.Sprintf("# radius-site-mab-v1\n# revision=%x\n%s", revision, entries)
+	return fmt.Sprintf("# radius-mab-v1\n# revision=%x\n%s", revision, entries)
 }
