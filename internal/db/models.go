@@ -5,8 +5,6 @@
 package db
 
 import (
-	"net/netip"
-
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -52,25 +50,6 @@ type AuthSession struct {
 	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
-type Nas struct {
-	ID              int64   `db:"id" json:"id"`
-	Nasname         string  `db:"nasname" json:"nasname"`
-	Shortname       string  `db:"shortname" json:"shortname"`
-	Type            string  `db:"type" json:"type"`
-	Ports           *int32  `db:"ports" json:"ports"`
-	Secret          string  `db:"secret" json:"secret"`
-	Server          *string `db:"server" json:"server"`
-	Community       *string `db:"community" json:"community"`
-	Description     *string `db:"description" json:"description"`
-	RequireMa       string  `db:"require_ma" json:"require_ma"`
-	LimitProxyState string  `db:"limit_proxy_state" json:"limit_proxy_state"`
-}
-
-type Nasreload struct {
-	Nasipaddress netip.Addr         `db:"nasipaddress" json:"nasipaddress"`
-	Reloadtime   pgtype.Timestamptz `db:"reloadtime" json:"reloadtime"`
-}
-
 type NetworkDevice struct {
 	ID              pgtype.UUID        `db:"id" json:"id"`
 	MacAddress      string             `db:"mac_address" json:"mac_address"`
@@ -81,89 +60,6 @@ type NetworkDevice struct {
 	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 	Disabled        bool               `db:"disabled" json:"disabled"`
-}
-
-type Radacct struct {
-	Radacctid           int64              `db:"radacctid" json:"radacctid"`
-	Acctsessionid       string             `db:"acctsessionid" json:"acctsessionid"`
-	Acctuniqueid        string             `db:"acctuniqueid" json:"acctuniqueid"`
-	Username            *string            `db:"username" json:"username"`
-	Groupname           *string            `db:"groupname" json:"groupname"`
-	Realm               *string            `db:"realm" json:"realm"`
-	Nasipaddress        netip.Addr         `db:"nasipaddress" json:"nasipaddress"`
-	Nasportid           *string            `db:"nasportid" json:"nasportid"`
-	Nasporttype         *string            `db:"nasporttype" json:"nasporttype"`
-	Acctstarttime       pgtype.Timestamptz `db:"acctstarttime" json:"acctstarttime"`
-	Acctupdatetime      pgtype.Timestamptz `db:"acctupdatetime" json:"acctupdatetime"`
-	Acctstoptime        pgtype.Timestamptz `db:"acctstoptime" json:"acctstoptime"`
-	Acctinterval        *int64             `db:"acctinterval" json:"acctinterval"`
-	Acctsessiontime     *int64             `db:"acctsessiontime" json:"acctsessiontime"`
-	Acctauthentic       *string            `db:"acctauthentic" json:"acctauthentic"`
-	ConnectinfoStart    *string            `db:"connectinfo_start" json:"connectinfo_start"`
-	ConnectinfoStop     *string            `db:"connectinfo_stop" json:"connectinfo_stop"`
-	Acctinputoctets     *int64             `db:"acctinputoctets" json:"acctinputoctets"`
-	Acctoutputoctets    *int64             `db:"acctoutputoctets" json:"acctoutputoctets"`
-	Calledstationid     *string            `db:"calledstationid" json:"calledstationid"`
-	Callingstationid    *string            `db:"callingstationid" json:"callingstationid"`
-	Acctterminatecause  *string            `db:"acctterminatecause" json:"acctterminatecause"`
-	Servicetype         *string            `db:"servicetype" json:"servicetype"`
-	Framedprotocol      *string            `db:"framedprotocol" json:"framedprotocol"`
-	Framedipaddress     *netip.Addr        `db:"framedipaddress" json:"framedipaddress"`
-	Framedipv6address   *netip.Addr        `db:"framedipv6address" json:"framedipv6address"`
-	Framedipv6prefix    *netip.Addr        `db:"framedipv6prefix" json:"framedipv6prefix"`
-	Framedinterfaceid   *string            `db:"framedinterfaceid" json:"framedinterfaceid"`
-	Delegatedipv6prefix *netip.Addr        `db:"delegatedipv6prefix" json:"delegatedipv6prefix"`
-	Class               *string            `db:"class" json:"class"`
-}
-
-type Radcheck struct {
-	ID        int64  `db:"id" json:"id"`
-	Username  string `db:"username" json:"username"`
-	Attribute string `db:"attribute" json:"attribute"`
-	Op        string `db:"op" json:"op"`
-	Value     string `db:"value" json:"value"`
-}
-
-type Radgroupcheck struct {
-	ID        int64  `db:"id" json:"id"`
-	Groupname string `db:"groupname" json:"groupname"`
-	Attribute string `db:"attribute" json:"attribute"`
-	Op        string `db:"op" json:"op"`
-	Value     string `db:"value" json:"value"`
-}
-
-type Radgroupreply struct {
-	ID        int64  `db:"id" json:"id"`
-	Groupname string `db:"groupname" json:"groupname"`
-	Attribute string `db:"attribute" json:"attribute"`
-	Op        string `db:"op" json:"op"`
-	Value     string `db:"value" json:"value"`
-}
-
-type Radpostauth struct {
-	ID               int64              `db:"id" json:"id"`
-	Username         string             `db:"username" json:"username"`
-	Pass             *string            `db:"pass" json:"pass"`
-	Reply            *string            `db:"reply" json:"reply"`
-	Calledstationid  *string            `db:"calledstationid" json:"calledstationid"`
-	Callingstationid *string            `db:"callingstationid" json:"callingstationid"`
-	Authdate         pgtype.Timestamptz `db:"authdate" json:"authdate"`
-	Class            *string            `db:"class" json:"class"`
-}
-
-type Radreply struct {
-	ID        int64  `db:"id" json:"id"`
-	Username  string `db:"username" json:"username"`
-	Attribute string `db:"attribute" json:"attribute"`
-	Op        string `db:"op" json:"op"`
-	Value     string `db:"value" json:"value"`
-}
-
-type Radusergroup struct {
-	ID        int64  `db:"id" json:"id"`
-	Username  string `db:"username" json:"username"`
-	Groupname string `db:"groupname" json:"groupname"`
-	Priority  int32  `db:"priority" json:"priority"`
 }
 
 type User struct {

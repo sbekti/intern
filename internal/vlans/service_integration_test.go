@@ -49,9 +49,6 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 		t.Fatalf("expected update to succeed, got %v", err)
 	}
 
-	assertGroupReplyState(t, ctx, pg.Pool, "vlan-31", "31")
-	assertNoGroupReplies(t, ctx, pg.Pool, "vlan-30")
-
 	if err := service.Delete(ctx, actor, updated.VlanID); err != nil {
 		t.Fatalf("expected delete to succeed, got %v", err)
 	}
@@ -82,7 +79,6 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 			"description": "Updated lab devices",
 		},
 	})
-	assertNoGroupReplies(t, ctx, pg.Pool, "vlan-31")
 }
 
 func TestServiceCreateConflictAndAuditLog(t *testing.T) {
@@ -115,8 +111,6 @@ func TestServiceCreateConflictAndAuditLog(t *testing.T) {
 	if created.Name != "lab" || created.VlanID != 30 {
 		t.Fatalf("unexpected vlan %#v", created)
 	}
-
-	assertGroupReplyState(t, ctx, pg.Pool, "vlan-30", "30")
 
 	var auditCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'vlan.create'`).Scan(&auditCount); err != nil {
@@ -152,55 +146,6 @@ func assertVLANAuditMetadata(t *testing.T, ctx context.Context, pool db.DBTX, ac
 	gotBytes, _ := json.Marshal(got)
 	if string(wantBytes) != string(gotBytes) {
 		t.Fatalf("unexpected vlan audit metadata for %s\nwant=%s\ngot=%s", action, string(wantBytes), string(gotBytes))
-	}
-}
-
-func assertGroupReplyState(t *testing.T, ctx context.Context, pool db.DBTX, groupName string, vlanID string) {
-	t.Helper()
-
-	rows, err := pool.Query(ctx, `SELECT attribute, value FROM radgroupreply WHERE groupname = $1 ORDER BY attribute`, groupName)
-	if err != nil {
-		t.Fatalf("failed to query radgroupreply for %s: %v", groupName, err)
-	}
-	defer rows.Close()
-
-	got := map[string]string{}
-	for rows.Next() {
-		var attribute string
-		var value string
-		if err := rows.Scan(&attribute, &value); err != nil {
-			t.Fatalf("failed to scan radgroupreply row: %v", err)
-		}
-		got[attribute] = value
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("failed to read radgroupreply rows: %v", err)
-	}
-
-	want := map[string]string{
-		"Tunnel-Medium-Type":      "IEEE-802",
-		"Tunnel-Private-Group-ID": vlanID,
-		"Tunnel-Type":             "VLAN",
-	}
-	if len(got) != len(want) {
-		t.Fatalf("unexpected radgroupreply count for %s: got %d want %d", groupName, len(got), len(want))
-	}
-	for attribute, value := range want {
-		if got[attribute] != value {
-			t.Fatalf("unexpected %s value for %s: got %q want %q", attribute, groupName, got[attribute], value)
-		}
-	}
-}
-
-func assertNoGroupReplies(t *testing.T, ctx context.Context, pool db.DBTX, groupName string) {
-	t.Helper()
-
-	var count int
-	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM radgroupreply WHERE groupname = $1`, groupName).Scan(&count); err != nil {
-		t.Fatalf("failed to count radgroupreply rows for %s: %v", groupName, err)
-	}
-	if count != 0 {
-		t.Fatalf("expected no radgroupreply rows for %s, got %d", groupName, count)
 	}
 }
 

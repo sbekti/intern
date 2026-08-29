@@ -35,9 +35,6 @@ type Querier interface {
 	CreateVlan(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error)
 	UpdateVlan(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error)
 	DeleteVlan(ctx context.Context, arg db.DeleteVlanParams) error
-	DeleteRadgrouprepliesByGroupname(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error
-	InsertRadgroupreply(ctx context.Context, arg db.InsertRadgroupreplyParams) error
-	UpdateRadusergroupsGroupname(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error
 	CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
@@ -120,10 +117,6 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.VlanWrite
 			return classifyDBError(err)
 		}
 
-		if err := syncRadiusGroupReplies(ctx, q, created.VlanID); err != nil {
-			return classifyDBError(err)
-		}
-
 		metadata, err := json.Marshal(map[string]any{
 			"after": map[string]any{
 				"name":        created.Name,
@@ -178,25 +171,6 @@ func (s *Service) Update(ctx context.Context, actor db.User, currentVlanID int32
 			return classifyDBError(err)
 		}
 
-		oldGroup := radiusGroupName(current.VlanID)
-		newGroup := radiusGroupName(updated.VlanID)
-		if oldGroup != newGroup {
-			if err := q.UpdateRadusergroupsGroupname(ctx, db.UpdateRadusergroupsGroupnameParams{
-				OldGroupname: oldGroup,
-				NewGroupname: newGroup,
-			}); err != nil {
-				return classifyDBError(err)
-			}
-			if err := q.DeleteRadgrouprepliesByGroupname(ctx, db.DeleteRadgrouprepliesByGroupnameParams{
-				Groupname: oldGroup,
-			}); err != nil {
-				return classifyDBError(err)
-			}
-		}
-		if err := syncRadiusGroupReplies(ctx, q, updated.VlanID); err != nil {
-			return classifyDBError(err)
-		}
-
 		metadata, err := json.Marshal(map[string]any{
 			"before": map[string]any{
 				"name":        current.Name,
@@ -247,12 +221,6 @@ func (s *Service) Delete(ctx context.Context, actor db.User, vlanID int32) error
 		if err := q.DeleteVlan(ctx, db.DeleteVlanParams{VlanID: vlanID}); err != nil {
 			return classifyDeleteError(err)
 		}
-		if err := q.DeleteRadgrouprepliesByGroupname(ctx, db.DeleteRadgrouprepliesByGroupnameParams{
-			Groupname: radiusGroupName(current.VlanID),
-		}); err != nil {
-			return classifyDBError(err)
-		}
-
 		metadata, err := json.Marshal(map[string]any{
 			"before": map[string]any{
 				"name":        current.Name,
@@ -328,32 +296,6 @@ func mergePatch(current db.Vlan, patch api.VlanPatch) (db.UpdateVlanParams, erro
 		Name:        name,
 		Description: description,
 	}, nil
-}
-
-func radiusGroupName(vlanID int32) string {
-	return fmt.Sprintf("vlan-%d", vlanID)
-}
-
-func syncRadiusGroupReplies(ctx context.Context, q Querier, vlanID int32) error {
-	groupName := radiusGroupName(vlanID)
-	if err := q.DeleteRadgrouprepliesByGroupname(ctx, db.DeleteRadgrouprepliesByGroupnameParams{
-		Groupname: groupName,
-	}); err != nil {
-		return err
-	}
-
-	rows := []db.InsertRadgroupreplyParams{
-		{Groupname: groupName, Attribute: "Tunnel-Type", Op: ":=", Value: "VLAN"},
-		{Groupname: groupName, Attribute: "Tunnel-Medium-Type", Op: ":=", Value: "IEEE-802"},
-		{Groupname: groupName, Attribute: "Tunnel-Private-Group-ID", Op: ":=", Value: fmt.Sprintf("%d", vlanID)},
-	}
-	for _, row := range rows {
-		if err := q.InsertRadgroupreply(ctx, row); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func classifyDBError(err error) error {

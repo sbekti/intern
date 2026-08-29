@@ -14,7 +14,7 @@ import (
 	"github.com/sbekti/intern/internal/testutil"
 )
 
-func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T) {
+func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
@@ -48,8 +48,6 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("expected normalized mac, got %q", created.Device.MacAddress)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddeeff", "vlan-20")
-
 	updated, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
 		MacAddress:  stringPtr("AA-BB-CC-DD-EE-99"),
 		DisplayName: stringPtr("Porch Camera"),
@@ -63,26 +61,16 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 		t.Fatalf("unexpected updated record %#v", updated)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee99", "vlan-10")
-	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddeeff")
-
 	if err := service.Delete(ctx, actor, deviceID(created.Device)); err != nil {
 		t.Fatalf("expected delete to succeed, got %v", err)
 	}
 
-	var deviceCount, radcheckCount, groupCount int
+	var deviceCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM network_devices`).Scan(&deviceCount); err != nil {
 		t.Fatalf("failed to count devices: %v", err)
 	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = 'aabbccddee99'`).Scan(&radcheckCount); err != nil {
-		t.Fatalf("failed to count radcheck rows: %v", err)
-	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = 'aabbccddee99'`).Scan(&groupCount); err != nil {
-		t.Fatalf("failed to count radusergroup rows: %v", err)
-	}
-
-	if deviceCount != 0 || radcheckCount != 0 || groupCount != 0 {
-		t.Fatalf("expected device and radius rows to be removed, got devices=%d radcheck=%d radusergroup=%d", deviceCount, radcheckCount, groupCount)
+	if deviceCount != 0 {
+		t.Fatalf("expected device row to be removed, got %d", deviceCount)
 	}
 
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.create", map[string]any{
@@ -92,7 +80,6 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"display_name": "Camera",
 			"disabled":     false,
 			"vlan_id":      float64(iotID),
-			"radius_group": "vlan-20",
 		},
 	})
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.update", map[string]any{
@@ -109,7 +96,6 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 			"display_name": "Porch Camera",
 			"disabled":     false,
 			"vlan_id":      float64(guestID),
-			"radius_group": "vlan-10",
 		},
 		"old_mac_address": "aa:bb:cc:dd:ee:ff",
 		"new_mac_address": "aa:bb:cc:dd:ee:99",
@@ -125,7 +111,7 @@ func TestServiceSynchronizesRadiusTablesAndWritesDetailedAuditLogs(t *testing.T)
 	})
 }
 
-func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.T) {
+func TestServiceDisableAndEnableUsesLatestValues(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
@@ -154,8 +140,6 @@ func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.
 	if !disabled.Device.Disabled {
 		t.Fatal("expected disabled device state")
 	}
-	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee55")
-
 	updatedWhileDisabled, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
 		MacAddress: stringPtr("AA-BB-CC-DD-EE-66"),
 		VlanId:     int32Ptr(guestID),
@@ -166,9 +150,6 @@ func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.
 	if !updatedWhileDisabled.Device.Disabled {
 		t.Fatal("expected device to remain disabled")
 	}
-	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee55")
-	assertRadiusRowsAbsent(t, ctx, pg.Pool, "aabbccddee66")
-
 	enabled, err := service.Update(ctx, actor, deviceID(created.Device), api.NetworkDevicePatch{
 		Disabled: boolPtr(false),
 	})
@@ -178,8 +159,6 @@ func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.
 	if enabled.Device.Disabled {
 		t.Fatal("expected enabled device state")
 	}
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee66", "vlan-10")
-
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.disable", map[string]any{
 		"before": map[string]any{
 			"id":           deviceID(created.Device).String(),
@@ -194,7 +173,6 @@ func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.
 			"display_name": "Camera",
 			"disabled":     true,
 			"vlan_id":      float64(iotID),
-			"radius_group": "vlan-20",
 		},
 	})
 	assertAuditLogMetadata(t, ctx, pg.Pool, "device.enable", map[string]any{
@@ -211,7 +189,6 @@ func TestServiceDisableAndEnableRestoresRadiusStateUsingLatestValues(t *testing.
 			"display_name": "Camera",
 			"disabled":     false,
 			"vlan_id":      float64(guestID),
-			"radius_group": "vlan-10",
 		},
 	})
 }
@@ -254,7 +231,7 @@ func TestServiceCreateRejectsDuplicateNormalizedMAC(t *testing.T) {
 	}
 }
 
-func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T) {
+func TestServiceUpdateRejectsMissingVLANWithoutPartialChanges(t *testing.T) {
 	t.Parallel()
 
 	pg := testutil.StartPostgres(t)
@@ -287,8 +264,6 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialRadiusChanges(t *testing.T
 	if record.Device.DisplayName != "Sensor" || record.VLAN.Name != "iot" {
 		t.Fatalf("expected device state to remain unchanged, got %#v", record)
 	}
-
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee11", "vlan-20")
 
 	var auditCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'device.update'`).Scan(&auditCount); err != nil {
@@ -343,9 +318,6 @@ func TestServiceUpdateRejectsDuplicateNormalizedMACWithoutPartialChanges(t *test
 		t.Fatalf("expected second device to remain unchanged, got %#v", record)
 	}
 
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee31", "vlan-20")
-	assertRadiusState(t, ctx, pg.Pool, "aabbccddee32", "vlan-10")
-
 	var auditCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE action = 'device.update' AND resource_id = $1`, deviceID(second.Device).String()).Scan(&auditCount); err != nil {
 		t.Fatalf("failed to count device.update audit logs: %v", err)
@@ -388,18 +360,12 @@ func TestServiceDeleteSucceedsWithMissingReferencedVLAN(t *testing.T) {
 		t.Fatalf("expected delete to succeed with missing referenced vlan, got %v", err)
 	}
 
-	var deviceCount, radcheckCount, groupCount int
+	var deviceCount int
 	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM network_devices WHERE id = $1`, created.Device.ID).Scan(&deviceCount); err != nil {
 		t.Fatalf("failed to count device rows: %v", err)
 	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = 'aabbccddee22'`).Scan(&radcheckCount); err != nil {
-		t.Fatalf("failed to count radcheck rows: %v", err)
-	}
-	if err := pg.Pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = 'aabbccddee22'`).Scan(&groupCount); err != nil {
-		t.Fatalf("failed to count radusergroup rows: %v", err)
-	}
-	if deviceCount != 0 || radcheckCount != 0 || groupCount != 0 {
-		t.Fatalf("expected delete to clean up all rows despite missing vlan, got devices=%d radcheck=%d radusergroup=%d", deviceCount, radcheckCount, groupCount)
+	if deviceCount != 0 {
+		t.Fatalf("expected delete to remove device despite missing vlan, got %d rows", deviceCount)
 	}
 }
 
@@ -426,41 +392,6 @@ func vlanNumberByName(t *testing.T, ctx context.Context, pool db.DBTX, name stri
 		t.Fatalf("failed to look up vlan %q: %v", name, err)
 	}
 	return vlanID
-}
-
-func assertRadiusState(t *testing.T, ctx context.Context, pool db.DBTX, username, groupName string) {
-	t.Helper()
-
-	var value, actualGroup string
-	if err := pool.QueryRow(ctx, `SELECT value FROM radcheck WHERE username = $1 AND attribute = 'Cleartext-Password'`, username).Scan(&value); err != nil {
-		t.Fatalf("failed to load radcheck row: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT groupname FROM radusergroup WHERE username = $1`, username).Scan(&actualGroup); err != nil {
-		t.Fatalf("failed to load radusergroup row: %v", err)
-	}
-
-	if value != username {
-		t.Fatalf("expected radcheck value %q, got %q", username, value)
-	}
-	if actualGroup != groupName {
-		t.Fatalf("expected radusergroup %q, got %q", groupName, actualGroup)
-	}
-}
-
-func assertRadiusRowsAbsent(t *testing.T, ctx context.Context, pool db.DBTX, username string) {
-	t.Helper()
-
-	var radcheckCount, groupCount int
-	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM radcheck WHERE username = $1`, username).Scan(&radcheckCount); err != nil {
-		t.Fatalf("failed to count radcheck rows for %q: %v", username, err)
-	}
-	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM radusergroup WHERE username = $1`, username).Scan(&groupCount); err != nil {
-		t.Fatalf("failed to count radusergroup rows for %q: %v", username, err)
-	}
-
-	if radcheckCount != 0 || groupCount != 0 {
-		t.Fatalf("expected no radius rows for %q, got radcheck=%d radusergroup=%d", username, radcheckCount, groupCount)
-	}
 }
 
 func assertAuditLogMetadata(t *testing.T, ctx context.Context, pool db.DBTX, action string, want map[string]any) {

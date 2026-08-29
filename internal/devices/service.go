@@ -44,10 +44,6 @@ type Querier interface {
 	UpdateNetworkDevice(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
 	DeleteNetworkDevice(ctx context.Context, arg db.DeleteNetworkDeviceParams) error
 	GetVlanByVlanID(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
-	UpsertRadcheckCleartextPassword(ctx context.Context, arg db.UpsertRadcheckCleartextPasswordParams) error
-	DeleteRadcheckCleartextPasswordByUsername(ctx context.Context, arg db.DeleteRadcheckCleartextPasswordByUsernameParams) error
-	DeleteRadusergroupsByUsername(ctx context.Context, arg db.DeleteRadusergroupsByUsernameParams) error
-	InsertRadusergroup(ctx context.Context, arg db.InsertRadusergroupParams) error
 	CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
@@ -171,16 +167,6 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 			return classifyDBError(err)
 		}
 
-		if device.Disabled {
-			if err := ensureRadiusAbsent(ctx, q, params.MacAddressBare); err != nil {
-				return err
-			}
-		} else {
-			if err := syncRadiusAssignment(ctx, q, params.MacAddressBare, vlan.VlanID); err != nil {
-				return err
-			}
-		}
-
 		metadata, err := json.Marshal(map[string]any{
 			"after": map[string]any{
 				"id":           deviceIDString(device.ID),
@@ -188,7 +174,6 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 				"display_name": device.DisplayName,
 				"disabled":     device.Disabled,
 				"vlan_id":      device.VlanID,
-				"radius_group": radiusGroupName(vlan.VlanID),
 			},
 		})
 		if err != nil {
@@ -258,24 +243,6 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 			return classifyDBError(err)
 		}
 
-		oldRadiusUsername := colonMACToBare(current.MacAddress)
-		newRadiusUsername := colonMACToBare(device.MacAddress)
-		if oldRadiusUsername != newRadiusUsername {
-			if err := ensureRadiusAbsent(ctx, q, oldRadiusUsername); err != nil {
-				return err
-			}
-		}
-
-		if device.Disabled {
-			if err := ensureRadiusAbsent(ctx, q, newRadiusUsername); err != nil {
-				return err
-			}
-		} else {
-			if err := syncRadiusAssignment(ctx, q, newRadiusUsername, vlan.VlanID); err != nil {
-				return err
-			}
-		}
-
 		action := "device.update"
 		switch {
 		case !current.Disabled && device.Disabled:
@@ -298,7 +265,6 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 				"display_name": device.DisplayName,
 				"disabled":     device.Disabled,
 				"vlan_id":      device.VlanID,
-				"radius_group": radiusGroupName(vlan.VlanID),
 			},
 		}
 		if current.MacAddress != device.MacAddress {
@@ -351,11 +317,6 @@ func (s *Service) Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 			return classifyDBError(err)
 		}
 
-		radiusUsername := colonMACToBare(current.MacAddress)
-		if err := ensureRadiusAbsent(ctx, q, radiusUsername); err != nil {
-			return err
-		}
-
 		metadata, err := json.Marshal(map[string]any{
 			"before": map[string]any{
 				"id":           deviceIDString(current.ID),
@@ -383,14 +344,13 @@ func (s *Service) Delete(ctx context.Context, actor db.User, id uuid.UUID) error
 
 type normalizedCreate struct {
 	MacAddressColon string
-	MacAddressBare  string
 	DisplayName     string
 	Disabled        bool
 	VlanID          int32
 }
 
 func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
-	macBare, macColon, err := normalizeMAC(input.MacAddress)
+	macColon, err := normalizeMAC(input.MacAddress)
 	if err != nil {
 		return normalizedCreate{}, err
 	}
@@ -405,7 +365,6 @@ func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
 
 	return normalizedCreate{
 		MacAddressColon: macColon,
-		MacAddressBare:  macBare,
 		DisplayName:     displayName,
 		Disabled:        boolValue(input.Disabled),
 		VlanID:          input.VlanId,
@@ -419,7 +378,7 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 
 	macAddress := current.MacAddress
 	if patch.MacAddress != nil {
-		_, normalizedMAC, err := normalizeMAC(*patch.MacAddress)
+		normalizedMAC, err := normalizeMAC(*patch.MacAddress)
 		if err != nil {
 			return db.UpdateNetworkDeviceParams{}, err
 		}
@@ -455,47 +414,11 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 	}, nil
 }
 
-func syncRadiusAssignment(ctx context.Context, q Querier, username string, vlanID int32) error {
-	if err := q.UpsertRadcheckCleartextPassword(ctx, db.UpsertRadcheckCleartextPasswordParams{
-		Username: username,
-		Value:    username,
-	}); err != nil {
-		return classifyDBError(err)
-	}
-	if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-		Username: username,
-	}); err != nil {
-		return classifyDBError(err)
-	}
-	if err := q.InsertRadusergroup(ctx, db.InsertRadusergroupParams{
-		Username:  username,
-		Groupname: radiusGroupName(vlanID),
-		Priority:  0,
-	}); err != nil {
-		return classifyDBError(err)
-	}
-	return nil
-}
-
-func ensureRadiusAbsent(ctx context.Context, q Querier, username string) error {
-	if err := q.DeleteRadusergroupsByUsername(ctx, db.DeleteRadusergroupsByUsernameParams{
-		Username: username,
-	}); err != nil {
-		return classifyDBError(err)
-	}
-	if err := q.DeleteRadcheckCleartextPasswordByUsername(ctx, db.DeleteRadcheckCleartextPasswordByUsernameParams{
-		Username: username,
-	}); err != nil {
-		return classifyDBError(err)
-	}
-	return nil
-}
-
 func boolValue(value *bool) bool {
 	return value != nil && *value
 }
 
-func normalizeMAC(raw string) (bare string, colon string, err error) {
+func normalizeMAC(raw string) (string, error) {
 	var builder strings.Builder
 	for _, r := range strings.TrimSpace(strings.ToLower(raw)) {
 		switch {
@@ -504,16 +427,16 @@ func normalizeMAC(raw string) (bare string, colon string, err error) {
 		case unicode.IsDigit(r) || (r >= 'a' && r <= 'f'):
 			builder.WriteRune(r)
 		default:
-			return "", "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
+			return "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
 		}
 	}
 
-	bare = builder.String()
+	bare := builder.String()
 	if len(bare) != 12 {
-		return "", "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
+		return "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
 	}
 	if _, err := hex.DecodeString(bare); err != nil {
-		return "", "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
+		return "", ValidationError{Message: "mac_address must contain 12 hexadecimal characters"}
 	}
 
 	var colonBuilder strings.Builder
@@ -524,15 +447,7 @@ func normalizeMAC(raw string) (bare string, colon string, err error) {
 		colonBuilder.WriteString(bare[i : i+2])
 	}
 
-	return bare, colonBuilder.String(), nil
-}
-
-func radiusGroupName(vlanID int32) string {
-	return fmt.Sprintf("vlan-%d", vlanID)
-}
-
-func colonMACToBare(value string) string {
-	return strings.ReplaceAll(value, ":", "")
+	return colonBuilder.String(), nil
 }
 
 func classifyDBError(err error) error {

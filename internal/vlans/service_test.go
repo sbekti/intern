@@ -12,15 +12,12 @@ import (
 )
 
 type fakeQuerier struct {
-	listFn             func(ctx context.Context) ([]db.Vlan, error)
-	getFn              func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
-	createFn           func(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error)
-	updateFn           func(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error)
-	deleteFn           func(ctx context.Context, arg db.DeleteVlanParams) error
-	deleteGroupFn      func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error
-	insertGroupFn      func(ctx context.Context, arg db.InsertRadgroupreplyParams) error
-	updateUsergroupsFn func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error
-	createLogFn        func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
+	listFn      func(ctx context.Context) ([]db.Vlan, error)
+	getFn       func(ctx context.Context, arg db.GetVlanByVlanIDParams) (db.Vlan, error)
+	createFn    func(ctx context.Context, arg db.CreateVlanParams) (db.Vlan, error)
+	updateFn    func(ctx context.Context, arg db.UpdateVlanParams) (db.Vlan, error)
+	deleteFn    func(ctx context.Context, arg db.DeleteVlanParams) error
+	createLogFn func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
 func (f fakeQuerier) ListVlans(ctx context.Context) ([]db.Vlan, error) {
@@ -41,18 +38,6 @@ func (f fakeQuerier) UpdateVlan(ctx context.Context, arg db.UpdateVlanParams) (d
 
 func (f fakeQuerier) DeleteVlan(ctx context.Context, arg db.DeleteVlanParams) error {
 	return f.deleteFn(ctx, arg)
-}
-
-func (f fakeQuerier) DeleteRadgrouprepliesByGroupname(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error {
-	return f.deleteGroupFn(ctx, arg)
-}
-
-func (f fakeQuerier) InsertRadgroupreply(ctx context.Context, arg db.InsertRadgroupreplyParams) error {
-	return f.insertGroupFn(ctx, arg)
-}
-
-func (f fakeQuerier) UpdateRadusergroupsGroupname(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
-	return f.updateUsergroupsFn(ctx, arg)
 }
 
 func (f fakeQuerier) CreateAuditLog(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
@@ -138,15 +123,6 @@ func TestServiceCreateWritesAuditLog(t *testing.T) {
 				createCalled = true
 				return db.Vlan{Name: arg.Name, VlanID: arg.VlanID, Description: arg.Description}, nil
 			},
-			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error {
-				return nil
-			},
-			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error {
-				return nil
-			},
-			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
-				return nil
-			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
 				logCalled = true
 				if arg.Action != "vlan.create" {
@@ -184,11 +160,6 @@ func TestServiceUpdateReturnsNotFound(t *testing.T) {
 				t.Fatal("expected update not to be called")
 				return db.Vlan{}, nil
 			},
-			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error { return nil },
-			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error { return nil },
-			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
-				return nil
-			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
 				t.Fatal("expected audit log not to be called")
 				return db.AuditLog{}, nil
@@ -212,11 +183,6 @@ func TestServiceDeleteTreatsMissingAsSuccess(t *testing.T) {
 			},
 			deleteFn: func(ctx context.Context, arg db.DeleteVlanParams) error {
 				t.Fatal("expected delete not to be called")
-				return nil
-			},
-			deleteGroupFn: func(ctx context.Context, arg db.DeleteRadgrouprepliesByGroupnameParams) error { return nil },
-			insertGroupFn: func(ctx context.Context, arg db.InsertRadgroupreplyParams) error { return nil },
-			updateUsergroupsFn: func(ctx context.Context, arg db.UpdateRadusergroupsGroupnameParams) error {
 				return nil
 			},
 			createLogFn: func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error) {
