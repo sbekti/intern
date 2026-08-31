@@ -22,11 +22,6 @@ type SnapshotSeriesIdentity = Pick<
   "group" | "lane" | "series"
 >
 
-export type {
-  MetricsSnapshot,
-  MetricsSnapshotSeries,
-} from "./metrics-snapshot-client.ts"
-
 export type MetricsSnapshotResult =
   | { ok: true; data: MetricsSnapshot }
   | { ok: false; status: 400; message: string }

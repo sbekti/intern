@@ -8,6 +8,12 @@ import (
 	"testing"
 )
 
+type SessionValidatorFunc func(ctx context.Context, sessionID string) (bool, error)
+
+func (f SessionValidatorFunc) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
+	return f(ctx, sessionID)
+}
+
 func TestRequireActiveBearerSessionPassesWithoutPrincipal(t *testing.T) {
 	t.Parallel()
 

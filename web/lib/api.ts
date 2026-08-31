@@ -40,7 +40,7 @@ export type AuthSession = {
   expires_at: string
 }
 
-export type AuditLogEntry = {
+type AuditLogEntry = {
   id: string
   actor_username: string
   action: string

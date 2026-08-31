@@ -1,32 +1,6 @@
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
-export function HomeLoadingPanel() {
-  return (
-    <div className="grid gap-4 px-4 lg:px-6">
-      <Card className="border-border/70 shadow-xs">
-        <CardHeader className="gap-2">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-4 w-full max-w-xs" />
-        </CardHeader>
-      </Card>
-      <Card className="border-border/70 shadow-xs">
-        <CardHeader className="gap-2">
-          <Skeleton className="h-6 w-28" />
-          <Skeleton className="h-4 w-full max-w-xs" />
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Skeleton className="h-28 w-full rounded-xl" />
-            <Skeleton className="h-28 w-full rounded-xl" />
-            <Skeleton className="h-28 w-full rounded-xl" />
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
 export function ProfileLoadingPanel() {
   return (
     <div className="grid gap-4 px-4 lg:px-6">

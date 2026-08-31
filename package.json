@@ -12,6 +12,6 @@
     "format": "npm --workspace web run format"
   },
   "devDependencies": {
-    "next": "16.3.0"
+    "next": "16.3.1"
   }
 }

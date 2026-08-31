@@ -22,13 +22,6 @@ func printTable(cmd *cobra.Command, headers []string, rows [][]string) error {
 	return writer.Flush()
 }
 
-func boolLabel(value bool) string {
-	if value {
-		return "yes"
-	}
-	return "no"
-}
-
 func addOutputFlag(cmd *cobra.Command, output *string) {
 	cmd.Flags().StringVar(output, "output", "table", "Output format: table or json")
 }

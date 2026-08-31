@@ -1,4 +1,4 @@
-export const metricFormats = [
+const metricFormats = [
   "percent",
   "bits-per-second",
   "count",
@@ -8,16 +8,16 @@ export const metricFormats = [
 ] as const
 export type MetricFormat = (typeof metricFormats)[number]
 
-export type MetricSeriesSide = "top" | "bottom"
+type MetricSeriesSide = "top" | "bottom"
 
-export type MetricSeries = {
+type MetricSeries = {
   id: string
   label: string
   side?: MetricSeriesSide
   promql: string
 }
 
-export type MetricLane = {
+type MetricLane = {
   id: string
   label: string
   format: MetricFormat
@@ -25,7 +25,7 @@ export type MetricLane = {
   series: readonly MetricSeries[]
 }
 
-export type MetricGroup = {
+type MetricGroup = {
   id: string
   title: string
   subtitle?: string
@@ -36,7 +36,7 @@ export type MetricsConfig = {
   groups: readonly MetricGroup[]
 }
 
-export type ClientMetricSeries = Omit<MetricSeries, "promql">
+type ClientMetricSeries = Omit<MetricSeries, "promql">
 export type ClientMetricLane = Omit<MetricLane, "series"> & {
   series: readonly ClientMetricSeries[]
 }

@@ -11,12 +11,6 @@ type SessionValidator interface {
 	ValidateSession(ctx context.Context, sessionID string) (bool, error)
 }
 
-type SessionValidatorFunc func(ctx context.Context, sessionID string) (bool, error)
-
-func (f SessionValidatorFunc) ValidateSession(ctx context.Context, sessionID string) (bool, error) {
-	return f(ctx, sessionID)
-}
-
 func RequireActiveBearerSession(validator SessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
