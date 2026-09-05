@@ -14,7 +14,7 @@ import (
 )
 
 type fakeQuerier struct {
-	listFn           func(ctx context.Context) ([]db.NetworkDevice, error)
+	listFn           func(ctx context.Context) ([]db.ListNetworkDevicesRow, error)
 	getDeviceFn      func(ctx context.Context, arg db.GetNetworkDeviceByIDParams) (db.NetworkDevice, error)
 	createFn         func(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
 	updateFn         func(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
@@ -23,7 +23,7 @@ type fakeQuerier struct {
 	createAuditLogFn func(ctx context.Context, arg db.CreateAuditLogParams) (db.AuditLog, error)
 }
 
-func (f fakeQuerier) ListNetworkDevices(ctx context.Context) ([]db.NetworkDevice, error) {
+func (f fakeQuerier) ListNetworkDevices(ctx context.Context) ([]db.ListNetworkDevicesRow, error) {
 	return f.listFn(ctx)
 }
 
@@ -72,6 +72,27 @@ func TestNormalizeMAC(t *testing.T) {
 
 	if _, err := normalizeMAC("bad-mac"); err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestServiceListMapsJoinedRows(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(fakeQuerier{
+		listFn: func(context.Context) ([]db.ListNetworkDevicesRow, error) {
+			return []db.ListNetworkDevicesRow{{
+				NetworkDevice: db.NetworkDevice{DisplayName: "Camera", VlanID: 20},
+				Vlan:          db.Vlan{Name: "iot", VlanID: 20},
+			}}, nil
+		},
+	}, nil)
+
+	records, err := service.List(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(records) != 1 || records[0].Device.DisplayName != "Camera" || records[0].VLAN.Name != "iot" {
+		t.Fatalf("unexpected records: %#v", records)
 	}
 }
 

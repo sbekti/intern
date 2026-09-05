@@ -106,30 +106,41 @@ func (q *Queries) GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDevice
 }
 
 const listNetworkDevices = `-- name: ListNetworkDevices :many
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
+SELECT network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at
 FROM network_devices
-ORDER BY display_name, id
+JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
+ORDER BY network_devices.display_name, network_devices.id
 `
 
-func (q *Queries) ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error) {
+type ListNetworkDevicesRow struct {
+	NetworkDevice NetworkDevice `db:"network_device" json:"network_device"`
+	Vlan          Vlan          `db:"vlan" json:"vlan"`
+}
+
+func (q *Queries) ListNetworkDevices(ctx context.Context) ([]ListNetworkDevicesRow, error) {
 	rows, err := q.db.Query(ctx, listNetworkDevices)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []NetworkDevice{}
+	items := []ListNetworkDevicesRow{}
 	for rows.Next() {
-		var i NetworkDevice
+		var i ListNetworkDevicesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.MacAddress,
-			&i.DisplayName,
-			&i.VlanID,
-			&i.CreatedByUserID,
-			&i.UpdatedByUserID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Disabled,
+			&i.NetworkDevice.ID,
+			&i.NetworkDevice.MacAddress,
+			&i.NetworkDevice.DisplayName,
+			&i.NetworkDevice.VlanID,
+			&i.NetworkDevice.CreatedByUserID,
+			&i.NetworkDevice.UpdatedByUserID,
+			&i.NetworkDevice.CreatedAt,
+			&i.NetworkDevice.UpdatedAt,
+			&i.NetworkDevice.Disabled,
+			&i.Vlan.VlanID,
+			&i.Vlan.Name,
+			&i.Vlan.Description,
+			&i.Vlan.CreatedAt,
+			&i.Vlan.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

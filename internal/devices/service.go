@@ -38,7 +38,7 @@ type DeviceRecord struct {
 }
 
 type Querier interface {
-	ListNetworkDevices(ctx context.Context) ([]db.NetworkDevice, error)
+	ListNetworkDevices(ctx context.Context) ([]db.ListNetworkDevicesRow, error)
 	GetNetworkDeviceByID(ctx context.Context, arg db.GetNetworkDeviceByIDParams) (db.NetworkDevice, error)
 	CreateNetworkDevice(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
 	UpdateNetworkDevice(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
@@ -91,21 +91,14 @@ func (s *Service) List(ctx context.Context) ([]DeviceRecord, error) {
 		return nil, fmt.Errorf("device queries not configured")
 	}
 
-	devices, err := s.queries.ListNetworkDevices(ctx)
+	rows, err := s.queries.ListNetworkDevices(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	records := make([]DeviceRecord, 0, len(devices))
-	for _, device := range devices {
-		vlan, err := s.queries.GetVlanByVlanID(ctx, db.GetVlanByVlanIDParams{VlanID: device.VlanID})
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, ErrConflict
-			}
-			return nil, err
-		}
-		records = append(records, DeviceRecord{Device: device, VLAN: vlan})
+	records := make([]DeviceRecord, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, DeviceRecord{Device: row.NetworkDevice, VLAN: row.Vlan})
 	}
 
 	return records, nil

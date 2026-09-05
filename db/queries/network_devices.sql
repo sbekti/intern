@@ -1,7 +1,8 @@
 -- name: ListNetworkDevices :many
-SELECT *
+SELECT sqlc.embed(network_devices), sqlc.embed(vlans)
 FROM network_devices
-ORDER BY display_name, id;
+JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
+ORDER BY network_devices.display_name, network_devices.id;
 
 -- name: GetNetworkDeviceByID :one
 SELECT *

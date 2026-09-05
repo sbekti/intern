@@ -31,7 +31,7 @@ type Querier interface {
 	ListActiveAuthSessionsPage(ctx context.Context, arg ListActiveAuthSessionsPageParams) ([]AuthSession, error)
 	ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error)
 	ListAuthSessionsByUserID(ctx context.Context, arg ListAuthSessionsByUserIDParams) ([]AuthSession, error)
-	ListNetworkDevices(ctx context.Context) ([]NetworkDevice, error)
+	ListNetworkDevices(ctx context.Context) ([]ListNetworkDevicesRow, error)
 	ListVlans(ctx context.Context) ([]Vlan, error)
 	RevokeAllActiveAuthSessions(ctx context.Context, arg RevokeAllActiveAuthSessionsParams) (int64, error)
 	RevokeAuthSession(ctx context.Context, arg RevokeAuthSessionParams) (AuthSession, error)
