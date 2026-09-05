@@ -10,8 +10,5 @@
     "test:web": "npm --workspace web run test",
     "typecheck": "npm --workspace web run typecheck",
     "format": "npm --workspace web run format"
-  },
-  "devDependencies": {
-    "next": "16.3.1"
   }
 }
