@@ -276,46 +276,6 @@ func (q *Queries) ListActiveAuthSessionsPage(ctx context.Context, arg ListActive
 	return items, nil
 }
 
-const listAuthSessions = `-- name: ListAuthSessions :many
-SELECT id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
-FROM auth_sessions
-ORDER BY created_at DESC, id DESC
-`
-
-func (q *Queries) ListAuthSessions(ctx context.Context) ([]AuthSession, error) {
-	rows, err := q.db.Query(ctx, listAuthSessions)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AuthSession{}
-	for rows.Next() {
-		var i AuthSession
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.ClientName,
-			&i.UserAgent,
-			&i.RefreshTokenHash,
-			&i.RefreshTokenFamilyID,
-			&i.LastUsedAt,
-			&i.ExpiresAt,
-			&i.IdleExpiresAt,
-			&i.RevokedAt,
-			&i.RevokeReason,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listAuthSessionsByUserID = `-- name: ListAuthSessionsByUserID :many
 SELECT id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
 FROM auth_sessions
@@ -466,41 +426,4 @@ func (q *Queries) RevokeOtherAuthSessionsForUser(ctx context.Context, arg Revoke
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const touchAuthSession = `-- name: TouchAuthSession :one
-UPDATE auth_sessions
-SET
-  last_used_at = $1,
-  idle_expires_at = $2,
-  updated_at = NOW()
-WHERE id = $3
-RETURNING id, user_id, client_name, user_agent, refresh_token_hash, refresh_token_family_id, last_used_at, expires_at, idle_expires_at, revoked_at, revoke_reason, created_at, updated_at
-`
-
-type TouchAuthSessionParams struct {
-	LastUsedAt    pgtype.Timestamptz `db:"last_used_at" json:"last_used_at"`
-	IdleExpiresAt pgtype.Timestamptz `db:"idle_expires_at" json:"idle_expires_at"`
-	ID            pgtype.UUID        `db:"id" json:"id"`
-}
-
-func (q *Queries) TouchAuthSession(ctx context.Context, arg TouchAuthSessionParams) (AuthSession, error) {
-	row := q.db.QueryRow(ctx, touchAuthSession, arg.LastUsedAt, arg.IdleExpiresAt, arg.ID)
-	var i AuthSession
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ClientName,
-		&i.UserAgent,
-		&i.RefreshTokenHash,
-		&i.RefreshTokenFamilyID,
-		&i.LastUsedAt,
-		&i.ExpiresAt,
-		&i.IdleExpiresAt,
-		&i.RevokedAt,
-		&i.RevokeReason,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }

@@ -32,11 +32,6 @@ FROM auth_sessions
 WHERE refresh_token_hash = sqlc.arg(refresh_token_hash)
 LIMIT 1;
 
--- name: ListAuthSessions :many
-SELECT *
-FROM auth_sessions
-ORDER BY created_at DESC, id DESC;
-
 -- name: CountActiveAuthSessions :one
 SELECT COUNT(*)
 FROM auth_sessions
@@ -117,12 +112,3 @@ SET
 WHERE revoked_at IS NULL
   AND expires_at > NOW()
   AND idle_expires_at > NOW();
-
--- name: TouchAuthSession :one
-UPDATE auth_sessions
-SET
-  last_used_at = sqlc.arg(last_used_at),
-  idle_expires_at = sqlc.arg(idle_expires_at),
-  updated_at = NOW()
-WHERE id = sqlc.arg(id)
-RETURNING *;

@@ -3,20 +3,10 @@ SELECT *
 FROM network_devices
 ORDER BY display_name, id;
 
--- name: CountNetworkDevices :one
-SELECT COUNT(*)
-FROM network_devices;
-
 -- name: GetNetworkDeviceByID :one
 SELECT *
 FROM network_devices
 WHERE id = sqlc.arg(id)
-LIMIT 1;
-
--- name: GetNetworkDeviceByMACAddress :one
-SELECT *
-FROM network_devices
-WHERE LOWER(mac_address) = LOWER(sqlc.arg(mac_address))
 LIMIT 1;
 
 -- name: CreateNetworkDevice :one

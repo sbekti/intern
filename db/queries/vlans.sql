@@ -3,20 +3,10 @@ SELECT *
 FROM vlans
 ORDER BY vlan_id;
 
--- name: CountVlans :one
-SELECT COUNT(*)
-FROM vlans;
-
 -- name: GetVlanByVlanID :one
 SELECT *
 FROM vlans
 WHERE vlan_id = sqlc.arg(vlan_id)
-LIMIT 1;
-
--- name: GetVlanByName :one
-SELECT *
-FROM vlans
-WHERE LOWER(name) = LOWER(sqlc.arg(name))
 LIMIT 1;
 
 -- name: CreateVlan :one

@@ -9,18 +9,6 @@ import (
 	"context"
 )
 
-const countVlans = `-- name: CountVlans :one
-SELECT COUNT(*)
-FROM vlans
-`
-
-func (q *Queries) CountVlans(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countVlans)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createVlan = `-- name: CreateVlan :one
 INSERT INTO vlans (
   vlan_id,
@@ -65,30 +53,6 @@ type DeleteVlanParams struct {
 func (q *Queries) DeleteVlan(ctx context.Context, arg DeleteVlanParams) error {
 	_, err := q.db.Exec(ctx, deleteVlan, arg.VlanID)
 	return err
-}
-
-const getVlanByName = `-- name: GetVlanByName :one
-SELECT vlan_id, name, description, created_at, updated_at
-FROM vlans
-WHERE LOWER(name) = LOWER($1)
-LIMIT 1
-`
-
-type GetVlanByNameParams struct {
-	Name string `db:"name" json:"name"`
-}
-
-func (q *Queries) GetVlanByName(ctx context.Context, arg GetVlanByNameParams) (Vlan, error) {
-	row := q.db.QueryRow(ctx, getVlanByName, arg.Name)
-	var i Vlan
-	err := row.Scan(
-		&i.VlanID,
-		&i.Name,
-		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const getVlanByVlanID = `-- name: GetVlanByVlanID :one

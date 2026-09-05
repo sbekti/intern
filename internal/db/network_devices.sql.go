@@ -11,18 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countNetworkDevices = `-- name: CountNetworkDevices :one
-SELECT COUNT(*)
-FROM network_devices
-`
-
-func (q *Queries) CountNetworkDevices(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countNetworkDevices)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createNetworkDevice = `-- name: CreateNetworkDevice :one
 INSERT INTO network_devices (
   mac_address,
@@ -102,34 +90,6 @@ type GetNetworkDeviceByIDParams struct {
 
 func (q *Queries) GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDeviceByIDParams) (NetworkDevice, error) {
 	row := q.db.QueryRow(ctx, getNetworkDeviceByID, arg.ID)
-	var i NetworkDevice
-	err := row.Scan(
-		&i.ID,
-		&i.MacAddress,
-		&i.DisplayName,
-		&i.VlanID,
-		&i.CreatedByUserID,
-		&i.UpdatedByUserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Disabled,
-	)
-	return i, err
-}
-
-const getNetworkDeviceByMACAddress = `-- name: GetNetworkDeviceByMACAddress :one
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
-FROM network_devices
-WHERE LOWER(mac_address) = LOWER($1)
-LIMIT 1
-`
-
-type GetNetworkDeviceByMACAddressParams struct {
-	MacAddress string `db:"mac_address" json:"mac_address"`
-}
-
-func (q *Queries) GetNetworkDeviceByMACAddress(ctx context.Context, arg GetNetworkDeviceByMACAddressParams) (NetworkDevice, error) {
-	row := q.db.QueryRow(ctx, getNetworkDeviceByMACAddress, arg.MacAddress)
 	var i NetworkDevice
 	err := row.Scan(
 		&i.ID,
