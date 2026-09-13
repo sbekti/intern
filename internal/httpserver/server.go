@@ -23,6 +23,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	userSyncer := identity.NewSyncer(deps.UserStore)
 	vlanService := deps.VLANService
 	deviceService := deps.DeviceService
+	gizmoService := deps.GizmoService
 	clientAuthService := deps.ClientAuthService
 	authSpamService := deps.AuthSpamService
 	sessionService := deps.SessionService
@@ -34,6 +35,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	router.Use(middleware.Recoverer)
 
 	registerRADIUSMABRoutes(router, logger, cfg.RADIUSMAB, deviceService)
+	registerKioskRoutes(router, gizmoService)
 
 	router.Group(func(r chi.Router) {
 		r.Use(clientInfoMiddleware(clientIPResolver))
@@ -57,7 +59,7 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusOK, response{Status: "ok"})
 		})
 
-		registerAPIRoutes(r, logger, authorizer, vlanService, deviceService, clientAuthService, authSpamService, sessionService, auditLogService)
+		registerAPIRoutes(r, logger, authorizer, vlanService, deviceService, gizmoService, clientAuthService, authSpamService, sessionService, auditLogService)
 	})
 
 	return router

@@ -24,6 +24,8 @@ tags:
     description: Current-user identity and session management.
   - name: Networks
     description: VLAN and network device management operations.
+  - name: Gizmos
+    description: Gizmo registration and kiosk destination operations.
   - name: Auth
     description: Device code login and token lifecycle endpoints for public clients.
   - name: Admin
@@ -475,6 +477,117 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/gizmos:
+    get:
+      operationId: listGizmos
+      tags: [Gizmos]
+      summary: List Gizmos.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Gizmo list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GizmoList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createGizmo
+      tags: [Gizmos]
+      summary: Register a network device as a Gizmo.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GizmoWrite'
+      responses:
+        '201':
+          description: Gizmo created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gizmo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/gizmos/{network_device_id}:
+    put:
+      operationId: updateGizmo
+      tags: [Gizmos]
+      summary: Replace a Gizmo's kiosk destination.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NetworkDeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GizmoUpdate'
+      responses:
+        '200':
+          description: Gizmo updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gizmo'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      operationId: deleteGizmo
+      tags: [Gizmos]
+      summary: Remove a Gizmo without deleting its network device.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/NetworkDeviceId'
+      responses:
+        '204':
+          description: Gizmo deleted or already absent.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/kiosks/{mac_address}:
+    get:
+      operationId: getKioskAssignment
+      tags: [Networks]
+      summary: Get the kiosk URL assigned to an enabled network device.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/MacAddress'
+      responses:
+        '200':
+          description: Kiosk assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KioskAssignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/v1/auth/device_codes:
     post:
       operationId: createDeviceCode
@@ -624,6 +737,19 @@ components:
   parameters:
     DeviceId:
       name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MacAddress:
+      name: mac_address
+      in: path
+      required: true
+      schema:
+        type: string
+    NetworkDeviceId:
+      name: network_device_id
       in: path
       required: true
       schema:
@@ -969,6 +1095,56 @@ components:
           format: int32
           minimum: 1
           maximum: 4094
+    Gizmo:
+      type: object
+      required: [network_device, kiosk_url, created_at, updated_at]
+      properties:
+        network_device:
+          $ref: '#/components/schemas/NetworkDevice'
+        kiosk_url:
+          type: string
+          nullable: true
+          maxLength: 2048
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    GizmoList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Gizmo'
+    GizmoWrite:
+      type: object
+      required: [network_device_id]
+      properties:
+        network_device_id:
+          type: string
+          format: uuid
+        kiosk_url:
+          type: string
+          nullable: true
+          maxLength: 2048
+    GizmoUpdate:
+      type: object
+      required: [kiosk_url]
+      properties:
+        kiosk_url:
+          type: string
+          nullable: true
+          maxLength: 2048
+    KioskAssignment:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          maxLength: 2048
     DeviceCodeCreateRequest:
       type: object
       properties:

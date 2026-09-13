@@ -42,6 +42,7 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(newSessionCommand(options))
 	cmd.AddCommand(newVlanCommand(options))
 	cmd.AddCommand(newDeviceCommand(options))
+	cmd.AddCommand(newGizmoCommand(options))
 	cmd.AddCommand(newVersionCommand())
 
 	return cmd

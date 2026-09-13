@@ -8,6 +8,7 @@ import (
 	"github.com/sbekti/intern/internal/auditlogs"
 	"github.com/sbekti/intern/internal/db"
 	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/gizmos"
 	"github.com/sbekti/intern/internal/identity"
 	"github.com/sbekti/intern/internal/requestmeta"
 )
@@ -23,6 +24,7 @@ type Dependencies struct {
 	DatabasePinger    DatabasePinger
 	VLANService       VLANService
 	DeviceService     DeviceService
+	GizmoService      GizmoService
 	ClientAuthService ClientAuthService
 	AuthSpamService   AuthSpamService
 	SessionService    SessionService
@@ -47,6 +49,14 @@ type DeviceService interface {
 	Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
 	Update(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error)
 	Delete(ctx context.Context, actor db.User, id uuid.UUID) error
+}
+
+type GizmoService interface {
+	List(ctx context.Context) ([]gizmos.Record, error)
+	Create(ctx context.Context, actor db.User, input api.GizmoWrite) (gizmos.Record, error)
+	Update(ctx context.Context, actor db.User, networkDeviceID uuid.UUID, input api.GizmoUpdate) (gizmos.Record, error)
+	Delete(ctx context.Context, actor db.User, networkDeviceID uuid.UUID) error
+	ResolveKioskURL(ctx context.Context, macAddress string) (string, error)
 }
 
 type ClientAuthService interface {

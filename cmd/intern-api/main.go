@@ -17,6 +17,7 @@ import (
 	"github.com/sbekti/intern/internal/config"
 	"github.com/sbekti/intern/internal/db"
 	"github.com/sbekti/intern/internal/devices"
+	"github.com/sbekti/intern/internal/gizmos"
 	"github.com/sbekti/intern/internal/httpserver"
 	"github.com/sbekti/intern/internal/sessions"
 	"github.com/sbekti/intern/internal/vlans"
@@ -61,6 +62,7 @@ func main() {
 	authSpamService := authspam.NewService(cfg.Auth.RateLimit)
 	auditLogService := auditlogs.NewService(queries)
 	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
+	gizmoService := gizmos.NewService(queries, gizmos.NewPGXTransactor(pool))
 	sessionService := sessions.NewService(queries)
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))
 
@@ -71,6 +73,7 @@ func main() {
 			DatabasePinger:    pool,
 			VLANService:       vlanService,
 			DeviceService:     deviceService,
+			GizmoService:      gizmoService,
 			ClientAuthService: clientAuthService,
 			AuthSpamService:   authSpamService,
 			SessionService:    sessionService,

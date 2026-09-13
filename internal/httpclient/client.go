@@ -373,6 +373,96 @@ func (c *Client) DeleteNetworkDevice(ctx context.Context, id string) error {
 	}
 }
 
+func (c *Client) ListGizmos(ctx context.Context) ([]api.Gizmo, error) {
+	resp, err := c.authenticated.ListGizmosWithResponse(ctx)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode() {
+	case http.StatusOK:
+		body, err := requireDecodedBody("list gizmos", resp.StatusCode(), resp.Body, resp.JSON200)
+		if err != nil {
+			return nil, err
+		}
+		return body.Items, nil
+	case http.StatusUnauthorized:
+		return nil, ErrUnauthorized
+	case http.StatusForbidden:
+		return nil, ErrForbidden
+	default:
+		return nil, unexpectedStatus("list gizmos", resp.StatusCode(), resp.Body)
+	}
+}
+
+func (c *Client) CreateGizmo(ctx context.Context, body api.GizmoWrite) (*api.Gizmo, error) {
+	resp, err := c.authenticated.CreateGizmoWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode() {
+	case http.StatusCreated:
+		return requireDecodedBody("create gizmo", resp.StatusCode(), resp.Body, resp.JSON201)
+	case http.StatusUnauthorized:
+		return nil, ErrUnauthorized
+	case http.StatusForbidden:
+		return nil, ErrForbidden
+	case http.StatusBadRequest:
+		return nil, newAPIError(resp.StatusCode(), resp.JSON400)
+	case http.StatusConflict:
+		return nil, newAPIError(resp.StatusCode(), resp.JSON409)
+	default:
+		return nil, unexpectedStatus("create gizmo", resp.StatusCode(), resp.Body)
+	}
+}
+
+func (c *Client) UpdateGizmo(ctx context.Context, id string, body api.GizmoUpdate) (*api.Gizmo, error) {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, fmt.Errorf("parse network device id: %w", err)
+	}
+	resp, err := c.authenticated.UpdateGizmoWithResponse(ctx, api.NetworkDeviceId(parsedID), body)
+	if err != nil {
+		return nil, err
+	}
+	switch resp.StatusCode() {
+	case http.StatusOK:
+		return requireDecodedBody("update gizmo", resp.StatusCode(), resp.Body, resp.JSON200)
+	case http.StatusUnauthorized:
+		return nil, ErrUnauthorized
+	case http.StatusForbidden:
+		return nil, ErrForbidden
+	case http.StatusBadRequest:
+		return nil, newAPIError(resp.StatusCode(), resp.JSON400)
+	case http.StatusNotFound:
+		return nil, newAPIError(resp.StatusCode(), resp.JSON404)
+	default:
+		return nil, unexpectedStatus("update gizmo", resp.StatusCode(), resp.Body)
+	}
+}
+
+func (c *Client) DeleteGizmo(ctx context.Context, id string) error {
+	parsedID, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("parse network device id: %w", err)
+	}
+	resp, err := c.authenticated.DeleteGizmoWithResponse(ctx, api.NetworkDeviceId(parsedID))
+	if err != nil {
+		return err
+	}
+	switch resp.StatusCode() {
+	case http.StatusNoContent:
+		return nil
+	case http.StatusUnauthorized:
+		return ErrUnauthorized
+	case http.StatusForbidden:
+		return ErrForbidden
+	case http.StatusBadRequest:
+		return newAPIError(resp.StatusCode(), resp.JSON400)
+	default:
+		return unexpectedStatus("delete gizmo", resp.StatusCode(), resp.Body)
+	}
+}
+
 func (c *Client) ListSessions(ctx context.Context, all bool, limit, offset int32) (*api.AuthSessionPage, error) {
 	if all {
 		params := &api.ListAdminAuthSessionsParams{

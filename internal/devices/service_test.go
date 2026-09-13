@@ -62,7 +62,7 @@ func (f fakeTransactor) InTx(ctx context.Context, fn func(q Querier) error) erro
 func TestNormalizeMAC(t *testing.T) {
 	t.Parallel()
 
-	colon, err := normalizeMAC("AA-BB-CC-DD-EE-FF")
+	colon, err := NormalizeMAC("AA-BB-CC-DD-EE-FF")
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -70,7 +70,7 @@ func TestNormalizeMAC(t *testing.T) {
 		t.Fatalf("unexpected colon mac %q", colon)
 	}
 
-	if _, err := normalizeMAC("bad-mac"); err == nil {
+	if _, err := NormalizeMAC("bad-mac"); err == nil {
 		t.Fatal("expected validation error")
 	}
 }

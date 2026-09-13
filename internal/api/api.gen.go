@@ -129,6 +129,35 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
+// Gizmo defines model for Gizmo.
+type Gizmo struct {
+	CreatedAt     time.Time     `json:"created_at"`
+	KioskUrl      *string       `json:"kiosk_url"`
+	NetworkDevice NetworkDevice `json:"network_device"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+}
+
+// GizmoList defines model for GizmoList.
+type GizmoList struct {
+	Items []Gizmo `json:"items"`
+}
+
+// GizmoUpdate defines model for GizmoUpdate.
+type GizmoUpdate struct {
+	KioskUrl *string `json:"kiosk_url"`
+}
+
+// GizmoWrite defines model for GizmoWrite.
+type GizmoWrite struct {
+	KioskUrl        *string            `json:"kiosk_url,omitempty"`
+	NetworkDeviceId openapi_types.UUID `json:"network_device_id"`
+}
+
+// KioskAssignment defines model for KioskAssignment.
+type KioskAssignment struct {
+	Url string `json:"url"`
+}
+
 // LogoutRequest defines model for LogoutRequest.
 type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
@@ -235,6 +264,12 @@ type VlanWrite struct {
 // DeviceId defines model for DeviceId.
 type DeviceId = openapi_types.UUID
 
+// MacAddress defines model for MacAddress.
+type MacAddress = string
+
+// NetworkDeviceId defines model for NetworkDeviceId.
+type NetworkDeviceId = openapi_types.UUID
+
 // SessionId defines model for SessionId.
 type SessionId = openapi_types.UUID
 
@@ -295,6 +330,12 @@ type ExchangeDeviceCodeJSONRequestBody = DeviceCodeTokenRequest
 
 // RefreshAccessTokenJSONRequestBody defines body for RefreshAccessToken for application/json ContentType.
 type RefreshAccessTokenJSONRequestBody = RefreshTokenRequest
+
+// CreateGizmoJSONRequestBody defines body for CreateGizmo for application/json ContentType.
+type CreateGizmoJSONRequestBody = GizmoWrite
+
+// UpdateGizmoJSONRequestBody defines body for UpdateGizmo for application/json ContentType.
+type UpdateGizmoJSONRequestBody = GizmoUpdate
 
 // CreateNetworkDeviceJSONRequestBody defines body for CreateNetworkDevice for application/json ContentType.
 type CreateNetworkDeviceJSONRequestBody = NetworkDeviceWrite
@@ -469,6 +510,49 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/auth/tokens/refresh (the `RefreshAccessToken` operationId).
 	RefreshAccessToken(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGizmos List Gizmos.
+	//
+	// Corresponds with GET /api/v1/gizmos (the `ListGizmos` operationId).
+	ListGizmos(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGizmoWithBody Register a network device as a Gizmo.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+	CreateGizmoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateGizmo Register a network device as a Gizmo.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+	CreateGizmo(ctx context.Context, body CreateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGizmo Remove a Gizmo without deleting its network device.
+	//
+	// Corresponds with DELETE /api/v1/gizmos/{network_device_id} (the `DeleteGizmo` operationId).
+	DeleteGizmo(ctx context.Context, networkDeviceId NetworkDeviceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGizmoWithBody Replace a Gizmo's kiosk destination.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+	UpdateGizmoWithBody(ctx context.Context, networkDeviceId NetworkDeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateGizmo Replace a Gizmo's kiosk destination.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+	UpdateGizmo(ctx context.Context, networkDeviceId NetworkDeviceId, body UpdateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetKioskAssignment Get the kiosk URL assigned to an enabled network device.
+	//
+	// Corresponds with GET /api/v1/kiosks/{mac_address} (the `GetKioskAssignment` operationId).
+	GetKioskAssignment(ctx context.Context, macAddress MacAddress, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListNetworkDevices List network devices.
 	//
@@ -799,6 +883,119 @@ func (c *Client) RefreshAccessTokenWithBody(ctx context.Context, contentType str
 // Corresponds with POST /api/v1/auth/tokens/refresh (the `RefreshAccessToken` operationId).
 func (c *Client) RefreshAccessToken(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRefreshAccessTokenRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListGizmos List Gizmos.
+//
+// Corresponds with GET /api/v1/gizmos (the `ListGizmos` operationId).
+func (c *Client) ListGizmos(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGizmosRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateGizmoWithBody Register a network device as a Gizmo.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+func (c *Client) CreateGizmoWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGizmoRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateGizmo Register a network device as a Gizmo.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+func (c *Client) CreateGizmo(ctx context.Context, body CreateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateGizmoRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteGizmo Remove a Gizmo without deleting its network device.
+//
+// Corresponds with DELETE /api/v1/gizmos/{network_device_id} (the `DeleteGizmo` operationId).
+func (c *Client) DeleteGizmo(ctx context.Context, networkDeviceId NetworkDeviceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGizmoRequest(c.Server, networkDeviceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateGizmoWithBody Replace a Gizmo's kiosk destination.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+func (c *Client) UpdateGizmoWithBody(ctx context.Context, networkDeviceId NetworkDeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGizmoRequestWithBody(c.Server, networkDeviceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateGizmo Replace a Gizmo's kiosk destination.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+func (c *Client) UpdateGizmo(ctx context.Context, networkDeviceId NetworkDeviceId, body UpdateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateGizmoRequest(c.Server, networkDeviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetKioskAssignment Get the kiosk URL assigned to an enabled network device.
+//
+// Corresponds with GET /api/v1/kiosks/{mac_address} (the `GetKioskAssignment` operationId).
+func (c *Client) GetKioskAssignment(ctx context.Context, macAddress MacAddress, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetKioskAssignmentRequest(c.Server, macAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -1568,6 +1765,188 @@ func NewRefreshAccessTokenRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
+// NewListGizmosRequest constructs an http.Request for the ListGizmos method
+func NewListGizmosRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/gizmos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateGizmoRequest calls the generic CreateGizmo builder with application/json body
+func NewCreateGizmoRequest(server string, body CreateGizmoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateGizmoRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateGizmoRequestWithBody constructs an http.Request for the CreateGizmo method, with any body, and a specified content type
+func NewCreateGizmoRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/gizmos")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteGizmoRequest constructs an http.Request for the DeleteGizmo method
+func NewDeleteGizmoRequest(server string, networkDeviceId NetworkDeviceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "network_device_id", networkDeviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/gizmos/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateGizmoRequest calls the generic UpdateGizmo builder with application/json body
+func NewUpdateGizmoRequest(server string, networkDeviceId NetworkDeviceId, body UpdateGizmoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateGizmoRequestWithBody(server, networkDeviceId, "application/json", bodyReader)
+}
+
+// NewUpdateGizmoRequestWithBody constructs an http.Request for the UpdateGizmo method, with any body, and a specified content type
+func NewUpdateGizmoRequestWithBody(server string, networkDeviceId NetworkDeviceId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "network_device_id", networkDeviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/gizmos/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetKioskAssignmentRequest constructs an http.Request for the GetKioskAssignment method
+func NewGetKioskAssignmentRequest(server string, macAddress MacAddress) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "mac_address", macAddress, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/kiosks/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListNetworkDevicesRequest constructs an http.Request for the ListNetworkDevices method
 func NewListNetworkDevicesRequest(server string) (*http.Request, error) {
 	var err error
@@ -2229,6 +2608,55 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/auth/tokens/refresh (the `RefreshAccessToken` operationId).
 	RefreshAccessTokenWithResponse(ctx context.Context, body RefreshAccessTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*RefreshAccessTokenResponse, error)
+
+	// ListGizmosWithResponse List Gizmos.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/gizmos (the `ListGizmos` operationId).
+	ListGizmosWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGizmosResponse, error)
+
+	// CreateGizmoWithBodyWithResponse Register a network device as a Gizmo.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+	CreateGizmoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGizmoResponse, error)
+
+	// CreateGizmoWithResponse Register a network device as a Gizmo.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+	CreateGizmoWithResponse(ctx context.Context, body CreateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGizmoResponse, error)
+
+	// DeleteGizmoWithResponse Remove a Gizmo without deleting its network device.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/gizmos/{network_device_id} (the `DeleteGizmo` operationId).
+	DeleteGizmoWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, reqEditors ...RequestEditorFn) (*DeleteGizmoResponse, error)
+
+	// UpdateGizmoWithBodyWithResponse Replace a Gizmo's kiosk destination.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+	UpdateGizmoWithBodyWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGizmoResponse, error)
+
+	// UpdateGizmoWithResponse Replace a Gizmo's kiosk destination.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+	UpdateGizmoWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, body UpdateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGizmoResponse, error)
+
+	// GetKioskAssignmentWithResponse Get the kiosk URL assigned to an enabled network device.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/kiosks/{mac_address} (the `GetKioskAssignment` operationId).
+	GetKioskAssignmentWithResponse(ctx context.Context, macAddress MacAddress, reqEditors ...RequestEditorFn) (*GetKioskAssignmentResponse, error)
 
 	// ListNetworkDevicesWithResponse List network devices.
 	//
@@ -2926,6 +3354,309 @@ func (r RefreshAccessTokenResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RefreshAccessTokenResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListGizmosResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GizmoList
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListGizmosResponse) GetJSON200() *GizmoList {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r ListGizmosResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r ListGizmosResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r ListGizmosResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGizmosResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGizmosResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListGizmosResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateGizmoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Gizmo
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateGizmoResponse) GetJSON201() *Gizmo {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CreateGizmoResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CreateGizmoResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CreateGizmoResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r CreateGizmoResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateGizmoResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateGizmoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateGizmoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateGizmoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteGizmoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DeleteGizmoResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DeleteGizmoResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r DeleteGizmoResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteGizmoResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGizmoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGizmoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteGizmoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateGizmoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Gizmo
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateGizmoResponse) GetJSON200() *Gizmo {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r UpdateGizmoResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r UpdateGizmoResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r UpdateGizmoResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r UpdateGizmoResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateGizmoResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateGizmoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateGizmoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateGizmoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetKioskAssignmentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *KioskAssignment
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetKioskAssignmentResponse) GetJSON200() *KioskAssignment {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetKioskAssignmentResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetKioskAssignmentResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetKioskAssignmentResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetKioskAssignmentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetKioskAssignmentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetKioskAssignmentResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -3963,6 +4694,97 @@ func (c *ClientWithResponses) RefreshAccessTokenWithResponse(ctx context.Context
 	return ParseRefreshAccessTokenResponse(rsp)
 }
 
+// ListGizmosWithResponse List Gizmos.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/gizmos (the `ListGizmos` operationId).
+func (c *ClientWithResponses) ListGizmosWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGizmosResponse, error) {
+	rsp, err := c.ListGizmos(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGizmosResponse(rsp)
+}
+
+// CreateGizmoWithBodyWithResponse Register a network device as a Gizmo.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+func (c *ClientWithResponses) CreateGizmoWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateGizmoResponse, error) {
+	rsp, err := c.CreateGizmoWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGizmoResponse(rsp)
+}
+
+// CreateGizmoWithResponse Register a network device as a Gizmo.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/gizmos (the `CreateGizmo` operationId).
+func (c *ClientWithResponses) CreateGizmoWithResponse(ctx context.Context, body CreateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateGizmoResponse, error) {
+	rsp, err := c.CreateGizmo(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateGizmoResponse(rsp)
+}
+
+// DeleteGizmoWithResponse Remove a Gizmo without deleting its network device.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/gizmos/{network_device_id} (the `DeleteGizmo` operationId).
+func (c *ClientWithResponses) DeleteGizmoWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, reqEditors ...RequestEditorFn) (*DeleteGizmoResponse, error) {
+	rsp, err := c.DeleteGizmo(ctx, networkDeviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGizmoResponse(rsp)
+}
+
+// UpdateGizmoWithBodyWithResponse Replace a Gizmo's kiosk destination.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+func (c *ClientWithResponses) UpdateGizmoWithBodyWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateGizmoResponse, error) {
+	rsp, err := c.UpdateGizmoWithBody(ctx, networkDeviceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGizmoResponse(rsp)
+}
+
+// UpdateGizmoWithResponse Replace a Gizmo's kiosk destination.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /api/v1/gizmos/{network_device_id} (the `UpdateGizmo` operationId).
+func (c *ClientWithResponses) UpdateGizmoWithResponse(ctx context.Context, networkDeviceId NetworkDeviceId, body UpdateGizmoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGizmoResponse, error) {
+	rsp, err := c.UpdateGizmo(ctx, networkDeviceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateGizmoResponse(rsp)
+}
+
+// GetKioskAssignmentWithResponse Get the kiosk URL assigned to an enabled network device.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/kiosks/{mac_address} (the `GetKioskAssignment` operationId).
+func (c *ClientWithResponses) GetKioskAssignmentWithResponse(ctx context.Context, macAddress MacAddress, reqEditors ...RequestEditorFn) (*GetKioskAssignmentResponse, error) {
+	rsp, err := c.GetKioskAssignment(ctx, macAddress, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetKioskAssignmentResponse(rsp)
+}
+
 // ListNetworkDevicesWithResponse List network devices.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -4631,6 +5453,237 @@ func ParseRefreshAccessTokenResponse(rsp *http.Response) (*RefreshAccessTokenRes
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGizmosResponse parses an HTTP response from a ListGizmosWithResponse call
+func ParseListGizmosResponse(rsp *http.Response) (*ListGizmosResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGizmosResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GizmoList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateGizmoResponse parses an HTTP response from a CreateGizmoWithResponse call
+func ParseCreateGizmoResponse(rsp *http.Response) (*CreateGizmoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateGizmoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Gizmo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGizmoResponse parses an HTTP response from a DeleteGizmoWithResponse call
+func ParseDeleteGizmoResponse(rsp *http.Response) (*DeleteGizmoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGizmoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateGizmoResponse parses an HTTP response from a UpdateGizmoWithResponse call
+func ParseUpdateGizmoResponse(rsp *http.Response) (*UpdateGizmoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateGizmoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Gizmo
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetKioskAssignmentResponse parses an HTTP response from a GetKioskAssignmentWithResponse call
+func ParseGetKioskAssignmentResponse(rsp *http.Response) (*GetKioskAssignmentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetKioskAssignmentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest KioskAssignment
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 

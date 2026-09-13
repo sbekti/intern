@@ -8,6 +8,7 @@ const pageTitles = {
   "/profile/security": "Security",
   "/networks/devices": "Devices",
   "/networks/vlans": "VLANs",
+  "/gizmos": "Gizmos",
   "/admin/audit-logs": "Audit Logs",
   "/auth/device": "Device Approval",
 } as const

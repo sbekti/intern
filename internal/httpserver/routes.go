@@ -13,6 +13,7 @@ func registerAPIRoutes(
 	authorizer *auth.Authorizer,
 	vlanService VLANService,
 	deviceService DeviceService,
+	gizmoService GizmoService,
 	clientAuthService ClientAuthService,
 	authSpamService AuthSpamService,
 	sessionService SessionService,
@@ -22,6 +23,7 @@ func registerAPIRoutes(
 		registerSystemProfileRoutes(r, authorizer, sessionService)
 		registerAdminRoutes(r, authorizer, sessionService, auditLogService)
 		registerNetworkRoutes(r, authorizer, vlanService, deviceService)
+		registerGizmoRoutes(r, authorizer, gizmoService)
 		registerDeviceAuthRoutes(r, logger, authorizer, clientAuthService, authSpamService)
 	})
 }

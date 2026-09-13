@@ -50,6 +50,13 @@ type AuthSession struct {
 	UpdatedAt            pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
 }
 
+type Gizmo struct {
+	NetworkDeviceID pgtype.UUID        `db:"network_device_id" json:"network_device_id"`
+	KioskUrl        *string            `db:"kiosk_url" json:"kiosk_url"`
+	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+}
+
 type NetworkDevice struct {
 	ID              pgtype.UUID        `db:"id" json:"id"`
 	MacAddress      string             `db:"mac_address" json:"mac_address"`

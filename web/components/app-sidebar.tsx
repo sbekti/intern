@@ -19,6 +19,7 @@ import {
   NetworkIcon,
   ScrollTextIcon,
   ServerIcon,
+  TabletSmartphoneIcon,
 } from "lucide-react"
 
 type SidebarUser = {
@@ -67,6 +68,15 @@ export function AppSidebar({
         },
       ]
     : []
+  const applianceItems = isAdmin
+    ? [
+        {
+          title: "Gizmos",
+          url: "/gizmos",
+          icon: <TabletSmartphoneIcon />,
+        },
+      ]
+    : []
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -88,6 +98,9 @@ export function AppSidebar({
         <NavMain items={homeItems} />
         {networkItems.length > 0 ? (
           <NavMain label="Network" items={networkItems} />
+        ) : null}
+        {applianceItems.length > 0 ? (
+          <NavMain label="Appliances" items={applianceItems} />
         ) : null}
         {administrationItems.length > 0 ? (
           <NavMain label="Administration" items={administrationItems} />

@@ -30,6 +30,13 @@ export type NetworkDevice = {
   updated_at: string
 }
 
+export type Gizmo = {
+  network_device: NetworkDevice
+  kiosk_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type AuthSession = {
   id: string
   username: string
@@ -192,6 +199,10 @@ export function listVlans() {
 
 export function listDevices() {
   return getJson<{ items: NetworkDevice[] }>("/api/v1/networks/devices")
+}
+
+export function listGizmos() {
+  return getJson<{ items: Gizmo[] }>("/api/v1/gizmos")
 }
 
 export function listProfileSessions(filters: {

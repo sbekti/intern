@@ -343,7 +343,7 @@ type normalizedCreate struct {
 }
 
 func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
-	macColon, err := normalizeMAC(input.MacAddress)
+	macColon, err := NormalizeMAC(input.MacAddress)
 	if err != nil {
 		return normalizedCreate{}, err
 	}
@@ -371,7 +371,7 @@ func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.Upda
 
 	macAddress := current.MacAddress
 	if patch.MacAddress != nil {
-		normalizedMAC, err := normalizeMAC(*patch.MacAddress)
+		normalizedMAC, err := NormalizeMAC(*patch.MacAddress)
 		if err != nil {
 			return db.UpdateNetworkDeviceParams{}, err
 		}
@@ -411,7 +411,7 @@ func boolValue(value *bool) bool {
 	return value != nil && *value
 }
 
-func normalizeMAC(raw string) (string, error) {
+func NormalizeMAC(raw string) (string, error) {
 	var builder strings.Builder
 	for _, r := range strings.TrimSpace(strings.ToLower(raw)) {
 		switch {
