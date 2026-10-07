@@ -5,6 +5,11 @@ const metricFormats = [
   "requests-per-second",
   "duration-seconds",
   "availability",
+  "watts",
+  "volt-amperes-reactive",
+  "volts",
+  "amperes",
+  "hertz",
 ] as const
 export type MetricFormat = (typeof metricFormats)[number]
 
@@ -105,7 +110,6 @@ function parseLane(value: unknown): MetricLane | null {
     !Number.isFinite(minimum) ||
     typeof maximum !== "number" ||
     !Number.isFinite(maximum) ||
-    minimum < 0 ||
     maximum <= minimum ||
     series.some((candidate) => candidate === null)
   ) {
@@ -219,6 +223,18 @@ function significantNumber(value: number, minimumSignificantDigits = 1) {
 }
 
 export function formatMetricValue(value: number, format: MetricFormat) {
+  if (format === "watts" || format === "volt-amperes-reactive") {
+    return `${value.toFixed(0)} ${format === "watts" ? "W" : "VAr"}`
+  }
+
+  if (format === "volts") {
+    return `${value.toFixed(1)} V`
+  }
+
+  if (format === "amperes" || format === "hertz") {
+    return `${value.toFixed(2)} ${format === "amperes" ? "A" : "Hz"}`
+  }
+
   if (format === "percent") {
     return `${value.toFixed(1)}%`
   }

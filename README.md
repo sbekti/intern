@@ -4,6 +4,11 @@ Intern is a Go API, `internctl` CLI, and Next.js authenticated web app in one re
 
 The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, gizmo kiosk destinations, and RADIUS MAB snapshots. The authenticated home route shows live host metrics from Prometheus.
 
+The monitoring page reuses the groups and lanes in the frontend metrics YAML.
+Electrical lanes support `watts`, `volt-amperes-reactive`, `volts`, `amperes`,
+and `hertz`; use the existing `percent` format for power factor multiplied by 100.
+Signed extents such as `[-5000, 5000]` display imported and exported active power.
+
 ## Development
 
 Intern development connects to the production PostgreSQL and Prometheus services

@@ -67,16 +67,54 @@ test("accepts count lanes", () => {
   )
 })
 
-test("accepts request rate, duration, and availability lanes", () => {
+test("accepts request rate, duration, availability, and electrical lanes", () => {
   for (const format of [
     "requests-per-second",
     "duration-seconds",
     "availability",
+    "watts",
+    "volt-amperes-reactive",
+    "volts",
+    "amperes",
+    "hertz",
   ]) {
     const config = structuredClone(validConfig)
     config.groups[0].lanes[0].format = format
     assert.equal(parseMetricsConfig(config)?.groups[0].lanes[0].format, format)
   }
+})
+
+test("accepts signed extents and rejects nonfinite or unordered extents", () => {
+  const config = structuredClone(validConfig)
+  config.groups[0].lanes[0].extent = [-5_000, 5_000]
+  assert.deepEqual(
+    parseMetricsConfig(config)?.groups[0].lanes[0].extent,
+    [-5_000, 5_000]
+  )
+
+  for (const extent of [
+    [0, 0],
+    [1, 0],
+    [NaN, 5_000],
+    [-Infinity, 5_000],
+    [0, Infinity],
+  ]) {
+    config.groups[0].lanes[0].extent = extent
+    assert.equal(parseMetricsConfig(config), null)
+  }
+})
+
+test("formats electrical readings with their units and useful precision", () => {
+  assert.equal(formatMetricValue(947, "watts"), "947 W")
+  assert.equal(formatMetricValue(-947, "watts"), "-947 W")
+  assert.equal(formatMetricValue(0, "watts"), "0 W")
+  assert.equal(formatMetricValue(482, "volt-amperes-reactive"), "482 VAr")
+  assert.equal(formatMetricValue(0, "volt-amperes-reactive"), "0 VAr")
+  assert.equal(formatMetricValue(228.75, "volts"), "228.8 V")
+  assert.equal(formatMetricValue(4.66, "amperes"), "4.66 A")
+  assert.equal(formatMetricValue(0, "amperes"), "0.00 A")
+  assert.equal(formatMetricValue(50.025, "hertz"), "50.02 Hz")
+  assert.equal(formatMetricValue(89, "percent"), "89.0%")
 })
 
 test("rejects duplicate IDs and incomplete split lanes", () => {
