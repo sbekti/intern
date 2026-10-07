@@ -31,6 +31,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   formatMetricValue,
+  metricChartValue,
   type ClientMetricGroup,
   type ClientMetricLane,
   type MetricFormat,
@@ -161,6 +162,8 @@ function MetricSeriesChart({
   points,
   range,
   extent,
+  normalRange,
+  format,
   height,
   colors,
   ariaLabel,
@@ -173,6 +176,8 @@ function MetricSeriesChart({
   points: readonly TimeSeriesPoint[]
   range: TimeRange | null
   extent: readonly [minimum: number, maximum: number]
+  normalRange?: ClientMetricLane["normalRange"]
+  format: MetricFormat
   height: number
   colors: readonly string[]
   ariaLabel: string
@@ -181,13 +186,40 @@ function MetricSeriesChart({
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
 }) {
+  const chartPoints = useMemo(
+    () =>
+      normalRange
+        ? points.map(
+            ([timestamp, value]) =>
+              [timestamp, metricChartValue(value, normalRange)] as const
+          )
+        : points,
+    [normalRange, points]
+  )
+  const normalRangeLabel = normalRange
+    ? [
+        normalRange.min !== undefined
+          ? `minimum ${formatMetricValue(normalRange.min, format)}`
+          : null,
+        normalRange.max !== undefined
+          ? `maximum ${formatMetricValue(normalRange.max, format)}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : null
+
   return (
     <LiveHorizon
       key={`${metricKey}-${preset.id}`}
-      points={points}
+      points={chartPoints}
       range={range}
       stepSeconds={preset.stepSeconds}
-      ariaLabel={ariaLabel}
+      ariaLabel={
+        normalRangeLabel
+          ? `${ariaLabel} Normal range: ${normalRangeLabel}. Color shows excursions: blue below, green above.`
+          : ariaLabel
+      }
       className={className}
       rulerTimestamp={rulerTimestamp}
       onRulerTimestampChange={onRulerTimestampChange}
@@ -289,6 +321,8 @@ function MetricLane({
       : { right: `calc(${(1 - focusFraction) * 100}% + 0.5rem)` }
   const sharedProps = {
     extent: lane.extent,
+    normalRange: lane.normalRange,
+    format: lane.format,
     rulerTimestamp,
     onRulerTimestampChange,
     preset,

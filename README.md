@@ -8,6 +8,12 @@ The monitoring page reuses the groups and lanes in the frontend metrics YAML.
 Electrical lanes support `watts`, `volt-amperes-reactive`, `volts`, `amperes`,
 and `hertz`; use the existing `percent` format for power factor multiplied by 100.
 Signed extents such as `[-5000, 5000]` display imported and exported active power.
+An optional lane `normalRange`, such as `{ min: 210, max: 240 }` for voltage or
+`{ min: 90 }` for power factor, colors only excursions outside those inclusive
+bounds. Below-range values use blue bands and above-range values use green.
+For these lanes, `extent` scales the excursion from the nearest bound, while
+live and hover readouts retain the actual measurement. Missing samples remain
+gaps. Lanes without `normalRange` continue showing measurement magnitude.
 
 ## Development
 

@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   clientMetricGroups,
   formatMetricValue,
+  metricChartValue,
   parseMetricsConfig,
 } from "./metrics-config.ts"
 
@@ -115,6 +116,77 @@ test("formats electrical readings with their units and useful precision", () => 
   assert.equal(formatMetricValue(0, "amperes"), "0.00 A")
   assert.equal(formatMetricValue(50.025, "hertz"), "50.02 Hz")
   assert.equal(formatMetricValue(89, "percent"), "89.0%")
+})
+
+test("accepts two-sided and one-sided normal ranges in client configuration", () => {
+  for (const normalRange of [
+    { min: 210, max: 240 },
+    { min: 90 },
+    { max: 100 },
+    { min: -10, max: 0 },
+  ]) {
+    const input = structuredClone(validConfig)
+    Object.assign(input.groups[0].lanes[0], { normalRange })
+    const config = parseMetricsConfig(input)
+    assert.ok(config)
+    assert.deepEqual(
+      clientMetricGroups(config)[0].lanes[0].normalRange,
+      normalRange
+    )
+    assert.ok(!("promql" in clientMetricGroups(config)[0].lanes[0].series[0]))
+  }
+  assert.equal(
+    parseMetricsConfig(validConfig)?.groups[0].lanes[0].normalRange,
+    undefined
+  )
+})
+
+test("rejects empty, nonfinite, and unordered normal ranges", () => {
+  for (const normalRange of [
+    null,
+    90,
+    {},
+    { min: "210" },
+    { max: null },
+    { min: NaN },
+    { max: Infinity },
+    { min: -Infinity },
+    { min: 240, max: 210 },
+    { min: 210, max: 210 },
+  ]) {
+    const input = structuredClone(validConfig)
+    Object.assign(input.groups[0].lanes[0], { normalRange })
+    assert.equal(parseMetricsConfig(input), null)
+  }
+})
+
+test("charts only excursions while keeping normal-range boundaries quiet", () => {
+  const voltageRange = { min: 210, max: 240 }
+  for (const value of [210, 225, 240]) {
+    assert.equal(metricChartValue(value, voltageRange), 0)
+  }
+  assert.equal(metricChartValue(205, voltageRange), -5)
+  assert.equal(metricChartValue(245, voltageRange), 5)
+  assert.equal(formatMetricValue(205, "volts"), "205.0 V")
+
+  const frequencyRange = { min: 49.5, max: 50.5 }
+  assert.equal(metricChartValue(49.5, frequencyRange), 0)
+  assert.equal(metricChartValue(50.5, frequencyRange), 0)
+  assert.equal(metricChartValue(49, frequencyRange), -0.5)
+  assert.equal(metricChartValue(51, frequencyRange), 0.5)
+
+  for (const value of [90, 95, 100]) {
+    assert.equal(metricChartValue(value, { min: 90 }), 0)
+  }
+  assert.equal(metricChartValue(85, { min: 90 }), -5)
+  assert.equal(metricChartValue(95, { max: 90 }), 5)
+})
+
+test("preserves unconfigured values and nonfinite gaps", () => {
+  for (const value of [-947, 0, 947, NaN, Infinity, -Infinity]) {
+    assert.equal(metricChartValue(value), value)
+  }
+  assert.ok(Number.isNaN(metricChartValue(NaN, { min: 210, max: 240 })))
 })
 
 test("rejects duplicate IDs and incomplete split lanes", () => {

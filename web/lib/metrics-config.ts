@@ -15,6 +15,8 @@ export type MetricFormat = (typeof metricFormats)[number]
 
 type MetricSeriesSide = "top" | "bottom"
 
+export type MetricNormalRange = { min?: number; max?: number }
+
 type MetricSeries = {
   id: string
   label: string
@@ -27,6 +29,7 @@ type MetricLane = {
   label: string
   format: MetricFormat
   extent: readonly [minimum: number, maximum: number]
+  normalRange?: MetricNormalRange
   series: readonly MetricSeries[]
 }
 
@@ -68,6 +71,27 @@ function uniqueIds(values: readonly { id: string }[]) {
   return new Set(values.map(({ id }) => id)).size === values.length
 }
 
+function parseNormalRange(value: unknown): MetricNormalRange | null {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const { min, max } = value
+  if (
+    (min === undefined && max === undefined) ||
+    (min !== undefined && (typeof min !== "number" || !Number.isFinite(min))) ||
+    (max !== undefined && (typeof max !== "number" || !Number.isFinite(max))) ||
+    (typeof min === "number" && typeof max === "number" && min >= max)
+  ) {
+    return null
+  }
+
+  return {
+    ...(typeof min === "number" ? { min } : {}),
+    ...(typeof max === "number" ? { max } : {}),
+  }
+}
+
 function parseSeries(value: unknown): MetricSeries | null {
   if (!isRecord(value)) {
     return null
@@ -100,6 +124,10 @@ function parseLane(value: unknown): MetricLane | null {
   const label = nonEmptyString(value.label)
   const format = metricFormats.find((candidate) => candidate === value.format)
   const [minimum, maximum] = value.extent
+  const normalRange =
+    value.normalRange === undefined
+      ? undefined
+      : parseNormalRange(value.normalRange)
   const series = value.series.map(parseSeries)
 
   if (
@@ -111,6 +139,7 @@ function parseLane(value: unknown): MetricLane | null {
     typeof maximum !== "number" ||
     !Number.isFinite(maximum) ||
     maximum <= minimum ||
+    normalRange === null ||
     series.some((candidate) => candidate === null)
   ) {
     return null
@@ -148,6 +177,7 @@ function parseLane(value: unknown): MetricLane | null {
     label,
     format,
     extent: [minimum, maximum],
+    ...(normalRange ? { normalRange } : {}),
     series: orderedSeries,
   }
 }
@@ -212,6 +242,22 @@ export function clientMetricGroups(config: MetricsConfig): ClientMetricGroup[] {
       })),
     })),
   }))
+}
+
+export function metricChartValue(
+  value: number,
+  normalRange?: MetricNormalRange
+) {
+  if (!normalRange || !Number.isFinite(value)) {
+    return value
+  }
+  if (normalRange.min !== undefined && value < normalRange.min) {
+    return value - normalRange.min
+  }
+  if (normalRange.max !== undefined && value > normalRange.max) {
+    return value - normalRange.max
+  }
+  return 0
 }
 
 function significantNumber(value: number, minimumSignificantDigits = 1) {
