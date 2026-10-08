@@ -21,9 +21,7 @@ import {
   useComboboxAnchor,
   useComboboxFilter,
 } from "@/components/ui/combobox"
-import type { FilterField, Filters } from "@/lib/list-controls"
-
-type Choice = { key: string; value: string; label: string }
+import type { FilterField, FilterOption, Filters } from "@/lib/list-controls"
 
 export function NoMatchingRecords() {
   return (
@@ -55,28 +53,29 @@ export function TokenFilterBar({
   const input = useRef<HTMLInputElement>(null)
   const anchor = useComboboxAnchor()
   const { contains } = useComboboxFilter({ sensitivity: "base" })
+  const search = query.trim()
   const field = fields.find((f) => f.key === fieldKey)
   const activeFields = fields.filter((f) => filters[f.key])
-  const choices: Choice[] = field
-    ? field.options.map((o) => ({ key: field.key, ...o }))
+  const choices: FilterOption[] = field
+    ? [...field.options]
     : fields
         .filter((f) => !filters[f.key])
-        .map((f) => ({ key: f.key, value: f.key, label: f.label }))
+        .map((f) => ({ value: f.key, label: f.label }))
   if (
     field?.allowCustom &&
-    query.trim() &&
-    !field.options.some((o) => o.value === query.trim())
+    search &&
+    !field.options.some((o) => o.value === search)
   ) {
     choices.push({
-      key: field.key,
-      value: query.trim(),
-      label: `Use “${query.trim()}”`,
+      value: search,
+      label: `Use “${search}”`,
     })
   }
 
-  function reset() {
+  function closePicker() {
     setFieldKey(null)
     setQuery("")
+    setOpen(false)
   }
   function edit(f: FilterField) {
     setFieldKey(f.key)
@@ -89,8 +88,7 @@ export function TokenFilterBar({
   function remove(key: string) {
     const next = { ...filters }
     delete next[key]
-    reset()
-    setOpen(false)
+    closePicker()
     onChange(next)
   }
 
@@ -101,10 +99,10 @@ export function TokenFilterBar({
       aria-busy={disabled}
       data-slot="token-filter-bar"
     >
-      <Combobox<Choice>
+      <Combobox<FilterOption>
         items={choices}
         filteredItems={choices.filter((choice) =>
-          contains(choice.label, query.trim())
+          contains(choice.label, search)
         )}
         value={null}
         disabled={disabled}
@@ -124,20 +122,19 @@ export function TokenFilterBar({
             details.cancel()
             return
           }
-          setOpen(next)
-          if (!next) reset()
+          if (next) setOpen(true)
+          else closePicker()
         }}
         onValueChange={(choice) => {
           if (!choice) return
           if (!field) {
-            setFieldKey(choice.key)
+            setFieldKey(choice.value)
             setQuery("")
             setOpen(true)
             input.current?.focus()
           } else {
-            onChange({ ...filters, [choice.key]: choice.value })
-            setOpen(false)
-            reset()
+            onChange({ ...filters, [field.key]: choice.value })
+            closePicker()
           }
         }}
       >
@@ -193,7 +190,7 @@ export function TokenFilterBar({
                 : "No matching fields."}
           </ComboboxEmpty>
           <ComboboxList>
-            {(choice: Choice) => (
+            {(choice: FilterOption) => (
               <ComboboxItem key={choice.value} value={choice}>
                 <span className="truncate" title={choice.label}>
                   {choice.label}
@@ -209,8 +206,7 @@ export function TokenFilterBar({
           size="sm"
           disabled={disabled}
           onClick={() => {
-            reset()
-            setOpen(false)
+            closePicker()
             onChange({})
           }}
         >

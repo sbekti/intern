@@ -33,7 +33,7 @@ import { useListControls } from "@/hooks/use-list-controls"
 import type { AuditLogPage } from "@/lib/api"
 import {
   auditFilterFields,
-  auditFilterLabels,
+  auditFilterKeys,
   auditSortKeys,
   defaultAuditSort,
 } from "@/lib/audit-log-list"
@@ -46,7 +46,7 @@ export function AuditLogTable({
   pageSizes: readonly number[]
 }) {
   const controls = useListControls(
-    Object.keys(auditFilterLabels),
+    auditFilterKeys,
     auditSortKeys,
     defaultAuditSort,
     true
@@ -157,10 +157,7 @@ export function AuditLogTable({
       {page.items.length ? (
         <CardFooter inert={controls.pending}>
           <AuditLogPagination
-            action={controls.filters.action ?? ""}
-            resourceType={controls.filters.resource_type ?? ""}
-            resourceId={controls.filters.resource_id ?? ""}
-            actorUsername={controls.filters.actor_username ?? ""}
+            filters={controls.filters}
             sort={controls.sort}
             limit={page.pagination.limit}
             offset={page.pagination.offset}

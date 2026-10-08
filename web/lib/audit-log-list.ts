@@ -1,12 +1,13 @@
 import type { AuditLogPage } from "./api"
 import { filterOptions, type FilterField, type Sort } from "./list-controls.ts"
 
-export const auditFilterLabels = {
-  action: "Action",
-  resource_type: "Resource Type",
-  resource_id: "Resource ID",
-  actor_username: "Actor",
-}
+const auditFilters = [
+  { key: "action", label: "Action" },
+  { key: "resource_type", label: "Resource Type" },
+  { key: "resource_id", label: "Resource ID" },
+  { key: "actor_username", label: "Actor" },
+] as const
+export const auditFilterKeys = auditFilters.map(({ key }) => key)
 export const auditSortKeys = [
   "created_at",
   "actor_username",
@@ -19,12 +20,10 @@ export const defaultAuditSort: Sort<(typeof auditSortKeys)[number]> = {
 }
 
 export function auditFilterFields(items: AuditLogPage["items"]): FilterField[] {
-  return Object.entries(auditFilterLabels).map(([key, label]) => ({
+  return auditFilters.map(({ key, label }) => ({
     key,
     label,
     allowCustom: true,
-    options: filterOptions(
-      items.map((item) => item[key as keyof typeof auditFilterLabels])
-    ),
+    options: filterOptions(items.map((item) => item[key])),
   }))
 }

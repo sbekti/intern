@@ -1,13 +1,10 @@
 "use client"
 
 import { TablePagination } from "@/components/table-pagination"
-import type { Sort } from "@/lib/list-controls"
+import type { Filters, Sort } from "@/lib/list-controls"
 
 type AuditLogPaginationProps = {
-  action: string
-  resourceType: string
-  resourceId: string
-  actorUsername: string
+  filters: Filters
   sort: Sort
   limit: number
   offset: number
@@ -30,10 +27,7 @@ function buildQuery(values: Record<string, string | number | undefined>) {
 }
 
 export function AuditLogPagination({
-  action,
-  resourceType,
-  resourceId,
-  actorUsername,
+  filters,
   sort,
   limit,
   offset,
@@ -41,10 +35,7 @@ export function AuditLogPagination({
   pageSizes,
 }: AuditLogPaginationProps) {
   const baseQuery = {
-    action,
-    resource_type: resourceType,
-    resource_id: resourceId,
-    actor_username: actorUsername,
+    ...filters,
     sort_by: sort.key,
     sort_dir: sort.direction,
   }
