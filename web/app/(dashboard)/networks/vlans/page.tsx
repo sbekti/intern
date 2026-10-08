@@ -17,7 +17,7 @@ export default async function VlansPage({
   const params = await searchParams
 
   if (hasForcedGlimmer(params)) {
-    return <TableLoadingPanel titleWidth="w-16" />
+    return <TableLoadingPanel kind="vlans" />
   }
 
   const vlans = await listVlans()

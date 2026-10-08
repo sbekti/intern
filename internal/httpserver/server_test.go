@@ -1120,7 +1120,7 @@ func TestListAdminAuditLogsRequiresAdmin(t *testing.T) {
 	}
 }
 
-func TestListAdminAuditLogsRejectsBadLimit(t *testing.T) {
+func TestListAdminAuditLogsRejectsBadParams(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), mustTestConfig(t), Dependencies{
@@ -1132,14 +1132,18 @@ func TestListAdminAuditLogsRejectsBadLimit(t *testing.T) {
 		AuditLogService: fakeAuditLogService{},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?limit=999", nil)
-	req.RemoteAddr = "127.0.0.1:12345"
-	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, query := range []string{"limit=999", "sort_by=metadata", "sort_dir=up"} {
+		t.Run(query, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?"+query, nil)
+			req.RemoteAddr = "127.0.0.1:12345"
+			setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+			}
+		})
 	}
 }
 
@@ -1159,6 +1163,9 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 				}
 				if filter.Offset != 50 {
 					t.Fatalf("expected offset 50, got %d", filter.Offset)
+				}
+				if filter.SortBy != "actor_username" || filter.SortDir != "asc" {
+					t.Fatalf("sort not passed through: %#v", filter)
 				}
 				if filter.Action != "device.update" {
 					t.Fatalf("expected action filter to be passed through, got %q", filter.Action)
@@ -1183,7 +1190,7 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?action=device.update&limit=25&offset=50", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?action=device.update&limit=25&offset=50&sort_by=actor_username&sort_dir=asc", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()

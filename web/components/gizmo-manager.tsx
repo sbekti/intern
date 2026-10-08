@@ -10,6 +10,18 @@ import {
 } from "lucide-react"
 
 import type { Gizmo, NetworkDevice } from "@/lib/api"
+import { useListControls } from "@/hooks/use-list-controls"
+import { filterAndSort } from "@/lib/list-controls"
+import {
+  gizmoFilterFields,
+  gizmoFilterValues,
+  gizmoSortValues,
+} from "@/lib/network-list"
+import {
+  NoMatchingRecords,
+  TokenFilterBar,
+} from "@/components/token-filter-bar"
+import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import {
   IconOnlyButtonLabel,
@@ -106,17 +118,21 @@ export function GizmoManager({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [removingBusy, setRemovingBusy] = useState(false)
 
-  const sortedItems = useMemo(
-    () =>
-      [...initialItems].sort((a, b) =>
-        a.network_device.display_name.localeCompare(
-          b.network_device.display_name,
-          undefined,
-          { sensitivity: "base" }
-        )
-      ),
-    [initialItems]
+  const controls = useListControls(
+    Object.keys(gizmoFilterValues),
+    Object.keys(gizmoSortValues),
+    { key: "display_name", direction: "asc" }
   )
+  const sortedItems = filterAndSort(
+    initialItems,
+    controls.filters,
+    gizmoFilterValues,
+    controls.sort,
+    gizmoSortValues,
+    (item) => item.network_device.id
+  )
+  const filterFields = gizmoFilterFields(initialItems)
+
   const availableDevices = useMemo(() => {
     const assigned = new Set(
       initialItems.map((item) => item.network_device.id)
@@ -201,12 +217,10 @@ export function GizmoManager({
     <>
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
-          <div className="flex flex-col gap-1">
-            <CardTitle>Gizmos</CardTitle>
-            <CardDescription>
-              Assign kiosk destinations to registered network devices.
-            </CardDescription>
-          </div>
+          <CardTitle>Gizmos</CardTitle>
+          <CardDescription>
+            Assign kiosk destinations to registered network devices.
+          </CardDescription>
           <CardAction className="ml-3 sm:ml-0">
             <Button
               size="icon-sm"
@@ -220,8 +234,15 @@ export function GizmoManager({
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent>
-          {sortedItems.length === 0 ? (
+        <CardContent className="flex flex-col gap-4">
+          <TokenFilterBar
+            fields={filterFields}
+            filters={controls.filters}
+            onChange={controls.setFilters}
+          />
+          {initialItems.length > 0 && sortedItems.length === 0 ? (
+            <NoMatchingRecords />
+          ) : initialItems.length === 0 ? (
             <Empty className="min-h-[16rem] border bg-muted/20">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -245,9 +266,27 @@ export function GizmoManager({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>MAC Address</TableHead>
-                  <TableHead>Destination</TableHead>
+                  <SortableTableHead
+                    sortKey="display_name"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Name
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="mac_address"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    MAC Address
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="destination"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Destination
+                  </SortableTableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

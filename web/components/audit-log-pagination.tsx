@@ -1,12 +1,14 @@
 "use client"
 
 import { TablePagination } from "@/components/table-pagination"
+import type { Sort } from "@/lib/list-controls"
 
 type AuditLogPaginationProps = {
   action: string
   resourceType: string
   resourceId: string
   actorUsername: string
+  sort: Sort
   limit: number
   offset: number
   total: number
@@ -32,6 +34,7 @@ export function AuditLogPagination({
   resourceType,
   resourceId,
   actorUsername,
+  sort,
   limit,
   offset,
   total,
@@ -42,6 +45,8 @@ export function AuditLogPagination({
     resource_type: resourceType,
     resource_id: resourceId,
     actor_username: actorUsername,
+    sort_by: sort.key,
+    sort_dir: sort.direction,
   }
 
   return (

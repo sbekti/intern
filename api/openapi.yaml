@@ -211,6 +211,20 @@ paths:
           required: false
           schema:
             type: string
+        - name: sort_by
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created_at, actor_username, action, resource]
+            default: created_at
+        - name: sort_dir
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
         - name: limit
           in: query
           required: false

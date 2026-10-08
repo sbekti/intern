@@ -84,6 +84,48 @@ func (e VlanColor) Valid() bool {
 	}
 }
 
+// Defines values for ListAdminAuditLogsParamsSortBy.
+const (
+	Action        ListAdminAuditLogsParamsSortBy = "action"
+	ActorUsername ListAdminAuditLogsParamsSortBy = "actor_username"
+	CreatedAt     ListAdminAuditLogsParamsSortBy = "created_at"
+	Resource      ListAdminAuditLogsParamsSortBy = "resource"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminAuditLogsParamsSortBy enum.
+func (e ListAdminAuditLogsParamsSortBy) Valid() bool {
+	switch e {
+	case Action:
+		return true
+	case ActorUsername:
+		return true
+	case CreatedAt:
+		return true
+	case Resource:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAdminAuditLogsParamsSortDir.
+const (
+	Asc  ListAdminAuditLogsParamsSortDir = "asc"
+	Desc ListAdminAuditLogsParamsSortDir = "desc"
+)
+
+// Valid indicates whether the value is a known member of the ListAdminAuditLogsParamsSortDir enum.
+func (e ListAdminAuditLogsParamsSortDir) Valid() bool {
+	switch e {
+	case Asc:
+		return true
+	case Desc:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuditLogEntry defines model for AuditLogEntry.
 type AuditLogEntry struct {
 	Action        string                 `json:"action"`
@@ -345,13 +387,21 @@ type Unauthorized = ErrorResponse
 
 // ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
 type ListAdminAuditLogsParams struct {
-	Action        *string `form:"action,omitempty" json:"action,omitempty"`
-	ResourceType  *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
-	ResourceId    *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
-	ActorUsername *string `form:"actor_username,omitempty" json:"actor_username,omitempty"`
-	Limit         *int32  `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset        *int32  `form:"offset,omitempty" json:"offset,omitempty"`
+	Action        *string                          `form:"action,omitempty" json:"action,omitempty"`
+	ResourceType  *string                          `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+	ResourceId    *string                          `form:"resource_id,omitempty" json:"resource_id,omitempty"`
+	ActorUsername *string                          `form:"actor_username,omitempty" json:"actor_username,omitempty"`
+	SortBy        *ListAdminAuditLogsParamsSortBy  `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+	SortDir       *ListAdminAuditLogsParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+	Limit         *int32                           `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset        *int32                           `form:"offset,omitempty" json:"offset,omitempty"`
 }
+
+// ListAdminAuditLogsParamsSortBy defines parameters for ListAdminAuditLogs.
+type ListAdminAuditLogsParamsSortBy string
+
+// ListAdminAuditLogsParamsSortDir defines parameters for ListAdminAuditLogs.
+type ListAdminAuditLogsParamsSortDir string
 
 // ListAdminAuthSessionsParams defines parameters for ListAdminAuthSessions.
 type ListAdminAuthSessionsParams struct {
@@ -1409,6 +1459,30 @@ func NewListAdminAuditLogsRequest(server string, params *ListAdminAuditLogsParam
 		if params.ActorUsername != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "actor_username", *params.ActorUsername, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortBy != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort_by", *params.SortBy, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SortDir != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sort_dir", *params.SortDir, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

@@ -24,6 +24,8 @@ type Filter struct {
 	ResourceType  string
 	ResourceID    string
 	ActorUsername string
+	SortBy        string
+	SortDir       string
 	Limit         int32
 	Offset        int32
 }
@@ -56,12 +58,21 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 	if offset < 0 {
 		offset = 0
 	}
+	sortBy, sortDir := filter.SortBy, filter.SortDir
+	if sortBy == "" {
+		sortBy = "created_at"
+	}
+	if sortDir == "" {
+		sortDir = "desc"
+	}
 
 	args := db.ListAuditLogsParams{
 		Action:        filter.Action,
 		ResourceType:  filter.ResourceType,
 		ResourceID:    filter.ResourceID,
 		ActorUsername: filter.ActorUsername,
+		SortBy:        sortBy,
+		SortDir:       sortDir,
 		LimitCount:    limit,
 		OffsetCount:   offset,
 	}

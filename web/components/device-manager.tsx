@@ -12,6 +12,18 @@ import {
 
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { VlanBadge } from "@/components/vlan-badge"
+import { useListControls } from "@/hooks/use-list-controls"
+import { filterAndSort } from "@/lib/list-controls"
+import {
+  deviceFilterFields,
+  deviceFilterValues,
+  deviceSortValues,
+} from "@/lib/network-list"
+import {
+  NoMatchingRecords,
+  TokenFilterBar,
+} from "@/components/token-filter-bar"
+import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import {
   IconOnlyButtonLabel,
@@ -137,15 +149,20 @@ export function DeviceManager({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
 
-  const sortedItems = useMemo(
-    () =>
-      [...initialItems].sort((a, b) =>
-        a.display_name.localeCompare(b.display_name, undefined, {
-          sensitivity: "base",
-        })
-      ),
-    [initialItems]
+  const controls = useListControls(
+    Object.keys(deviceFilterValues),
+    Object.keys(deviceSortValues),
+    { key: "display_name", direction: "asc" }
   )
+  const sortedItems = filterAndSort(
+    initialItems,
+    controls.filters,
+    deviceFilterValues,
+    controls.sort,
+    deviceSortValues,
+    (item) => item.id
+  )
+  const filterFields = deviceFilterFields(initialItems, vlans)
 
   const sortedVlans = useMemo(
     () => [...vlans].sort((a, b) => a.vlan_id - b.vlan_id),
@@ -236,12 +253,10 @@ export function DeviceManager({
     <>
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
-          <div className="flex flex-col gap-1">
-            <CardTitle>Devices</CardTitle>
-            <CardDescription>
-              Register devices and assign each MAC address to the correct VLAN.
-            </CardDescription>
-          </div>
+          <CardTitle>Devices</CardTitle>
+          <CardDescription>
+            Register devices and assign each MAC address to the correct VLAN.
+          </CardDescription>
           <CardAction className="ml-3 sm:ml-0">
             <Button
               size="icon-sm"
@@ -255,8 +270,15 @@ export function DeviceManager({
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent>
-          {sortedVlans.length === 0 ? (
+        <CardContent className="flex flex-col gap-4">
+          <TokenFilterBar
+            fields={filterFields}
+            filters={controls.filters}
+            onChange={controls.setFilters}
+          />
+          {initialItems.length > 0 && sortedItems.length === 0 ? (
+            <NoMatchingRecords />
+          ) : sortedVlans.length === 0 ? (
             <Empty className="min-h-[16rem] border bg-muted/20">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -290,10 +312,34 @@ export function DeviceManager({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>MAC Address</TableHead>
-                  <TableHead>VLAN</TableHead>
-                  <TableHead>Status</TableHead>
+                  <SortableTableHead
+                    sortKey="display_name"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Name
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="mac_address"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    MAC Address
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="vlan"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    VLAN
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="status"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Status
+                  </SortableTableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

@@ -93,6 +93,8 @@ func registerAdminRoutes(
 			ResourceType:  trimmedString(params.ResourceType),
 			ResourceID:    trimmedString(params.ResourceId),
 			ActorUsername: trimmedString(params.ActorUsername),
+			SortBy:        string(*params.SortBy),
+			SortDir:       string(*params.SortDir),
 			Limit:         int32Value(params.Limit, auditlogs.DefaultLimit),
 			Offset:        int32Value(params.Offset, 0),
 		})

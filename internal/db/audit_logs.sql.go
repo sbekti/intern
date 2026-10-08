@@ -97,9 +97,20 @@ WHERE ($1 = '' OR action = $1)
   AND ($2 = '' OR resource_type = $2)
   AND ($3 = '' OR resource_id = $3)
   AND ($4 = '' OR actor_username = $4)
-ORDER BY created_at DESC, id DESC
-LIMIT $6
-OFFSET $5
+ORDER BY
+  CASE WHEN $5::text = 'actor_username' AND $6::text = 'asc' THEN actor_username END ASC,
+  CASE WHEN $5::text = 'actor_username' AND $6::text = 'desc' THEN actor_username END DESC,
+  CASE WHEN $5::text = 'action' AND $6::text = 'asc' THEN action END ASC,
+  CASE WHEN $5::text = 'action' AND $6::text = 'desc' THEN action END DESC,
+  CASE WHEN $5::text = 'resource' AND $6::text = 'asc' THEN resource_type END ASC,
+  CASE WHEN $5::text = 'resource' AND $6::text = 'desc' THEN resource_type END DESC,
+  CASE WHEN $5::text = 'resource' AND $6::text = 'asc' THEN resource_id END ASC,
+  CASE WHEN $5::text = 'resource' AND $6::text = 'desc' THEN resource_id END DESC,
+  CASE WHEN $5::text = 'created_at' AND $6::text = 'asc' THEN created_at END ASC,
+  CASE WHEN $5::text = 'created_at' AND $6::text = 'asc' THEN id END ASC,
+  created_at DESC, id DESC
+LIMIT $8
+OFFSET $7
 `
 
 type ListAuditLogsParams struct {
@@ -107,6 +118,8 @@ type ListAuditLogsParams struct {
 	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
 	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
 	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
+	SortBy        string      `db:"sort_by" json:"sort_by"`
+	SortDir       string      `db:"sort_dir" json:"sort_dir"`
 	OffsetCount   int32       `db:"offset_count" json:"offset_count"`
 	LimitCount    int32       `db:"limit_count" json:"limit_count"`
 }
@@ -117,6 +130,8 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.ActorUsername,
+		arg.SortBy,
+		arg.SortDir,
 		arg.OffsetCount,
 		arg.LimitCount,
 	)

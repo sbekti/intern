@@ -1,11 +1,23 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { startTransition, useMemo, useState } from "react"
+import { startTransition, useState } from "react"
 import { toast } from "@/components/ui/toast"
 import { NetworkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import type { Vlan } from "@/lib/api"
+import { useListControls } from "@/hooks/use-list-controls"
+import { filterAndSort } from "@/lib/list-controls"
+import {
+  vlanFilterFields,
+  vlanFilterValues,
+  vlanSortValues,
+} from "@/lib/network-list"
+import {
+  NoMatchingRecords,
+  TokenFilterBar,
+} from "@/components/token-filter-bar"
+import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { vlanColors, type VlanColor } from "@/lib/vlan-colors"
 import { VlanBadge } from "@/components/vlan-badge"
@@ -58,7 +70,14 @@ import {
   FieldTitle,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
@@ -113,10 +132,20 @@ export function VlanManager({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
 
-  const sortedItems = useMemo(
-    () => [...initialItems].sort((a, b) => a.vlan_id - b.vlan_id),
-    [initialItems]
+  const controls = useListControls(
+    Object.keys(vlanFilterValues),
+    Object.keys(vlanSortValues),
+    { key: "vlan_id", direction: "asc" }
   )
+  const sortedItems = filterAndSort(
+    initialItems,
+    controls.filters,
+    vlanFilterValues,
+    controls.sort,
+    vlanSortValues,
+    (item) => item.vlan_id
+  )
+  const filterFields = vlanFilterFields(initialItems)
 
   function openCreate() {
     setEditing(null)
@@ -196,12 +225,10 @@ export function VlanManager({
     <>
       <Card className="border-border/70 shadow-xs">
         <CardHeader>
-          <div className="flex flex-col gap-1">
-            <CardTitle>VLANs</CardTitle>
-            <CardDescription>
-              Create, update, and remove VLAN definitions for the network.
-            </CardDescription>
-          </div>
+          <CardTitle>VLANs</CardTitle>
+          <CardDescription>
+            Create, update, and remove VLAN definitions for the network.
+          </CardDescription>
           <CardAction className="ml-3 sm:ml-0">
             <Button
               size="icon-sm"
@@ -214,8 +241,15 @@ export function VlanManager({
             </Button>
           </CardAction>
         </CardHeader>
-        <CardContent>
-          {sortedItems.length === 0 ? (
+        <CardContent className="flex flex-col gap-4">
+          <TokenFilterBar
+            fields={filterFields}
+            filters={controls.filters}
+            onChange={controls.setFilters}
+          />
+          {initialItems.length > 0 && sortedItems.length === 0 ? (
+            <NoMatchingRecords />
+          ) : initialItems.length === 0 ? (
             <Empty className="min-h-[16rem] border bg-muted/20">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -237,9 +271,27 @@ export function VlanManager({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>VLAN ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
+                  <SortableTableHead
+                    sortKey="vlan_id"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    VLAN ID
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="name"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Name
+                  </SortableTableHead>
+                  <SortableTableHead
+                    sortKey="description"
+                    sort={controls.sort}
+                    onSort={controls.setSort}
+                  >
+                    Description
+                  </SortableTableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

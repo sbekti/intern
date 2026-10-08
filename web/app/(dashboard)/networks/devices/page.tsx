@@ -17,7 +17,7 @@ export default async function DevicesPage({
   const params = await searchParams
 
   if (hasForcedGlimmer(params)) {
-    return <TableLoadingPanel titleWidth="w-20" />
+    return <TableLoadingPanel kind="devices" />
   }
 
   const [devices, vlans] = await Promise.all([listDevices(), listVlans()])

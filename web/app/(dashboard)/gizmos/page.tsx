@@ -16,7 +16,7 @@ export default async function GizmosPage({
 }) {
   const params = await searchParams
   if (hasForcedGlimmer(params)) {
-    return <TableLoadingPanel titleWidth="w-20" />
+    return <TableLoadingPanel kind="gizmos" />
   }
 
   const [gizmos, devices] = await Promise.all([listGizmos(), listDevices()])

@@ -92,6 +92,22 @@ func decodeAdminAuditLogParams(r *http.Request) (api.ListAdminAuditLogsParams, e
 	if value := strings.TrimSpace(query.Get("actor_username")); value != "" {
 		params.ActorUsername = &value
 	}
+	sortBy := api.ListAdminAuditLogsParamsSortBy(query.Get("sort_by"))
+	if sortBy == "" {
+		sortBy = api.CreatedAt
+	}
+	if !sortBy.Valid() {
+		return params, errors.New("invalid sort_by")
+	}
+	params.SortBy = &sortBy
+	sortDir := api.ListAdminAuditLogsParamsSortDir(query.Get("sort_dir"))
+	if sortDir == "" {
+		sortDir = api.Desc
+	}
+	if !sortDir.Valid() {
+		return params, errors.New("invalid sort_dir")
+	}
+	params.SortDir = &sortDir
 	if value := strings.TrimSpace(query.Get("limit")); value != "" {
 		parsed, err := strconv.ParseInt(value, 10, 32)
 		if err != nil || parsed < 1 || parsed > int64(auditlogs.MaxLimit) {
