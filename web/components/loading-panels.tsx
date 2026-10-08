@@ -17,42 +17,57 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 
 export function ProfileLoadingPanel() {
   return (
-    <div className="grid gap-4 px-4 lg:px-6">
-      <Card className="border-border/70 shadow-xs">
-        <CardHeader className="gap-2">
-          <Skeleton className="h-6 w-36" />
-          <Skeleton className="h-4 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Skeleton className="h-24 w-full rounded-xl" />
-            <Skeleton className="h-24 w-full rounded-xl" />
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="border-border/70 shadow-xs">
-        <CardHeader className="gap-2">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-4 w-72" />
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Skeleton className="h-5 w-24 rounded-full" />
-          <Skeleton className="h-5 w-32 rounded-full" />
-          <Skeleton className="h-5 w-28 rounded-full" />
-        </CardContent>
-      </Card>
-      <Card className="border-border/70 shadow-xs">
-        <CardHeader className="gap-2">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-4 w-full max-w-sm" />
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-9 w-52 rounded-md" />
-        </CardContent>
-      </Card>
+    <div className="px-4 lg:px-6" aria-label="Loading profile" aria-busy="true">
+      <div className="mx-auto grid w-full max-w-3xl gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-start gap-4">
+            <Skeleton className="size-10 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="grid gap-1">
+                <Skeleton className="h-6 w-36 max-w-full" />
+                <Skeleton className="h-5 w-48 max-w-full" />
+              </div>
+              <Skeleton className="h-5 w-28 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="@container grid gap-4">
+            <div className="grid gap-2 @sm:grid-cols-[8rem_minmax(0,1fr)] @sm:gap-4">
+              <Skeleton className="h-5 w-20" />
+              <Skeleton className="h-5 w-28" />
+            </div>
+            <div className="grid gap-2 @sm:grid-cols-[8rem_minmax(0,1fr)] @sm:gap-4">
+              <Skeleton className="h-5 w-14" />
+              <div className="flex flex-wrap gap-2">
+                <Skeleton className="h-5.5 w-28 rounded-full" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-20" />
+            <Skeleton className="h-5 w-48 max-w-full" />
+          </CardHeader>
+          <CardContent className="@container grid gap-4">
+            {[0, 1].map((row) => (
+              <div key={row} className="grid gap-4">
+                {row > 0 ? <Separator /> : null}
+                <div className="flex flex-col gap-3 @lg:flex-row @lg:items-center @lg:justify-between @lg:gap-6">
+                  <div className="grid min-w-0 gap-1">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-5 w-64 max-w-full" />
+                  </div>
+                  <Skeleton className="h-9 w-full rounded-md @lg:w-40" />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
