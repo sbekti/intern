@@ -345,7 +345,6 @@ export function VlanManager({
                 <FieldTitle id="vlan-color-label">Color</FieldTitle>
                 <ToggleGroup
                   aria-labelledby="vlan-color-label"
-                  aria-describedby="vlan-color-description"
                   variant="outline"
                   size="sm"
                   spacing={2}
@@ -376,14 +375,6 @@ export function VlanManager({
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
-                <FieldDescription id="vlan-color-description">
-                  {vlanColors.find(({ value }) => value === form.color)?.label}
-                  {" · "}
-                  <VlanBadge
-                    name={form.name.trim() || "VLAN"}
-                    color={form.color}
-                  />
-                </FieldDescription>
               </Field>
               <FieldError>{submitError}</FieldError>
             </FieldGroup>
