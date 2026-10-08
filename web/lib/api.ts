@@ -1,5 +1,6 @@
 import { headers } from "next/headers"
 import { connection } from "next/server"
+import type { VlanColor } from "@/lib/vlan-colors"
 
 export type Profile = {
   username: string
@@ -13,6 +14,7 @@ export type Vlan = {
   name: string
   vlan_id: number
   description: string
+  color?: VlanColor
   created_at: string
   updated_at: string
 }
@@ -25,6 +27,7 @@ export type NetworkDevice = {
   vlan: {
     name: string
     vlan_id: number
+    color?: VlanColor
   }
   created_at: string
   updated_at: string

@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import type { NetworkDevice, Vlan } from "@/lib/api"
+import { VlanBadge } from "@/components/vlan-badge"
 import { buildBffPath } from "@/lib/bff"
 import {
   IconOnlyButtonLabel,
@@ -27,7 +28,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -307,7 +307,10 @@ export function DeviceManager({
                       {device.mac_address}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{device.vlan.name}</Badge>
+                      <VlanBadge
+                        name={device.vlan.name}
+                        color={device.vlan.color}
+                      />
                     </TableCell>
                     <TableCell>
                       {device.disabled ? "Disabled" : "Enabled"}

@@ -13,23 +13,31 @@ const createVlan = `-- name: CreateVlan :one
 INSERT INTO vlans (
   vlan_id,
   name,
-  description
+  description,
+  color
 ) VALUES (
   $1,
   $2,
-  $3
+  $3,
+  $4
 )
-RETURNING vlan_id, name, description, created_at, updated_at
+RETURNING vlan_id, name, description, created_at, updated_at, color
 `
 
 type CreateVlanParams struct {
 	VlanID      int32  `db:"vlan_id" json:"vlan_id"`
 	Name        string `db:"name" json:"name"`
 	Description string `db:"description" json:"description"`
+	Color       string `db:"color" json:"color"`
 }
 
 func (q *Queries) CreateVlan(ctx context.Context, arg CreateVlanParams) (Vlan, error) {
-	row := q.db.QueryRow(ctx, createVlan, arg.VlanID, arg.Name, arg.Description)
+	row := q.db.QueryRow(ctx, createVlan,
+		arg.VlanID,
+		arg.Name,
+		arg.Description,
+		arg.Color,
+	)
 	var i Vlan
 	err := row.Scan(
 		&i.VlanID,
@@ -37,6 +45,7 @@ func (q *Queries) CreateVlan(ctx context.Context, arg CreateVlanParams) (Vlan, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Color,
 	)
 	return i, err
 }
@@ -56,7 +65,7 @@ func (q *Queries) DeleteVlan(ctx context.Context, arg DeleteVlanParams) error {
 }
 
 const getVlanByVlanID = `-- name: GetVlanByVlanID :one
-SELECT vlan_id, name, description, created_at, updated_at
+SELECT vlan_id, name, description, created_at, updated_at, color
 FROM vlans
 WHERE vlan_id = $1
 LIMIT 1
@@ -75,12 +84,13 @@ func (q *Queries) GetVlanByVlanID(ctx context.Context, arg GetVlanByVlanIDParams
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Color,
 	)
 	return i, err
 }
 
 const listVlans = `-- name: ListVlans :many
-SELECT vlan_id, name, description, created_at, updated_at
+SELECT vlan_id, name, description, created_at, updated_at, color
 FROM vlans
 ORDER BY vlan_id
 `
@@ -100,6 +110,7 @@ func (q *Queries) ListVlans(ctx context.Context) ([]Vlan, error) {
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Color,
 		); err != nil {
 			return nil, err
 		}
@@ -117,15 +128,17 @@ SET
   vlan_id = $1,
   name = $2,
   description = $3,
+  color = $4,
   updated_at = NOW()
-WHERE vlan_id = $4
-RETURNING vlan_id, name, description, created_at, updated_at
+WHERE vlan_id = $5
+RETURNING vlan_id, name, description, created_at, updated_at, color
 `
 
 type UpdateVlanParams struct {
 	VlanID        int32  `db:"vlan_id" json:"vlan_id"`
 	Name          string `db:"name" json:"name"`
 	Description   string `db:"description" json:"description"`
+	Color         string `db:"color" json:"color"`
 	CurrentVlanID int32  `db:"current_vlan_id" json:"current_vlan_id"`
 }
 
@@ -134,6 +147,7 @@ func (q *Queries) UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, e
 		arg.VlanID,
 		arg.Name,
 		arg.Description,
+		arg.Color,
 		arg.CurrentVlanID,
 	)
 	var i Vlan
@@ -143,6 +157,7 @@ func (q *Queries) UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Color,
 	)
 	return i, err
 }

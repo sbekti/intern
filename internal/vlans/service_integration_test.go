@@ -35,6 +35,7 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 		Name:        "lab",
 		VlanId:      30,
 		Description: stringPtrIntegration("Lab devices"),
+		Color:       vlanColorPtr(api.Blue),
 	})
 	if err != nil {
 		t.Fatalf("expected create to succeed, got %v", err)
@@ -44,6 +45,7 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 		Name:        stringPtrIntegration("lab-updated"),
 		VlanId:      int32PtrIntegration(31),
 		Description: stringPtrIntegration("Updated lab devices"),
+		Color:       vlanColorPtr(api.Violet),
 	})
 	if err != nil {
 		t.Fatalf("expected update to succeed, got %v", err)
@@ -58,6 +60,7 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 			"name":        "lab",
 			"vlan_id":     float64(30),
 			"description": "Lab devices",
+			"color":       "blue",
 		},
 	})
 	assertVLANAuditMetadata(t, ctx, pg.Pool, "vlan.update", map[string]any{
@@ -65,11 +68,13 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 			"name":        "lab",
 			"vlan_id":     float64(30),
 			"description": "Lab devices",
+			"color":       "blue",
 		},
 		"after": map[string]any{
 			"name":        "lab-updated",
 			"vlan_id":     float64(31),
 			"description": "Updated lab devices",
+			"color":       "violet",
 		},
 	})
 	assertVLANAuditMetadata(t, ctx, pg.Pool, "vlan.delete", map[string]any{
@@ -77,6 +82,7 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 			"name":        "lab-updated",
 			"vlan_id":     float64(31),
 			"description": "Updated lab devices",
+			"color":       "violet",
 		},
 	})
 }

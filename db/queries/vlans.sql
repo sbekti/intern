@@ -13,11 +13,13 @@ LIMIT 1;
 INSERT INTO vlans (
   vlan_id,
   name,
-  description
+  description,
+  color
 ) VALUES (
   sqlc.arg(vlan_id),
   sqlc.arg(name),
-  sqlc.arg(description)
+  sqlc.arg(description),
+  sqlc.arg(color)
 )
 RETURNING *;
 
@@ -27,6 +29,7 @@ SET
   vlan_id = sqlc.arg(vlan_id),
   name = sqlc.arg(name),
   description = sqlc.arg(description),
+  color = sqlc.arg(color),
   updated_at = NOW()
 WHERE vlan_id = sqlc.arg(current_vlan_id)
 RETURNING *;

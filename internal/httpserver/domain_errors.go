@@ -33,6 +33,7 @@ func toAPIVlan(value db.Vlan) api.Vlan {
 		Name:        value.Name,
 		VlanId:      value.VlanID,
 		Description: value.Description,
+		Color:       api.VlanColor(value.Color),
 		CreatedAt:   value.CreatedAt.Time,
 		UpdatedAt:   value.UpdatedAt.Time,
 	}
@@ -61,6 +62,7 @@ func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 		Vlan: api.VlanRef{
 			Name:   record.VLAN.Name,
 			VlanId: record.VLAN.VlanID,
+			Color:  api.VlanColor(record.VLAN.Color),
 		},
 		CreatedAt: record.Device.CreatedAt.Time,
 		UpdatedAt: record.Device.UpdatedAt.Time,

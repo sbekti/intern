@@ -158,7 +158,7 @@ func TestHandlerIntegrationAdminRouteAllowsSuperUsers(t *testing.T) {
 	var vlan api.Vlan
 	decodeBody(t, rec.Body, &vlan)
 
-	if vlan.Name != "lab" || vlan.VlanId != 30 {
+	if vlan.Name != "lab" || vlan.VlanId != 30 || vlan.Color != api.Default {
 		t.Fatalf("unexpected vlan payload %#v", vlan)
 	}
 
@@ -168,6 +168,66 @@ func TestHandlerIntegrationAdminRouteAllowsSuperUsers(t *testing.T) {
 	}
 	if auditCount != 1 {
 		t.Fatalf("expected 1 vlan.create audit log, got %d", auditCount)
+	}
+}
+
+func TestHandlerIntegrationVlanColorRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	testEnv := newHandlerIntegrationEnv(t)
+	request := func(method, path, body string, wantStatus int) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, "/api/v1"+path, strings.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:43210"
+		req.Header.Set("Content-Type", "application/json")
+		setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
+		rec := httptest.NewRecorder()
+		testEnv.handler.ServeHTTP(rec, req)
+		if rec.Code != wantStatus {
+			t.Fatalf("%s %s: expected status %d, got %d body=%s", method, path, wantStatus, rec.Code, rec.Body.String())
+		}
+		return rec
+	}
+
+	var seeded api.VlanList
+	decodeBody(t, request(http.MethodGet, "/networks/vlans", "", http.StatusOK).Body, &seeded)
+	for _, vlan := range seeded.Items {
+		if vlan.Color != api.Default {
+			t.Fatalf("expected migrated VLAN %d to use default, got %q", vlan.VlanId, vlan.Color)
+		}
+	}
+
+	var created api.Vlan
+	decodeBody(t, request(http.MethodPost, "/networks/vlans", `{"name":"lab","vlan_id":30,"color":"blue"}`, http.StatusCreated).Body, &created)
+	if created.Color != api.Blue {
+		t.Fatalf("expected created color blue, got %q", created.Color)
+	}
+	request(http.MethodPost, "/networks/vlans", `{"name":"invalid","vlan_id":31,"color":"purple"}`, http.StatusBadRequest)
+	request(http.MethodPost, "/networks/devices", `{"mac_address":"02:00:00:00:00:30","display_name":"Lab device","vlan_id":30}`, http.StatusCreated)
+	request(http.MethodPatch, "/networks/vlans/30", `{"color":"purple"}`, http.StatusBadRequest)
+
+	var preserved api.Vlan
+	decodeBody(t, request(http.MethodPatch, "/networks/vlans/30", `{"description":"Updated by an older client"}`, http.StatusOK).Body, &preserved)
+	if preserved.Color != api.Blue {
+		t.Fatalf("expected omitted color to preserve blue, got %q", preserved.Color)
+	}
+
+	request(http.MethodPatch, "/networks/vlans/30", `{"color":"violet"}`, http.StatusOK)
+	var fetched api.Vlan
+	decodeBody(t, request(http.MethodGet, "/networks/vlans/30", "", http.StatusOK).Body, &fetched)
+	if fetched.Color != api.Violet || fetched.Description != preserved.Description {
+		t.Fatalf("unexpected persisted color-only update %#v", fetched)
+	}
+	var devices api.NetworkDeviceList
+	decodeBody(t, request(http.MethodGet, "/networks/devices", "", http.StatusOK).Body, &devices)
+	if len(devices.Items) != 1 || devices.Items[0].Vlan.Color != api.Violet {
+		t.Fatalf("expected device VLAN color violet, got %#v", devices.Items)
+	}
+
+	request(http.MethodPatch, "/networks/vlans/30", `{"color":"default"}`, http.StatusOK)
+	decodeBody(t, request(http.MethodGet, "/networks/vlans/30", "", http.StatusOK).Body, &fetched)
+	if fetched.Color != api.Default {
+		t.Fatalf("expected reset color default, got %q", fetched.Color)
 	}
 }
 

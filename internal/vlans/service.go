@@ -122,6 +122,7 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.VlanWrite
 				"name":        created.Name,
 				"vlan_id":     created.VlanID,
 				"description": created.Description,
+				"color":       created.Color,
 			},
 		})
 		if err != nil {
@@ -176,11 +177,13 @@ func (s *Service) Update(ctx context.Context, actor db.User, currentVlanID int32
 				"name":        current.Name,
 				"vlan_id":     current.VlanID,
 				"description": current.Description,
+				"color":       current.Color,
 			},
 			"after": map[string]any{
 				"name":        updated.Name,
 				"vlan_id":     updated.VlanID,
 				"description": updated.Description,
+				"color":       updated.Color,
 			},
 		})
 		if err != nil {
@@ -226,6 +229,7 @@ func (s *Service) Delete(ctx context.Context, actor db.User, vlanID int32) error
 				"name":        current.Name,
 				"vlan_id":     current.VlanID,
 				"description": current.Description,
+				"color":       current.Color,
 			},
 		})
 		if err != nil {
@@ -257,16 +261,24 @@ func normalizeCreate(input api.VlanWrite) (db.CreateVlanParams, error) {
 	if input.Description != nil {
 		description = strings.TrimSpace(*input.Description)
 	}
+	color := api.Default
+	if input.Color != nil {
+		color = *input.Color
+		if !color.Valid() {
+			return db.CreateVlanParams{}, ValidationError{Message: "color must be a supported VLAN color"}
+		}
+	}
 
 	return db.CreateVlanParams{
 		VlanID:      input.VlanId,
 		Name:        name,
 		Description: description,
+		Color:       string(color),
 	}, nil
 }
 
 func mergePatch(current db.Vlan, patch api.VlanPatch) (db.UpdateVlanParams, error) {
-	if patch.Name == nil && patch.VlanId == nil && patch.Description == nil {
+	if patch.Name == nil && patch.VlanId == nil && patch.Description == nil && patch.Color == nil {
 		return db.UpdateVlanParams{}, ValidationError{Message: "patch must include at least one field"}
 	}
 
@@ -290,11 +302,19 @@ func mergePatch(current db.Vlan, patch api.VlanPatch) (db.UpdateVlanParams, erro
 	if patch.Description != nil {
 		description = strings.TrimSpace(*patch.Description)
 	}
+	color := current.Color
+	if patch.Color != nil {
+		if !patch.Color.Valid() {
+			return db.UpdateVlanParams{}, ValidationError{Message: "color must be a supported VLAN color"}
+		}
+		color = string(*patch.Color)
+	}
 
 	return db.UpdateVlanParams{
 		VlanID:      vlanID,
 		Name:        name,
 		Description: description,
+		Color:       color,
 	}, nil
 }
 

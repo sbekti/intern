@@ -106,7 +106,7 @@ func (q *Queries) GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDevice
 }
 
 const listNetworkDevices = `-- name: ListNetworkDevices :many
-SELECT network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at
+SELECT network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at, vlans.color
 FROM network_devices
 JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
 ORDER BY network_devices.display_name, network_devices.id
@@ -141,6 +141,7 @@ func (q *Queries) ListNetworkDevices(ctx context.Context) ([]ListNetworkDevicesR
 			&i.Vlan.Description,
 			&i.Vlan.CreatedAt,
 			&i.Vlan.UpdatedAt,
+			&i.Vlan.Color,
 		); err != nil {
 			return nil, err
 		}

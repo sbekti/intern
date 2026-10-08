@@ -45,6 +45,45 @@ func (e ClientAuthErrorError) Valid() bool {
 	}
 }
 
+// Defines values for VlanColor.
+const (
+	Amber   VlanColor = "amber"
+	Blue    VlanColor = "blue"
+	Cyan    VlanColor = "cyan"
+	Default VlanColor = "default"
+	Green   VlanColor = "green"
+	Orange  VlanColor = "orange"
+	Rose    VlanColor = "rose"
+	Slate   VlanColor = "slate"
+	Violet  VlanColor = "violet"
+)
+
+// Valid indicates whether the value is a known member of the VlanColor enum.
+func (e VlanColor) Valid() bool {
+	switch e {
+	case Amber:
+		return true
+	case Blue:
+		return true
+	case Cyan:
+		return true
+	case Default:
+		return true
+	case Green:
+		return true
+	case Orange:
+		return true
+	case Rose:
+		return true
+	case Slate:
+		return true
+	case Violet:
+		return true
+	default:
+		return false
+	}
+}
+
 // AuditLogEntry defines model for AuditLogEntry.
 type AuditLogEntry struct {
 	Action        string                 `json:"action"`
@@ -229,12 +268,16 @@ type TokenResponse struct {
 
 // Vlan defines model for Vlan.
 type Vlan struct {
+	Color       VlanColor `json:"color"`
 	CreatedAt   time.Time `json:"created_at"`
 	Description string    `json:"description"`
 	Name        string    `json:"name"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	VlanId      int32     `json:"vlan_id"`
 }
+
+// VlanColor defines model for VlanColor.
+type VlanColor string
 
 // VlanList defines model for VlanList.
 type VlanList struct {
@@ -243,22 +286,25 @@ type VlanList struct {
 
 // VlanPatch defines model for VlanPatch.
 type VlanPatch struct {
-	Description *string `json:"description,omitempty"`
-	Name        *string `json:"name,omitempty"`
-	VlanId      *int32  `json:"vlan_id,omitempty"`
+	Color       *VlanColor `json:"color,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Name        *string    `json:"name,omitempty"`
+	VlanId      *int32     `json:"vlan_id,omitempty"`
 }
 
 // VlanRef defines model for VlanRef.
 type VlanRef struct {
-	Name   string `json:"name"`
-	VlanId int32  `json:"vlan_id"`
+	Color  VlanColor `json:"color"`
+	Name   string    `json:"name"`
+	VlanId int32     `json:"vlan_id"`
 }
 
 // VlanWrite defines model for VlanWrite.
 type VlanWrite struct {
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
-	VlanId      int32   `json:"vlan_id"`
+	Color       *VlanColor `json:"color,omitempty"`
+	Description *string    `json:"description,omitempty"`
+	Name        string     `json:"name"`
+	VlanId      int32      `json:"vlan_id"`
 }
 
 // DeviceId defines model for DeviceId.

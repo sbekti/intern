@@ -77,6 +77,7 @@ func TestMergePatch(t *testing.T) {
 		Name:        "guest",
 		VlanID:      10,
 		Description: "Guest devices",
+		Color:       "amber",
 	}
 
 	_, err := mergePatch(current, api.VlanPatch{})
@@ -90,9 +91,74 @@ func TestMergePatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if params.Name != "iot" || params.VlanID != 10 {
+	if params.Name != "iot" || params.VlanID != 10 || params.Color != "amber" {
 		t.Fatalf("unexpected merged params %+v", params)
 	}
+}
+
+func TestNormalizeCreateColor(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		color   *api.VlanColor
+		want    string
+		invalid bool
+	}{
+		{name: "omitted", want: "default"},
+		{name: "default", color: vlanColorPtr(api.Default), want: "default"},
+		{name: "chosen", color: vlanColorPtr(api.Blue), want: "blue"},
+		{name: "unsupported", color: vlanColorPtr("purple"), invalid: true},
+		{name: "empty", color: vlanColorPtr(""), invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := normalizeCreate(api.VlanWrite{Name: "lab", VlanId: 30, Color: tc.color})
+			if tc.invalid {
+				var validationErr ValidationError
+				if !errors.As(err, &validationErr) {
+					t.Fatalf("expected validation error, got %v", err)
+				}
+				return
+			}
+			if err != nil || params.Color != tc.want {
+				t.Fatalf("expected color %q, got %+v, error %v", tc.want, params, err)
+			}
+		})
+	}
+}
+
+func TestMergePatchColor(t *testing.T) {
+	t.Parallel()
+
+	current := db.Vlan{Name: "guest", VlanID: 10, Description: "Guest devices", Color: "amber"}
+	for _, tc := range []struct {
+		name    string
+		color   api.VlanColor
+		invalid bool
+	}{
+		{name: "color only", color: api.Blue},
+		{name: "reset", color: api.Default},
+		{name: "unsupported", color: "purple", invalid: true},
+		{name: "empty", color: "", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			params, err := mergePatch(current, api.VlanPatch{Color: &tc.color})
+			if tc.invalid {
+				var validationErr ValidationError
+				if !errors.As(err, &validationErr) {
+					t.Fatalf("expected validation error, got %v", err)
+				}
+				return
+			}
+			if err != nil || params.Color != string(tc.color) || params.Name != current.Name || params.VlanID != current.VlanID || params.Description != current.Description {
+				t.Fatalf("unexpected color-only patch %+v, error %v", params, err)
+			}
+		})
+	}
+}
+
+func vlanColorPtr(color api.VlanColor) *api.VlanColor {
+	return &color
 }
 
 func TestClassifyDBError(t *testing.T) {

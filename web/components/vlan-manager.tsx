@@ -7,6 +7,8 @@ import { NetworkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import type { Vlan } from "@/lib/api"
 import { buildBffPath } from "@/lib/bff"
+import { vlanColors, type VlanColor } from "@/lib/vlan-colors"
+import { VlanBadge } from "@/components/vlan-badge"
 import {
   IconOnlyButtonLabel,
   responsiveCompactButtonClass,
@@ -53,15 +55,18 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldTitle,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type VlanFormState = {
   name: string
   vlan_id: string
   description: string
+  color: VlanColor
 }
 
 type ApiError = {
@@ -73,6 +78,7 @@ const defaultFormState: VlanFormState = {
   name: "",
   vlan_id: "",
   description: "",
+  color: "default",
 }
 
 function mapVlanToForm(vlan: Vlan): VlanFormState {
@@ -80,6 +86,7 @@ function mapVlanToForm(vlan: Vlan): VlanFormState {
     name: vlan.name,
     vlan_id: String(vlan.vlan_id),
     description: vlan.description,
+    color: vlan.color ?? "default",
   }
 }
 
@@ -134,6 +141,7 @@ export function VlanManager({
       name: form.name.trim(),
       vlan_id: Number(form.vlan_id),
       description: form.description.trim(),
+      color: form.color,
     }
 
     const response = await fetch(
@@ -239,7 +247,9 @@ export function VlanManager({
                 {sortedItems.map((vlan) => (
                   <TableRow key={vlan.vlan_id}>
                     <TableCell>{vlan.vlan_id}</TableCell>
-                    <TableCell className="font-medium">{vlan.name}</TableCell>
+                    <TableCell>
+                      <VlanBadge name={vlan.name} color={vlan.color} />
+                    </TableCell>
                     <TableCell className="max-w-[24rem] whitespace-normal text-muted-foreground">
                       {vlan.description || "-"}
                     </TableCell>
@@ -276,7 +286,7 @@ export function VlanManager({
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit VLAN" : "Create VLAN"}</DialogTitle>
             <DialogDescription>
@@ -330,6 +340,50 @@ export function VlanManager({
                     }))
                   }
                 />
+              </Field>
+              <Field data-disabled={submitting}>
+                <FieldTitle id="vlan-color-label">Color</FieldTitle>
+                <ToggleGroup
+                  aria-labelledby="vlan-color-label"
+                  aria-describedby="vlan-color-description"
+                  variant="outline"
+                  size="sm"
+                  spacing={2}
+                  className="flex-wrap"
+                  value={[form.color]}
+                  onValueChange={(values) => {
+                    const color = values[0] as VlanColor | undefined
+                    if (color) {
+                      setForm((current) => ({ ...current, color }))
+                    }
+                  }}
+                  disabled={submitting}
+                >
+                  {vlanColors.map(({ value, label }) => (
+                    <ToggleGroupItem
+                      key={value}
+                      value={value}
+                      aria-label={label}
+                      title={label}
+                      type="button"
+                    >
+                      <span
+                        className="size-4 rounded-full"
+                        data-vlan-swatch
+                        data-vlan-color={value}
+                        aria-hidden="true"
+                      />
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+                <FieldDescription id="vlan-color-description">
+                  {vlanColors.find(({ value }) => value === form.color)?.label}
+                  {" · "}
+                  <VlanBadge
+                    name={form.name.trim() || "VLAN"}
+                    color={form.color}
+                  />
+                </FieldDescription>
               </Field>
               <FieldError>{submitError}</FieldError>
             </FieldGroup>

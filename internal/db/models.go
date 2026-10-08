@@ -85,4 +85,5 @@ type Vlan struct {
 	Description string             `db:"description" json:"description"`
 	CreatedAt   pgtype.Timestamptz `db:"created_at" json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	Color       string             `db:"color" json:"color"`
 }

@@ -952,12 +952,16 @@ components:
             $ref: '#/components/schemas/AuditLogEntry'
         pagination:
           $ref: '#/components/schemas/AuditLogPagination'
+    VlanColor:
+      type: string
+      enum: [default, blue, amber, violet, rose, orange, cyan, slate, green]
     Vlan:
       type: object
       required:
         - name
         - vlan_id
         - description
+        - color
         - created_at
         - updated_at
       properties:
@@ -970,6 +974,8 @@ components:
           maximum: 4094
         description:
           type: string
+        color:
+          $ref: '#/components/schemas/VlanColor'
         created_at:
           type: string
           format: date-time
@@ -978,13 +984,15 @@ components:
           format: date-time
     VlanRef:
       type: object
-      required: [name, vlan_id]
+      required: [name, vlan_id, color]
       properties:
         name:
           type: string
         vlan_id:
           type: integer
           format: int32
+        color:
+          $ref: '#/components/schemas/VlanColor'
     VlanList:
       type: object
       required: [items]
@@ -1007,6 +1015,10 @@ components:
         description:
           type: string
           default: ''
+        color:
+          allOf:
+            - $ref: '#/components/schemas/VlanColor'
+          default: default
     VlanPatch:
       type: object
       properties:
@@ -1019,6 +1031,8 @@ components:
           maximum: 4094
         description:
           type: string
+        color:
+          $ref: '#/components/schemas/VlanColor'
     NetworkDevice:
       type: object
       required:

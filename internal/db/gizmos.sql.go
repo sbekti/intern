@@ -54,7 +54,7 @@ func (q *Queries) DeleteGizmo(ctx context.Context, arg DeleteGizmoParams) error 
 }
 
 const getGizmoByNetworkDeviceID = `-- name: GetGizmoByNetworkDeviceID :one
-SELECT gizmos.network_device_id, gizmos.kiosk_url, gizmos.created_at, gizmos.updated_at, network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at
+SELECT gizmos.network_device_id, gizmos.kiosk_url, gizmos.created_at, gizmos.updated_at, network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at, vlans.color
 FROM gizmos
 JOIN network_devices ON network_devices.id = gizmos.network_device_id
 JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
@@ -94,6 +94,7 @@ func (q *Queries) GetGizmoByNetworkDeviceID(ctx context.Context, arg GetGizmoByN
 		&i.Vlan.Description,
 		&i.Vlan.CreatedAt,
 		&i.Vlan.UpdatedAt,
+		&i.Vlan.Color,
 	)
 	return i, err
 }
@@ -120,7 +121,7 @@ func (q *Queries) GetKioskURLByMAC(ctx context.Context, arg GetKioskURLByMACPara
 }
 
 const listGizmos = `-- name: ListGizmos :many
-SELECT gizmos.network_device_id, gizmos.kiosk_url, gizmos.created_at, gizmos.updated_at, network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at
+SELECT gizmos.network_device_id, gizmos.kiosk_url, gizmos.created_at, gizmos.updated_at, network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at, vlans.color
 FROM gizmos
 JOIN network_devices ON network_devices.id = gizmos.network_device_id
 JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
@@ -161,6 +162,7 @@ func (q *Queries) ListGizmos(ctx context.Context) ([]ListGizmosRow, error) {
 			&i.Vlan.Description,
 			&i.Vlan.CreatedAt,
 			&i.Vlan.UpdatedAt,
+			&i.Vlan.Color,
 		); err != nil {
 			return nil, err
 		}

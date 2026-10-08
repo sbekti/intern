@@ -26,6 +26,14 @@
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
+    --vlan-blue: #1d4ed8;
+    --vlan-amber: #854d0e;
+    --vlan-violet: #6d28d9;
+    --vlan-rose: #be123c;
+    --vlan-orange: #9a3412;
+    --vlan-cyan: #155e75;
+    --vlan-slate: #475569;
+    --vlan-green: #166534;
     --horizon-positive-1: #bae4b3;
     --horizon-positive-2: #74c476;
     --horizon-positive-3: #31a354;
@@ -72,6 +80,14 @@
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
+    --vlan-blue: #93c5fd;
+    --vlan-amber: #fcd34d;
+    --vlan-violet: #c4b5fd;
+    --vlan-rose: #fda4af;
+    --vlan-orange: #fdba74;
+    --vlan-cyan: #67e8f9;
+    --vlan-slate: #cbd5e1;
+    --vlan-green: #86efac;
     --horizon-positive-1: oklch(0.262 0.051 172.552);
     --horizon-positive-2: oklch(0.432 0.095 166.913);
     --horizon-positive-3: oklch(0.596 0.145 163.225);
@@ -89,6 +105,25 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+}
+
+[data-vlan-color="blue"] { --vlan-color: var(--vlan-blue); }
+[data-vlan-color="amber"] { --vlan-color: var(--vlan-amber); }
+[data-vlan-color="violet"] { --vlan-color: var(--vlan-violet); }
+[data-vlan-color="rose"] { --vlan-color: var(--vlan-rose); }
+[data-vlan-color="orange"] { --vlan-color: var(--vlan-orange); }
+[data-vlan-color="cyan"] { --vlan-color: var(--vlan-cyan); }
+[data-vlan-color="slate"] { --vlan-color: var(--vlan-slate); }
+[data-vlan-color="green"] { --vlan-color: var(--vlan-green); }
+
+[data-slot="badge"][data-vlan-color]:not([data-vlan-color="default"]) {
+    color: var(--vlan-color);
+    background-color: color-mix(in oklab, var(--vlan-color) 12%, var(--background));
+    border-color: color-mix(in oklab, var(--vlan-color) 28%, var(--border));
+}
+
+[data-vlan-swatch] {
+    background-color: var(--vlan-color, var(--foreground));
 }
 
 .horizon-label {
