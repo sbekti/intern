@@ -534,6 +534,7 @@ function MetricsGroupCard({
   onRulerTimestampChange: (timestamp: number | null) => void
   preset: TimePreset
 }) {
+  const activePointerId = useRef<number | null>(null)
   const groupSnapshots = group.lanes.flatMap((lane) =>
     lane.series.map(
       (series) =>
@@ -542,8 +543,37 @@ function MetricsGroupCard({
     )
   )
   const status = combinedStatus(groupSnapshots)
+  const endScrub = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activePointerId.current !== event.pointerId) {
+      return
+    }
+
+    activePointerId.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    onRulerTimestampChange(null)
+  }
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      event.pointerType !== "mouse" &&
+      activePointerId.current !== event.pointerId
+    ) {
+      return
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect()
+    if (
+      activePointerId.current === event.pointerId &&
+      (event.clientX < bounds.left ||
+        event.clientX >= bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY >= bounds.bottom)
+    ) {
+      endScrub(event)
+      return
+    }
+
     const timestamp = timeRangeTimestampAtFraction(
       range,
       (event.clientX - bounds.left) / Math.max(1, bounds.width),
@@ -552,6 +582,19 @@ function MetricsGroupCard({
     if (timestamp !== null) {
       onRulerTimestampChange(timestamp)
     }
+  }
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      event.pointerType === "mouse" ||
+      !event.isPrimary ||
+      activePointerId.current !== null
+    ) {
+      return
+    }
+
+    activePointerId.current = event.pointerId
+    event.currentTarget.setPointerCapture(event.pointerId)
+    handlePointerMove(event)
   }
 
   return (
@@ -582,9 +625,17 @@ function MetricsGroupCard({
         />
         <div
           className="flex flex-col"
+          style={{ touchAction: "pan-y pinch-zoom" }}
+          onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
-          onPointerLeave={() => onRulerTimestampChange(null)}
-          onPointerCancel={() => onRulerTimestampChange(null)}
+          onPointerUp={endScrub}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "mouse") {
+              onRulerTimestampChange(null)
+            }
+          }}
+          onPointerCancel={endScrub}
+          onLostPointerCapture={endScrub}
         >
           {group.lanes.map((lane) => (
             <MetricLane
