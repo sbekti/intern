@@ -114,7 +114,7 @@ export function AuditMetadataPreview({
           <DrawerHeader>
             <DrawerTitle>Audit details</DrawerTitle>
             <DrawerDescription className="wrap-anywhere">
-              {actorUsername || "Unknown actor"} · {action}
+              {action} by {actorUsername || "Unknown actor"}
             </DrawerDescription>
           </DrawerHeader>
           <div className="min-h-0 overflow-y-auto px-4 pb-4">
@@ -132,7 +132,7 @@ export function AuditMetadataPreview({
         <DialogHeader>
           <DialogTitle>Audit details</DialogTitle>
           <DialogDescription className="wrap-anywhere">
-            {actorUsername || "Unknown actor"} · {action}
+            {action} by {actorUsername || "Unknown actor"}
           </DialogDescription>
         </DialogHeader>
         <MetadataDetail full={formatted.full} onCopy={copyMetadata} />

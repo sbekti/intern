@@ -172,7 +172,11 @@ export function AuditLogTable({
                 onSort={controls.setSort}
                 disabled={controls.pending}
                 options={[
-                  { key: "created_at", label: "Timestamp" },
+                  {
+                    key: "created_at",
+                    label: "Timestamp",
+                    orderLabels: { asc: "Oldest first", desc: "Newest first" },
+                  },
                   { key: "actor_username", label: "Actor" },
                   { key: "action", label: "Action" },
                   { key: "resource", label: "Resource" },
@@ -192,7 +196,7 @@ export function AuditLogTable({
                       </ItemTitle>
                       <ItemDescription>{entry.actor_username}</ItemDescription>
                       <ItemDescription className="wrap-anywhere">
-                        {entry.resource_type} · {entry.resource_id}
+                        {entry.resource_type}: {entry.resource_id}
                       </ItemDescription>
                     </ItemContent>
                     <ItemFooter className="flex-wrap">

@@ -399,7 +399,14 @@ export function DeviceManager({
                     { key: "display_name", label: "Name" },
                     { key: "mac_address", label: "MAC address" },
                     { key: "vlan", label: "VLAN" },
-                    { key: "status", label: "Status" },
+                    {
+                      key: "status",
+                      label: "Status",
+                      orderLabels: {
+                        asc: "Disabled first",
+                        desc: "Enabled first",
+                      },
+                    },
                   ]}
                 />
                 <ItemGroup>

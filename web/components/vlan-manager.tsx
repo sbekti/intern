@@ -354,7 +354,11 @@ export function VlanManager({
                   sort={controls.sort}
                   onSort={controls.setSort}
                   options={[
-                    { key: "vlan_id", label: "VLAN ID" },
+                    {
+                      key: "vlan_id",
+                      label: "VLAN ID",
+                      orderLabels: { asc: "Low to high", desc: "High to low" },
+                    },
                     { key: "name", label: "Name" },
                     { key: "description", label: "Description" },
                   ]}
