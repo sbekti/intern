@@ -220,12 +220,13 @@ export function LiveHorizon({
         width: "100%",
         height,
         overflow: "hidden",
-        touchAction: "none",
+        touchAction: "pan-y pinch-zoom",
       }}
       role="img"
       aria-label={ariaLabel}
       onPointerMove={interactive ? handlePointerMove : undefined}
       onPointerLeave={interactive ? () => setRulerTimestamp(null) : undefined}
+      onPointerCancel={interactive ? () => setRulerTimestamp(null) : undefined}
     >
       <canvas
         ref={canvasRef}

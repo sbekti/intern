@@ -1,6 +1,8 @@
 "use client"
 
 import Link from "next/link"
+import { useTheme } from "next-themes"
+import { useDashboardShell } from "@/components/dashboard-shell-provider"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -8,6 +10,9 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -35,6 +40,8 @@ export function NavUser({
   }
   logoutUrl: string | null
 }) {
+  const { theme, setTheme } = useTheme()
+  const { listLayout, setListLayout } = useDashboardShell()
   const { isMobile, setOpenMobile } = useSidebar()
   const initials = user.name
     .split(/\s+/)
@@ -112,6 +119,39 @@ export function NavUser({
                 <KeyRoundIcon />
                 Security
               </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Appearance</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={theme ?? "system"}
+                onValueChange={setTheme}
+              >
+                <DropdownMenuRadioItem value="system">
+                  System
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="light">
+                  Light
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>List layout</DropdownMenuLabel>
+              <DropdownMenuRadioGroup
+                value={listLayout}
+                onValueChange={(value) =>
+                  setListLayout(value === "table" ? "table" : "auto")
+                }
+              >
+                <DropdownMenuRadioItem value="auto">
+                  Automatic
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="table">
+                  Table
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             {logoutUrl ? (

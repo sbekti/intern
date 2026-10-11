@@ -1,3 +1,5 @@
+import { ListTable, ListMobile } from "@/components/responsive-list"
+
 import {
   Card,
   CardAction,
@@ -18,6 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { Item, ItemContent, ItemFooter, ItemGroup } from "@/components/ui/item"
 
 export function ProfileLoadingPanel() {
   return (
@@ -123,18 +126,17 @@ export function AuditLogsLoadingPanel() {
 const loadingTables = {
   vlans: {
     title: "VLANs",
-    description: "Create, update, and remove VLAN definitions for the network.",
-    columns: ["w-16", "w-24", "w-64", "w-20"],
+    description: "Loading VLANs…",
+    columns: ["w-16", "w-24", "w-64", "w-20", "w-28"],
   },
   devices: {
     title: "Devices",
-    description:
-      "Register devices and assign each MAC address to the correct VLAN.",
+    description: "Loading devices…",
     columns: ["w-32", "w-36", "w-20", "w-16", "w-20"],
   },
   gizmos: {
     title: "Gizmos",
-    description: "Assign kiosk destinations to registered network devices.",
+    description: "Loading gizmos…",
     columns: ["w-32", "w-36", "w-64", "w-20"],
   },
   audit: {
@@ -171,43 +173,62 @@ export function TableLoadingPanel({
             className="h-9 w-full rounded-md"
             data-slot="filter-bar-skeleton"
           />
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {columns.map((width, index) => (
-                  <TableHead key={index}>
-                    <Skeleton
-                      className={cn(
-                        "h-4",
-                        width,
-                        kind !== "audit" &&
-                          index === columns.length - 1 &&
-                          "ml-auto"
-                      )}
-                    />
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[0, 1, 2].map((row) => (
-                <TableRow key={row}>
+          <ListTable>
+            <Table>
+              <TableHeader>
+                <TableRow>
                   {columns.map((width, index) => (
-                    <TableCell key={index}>
+                    <TableHead key={index}>
                       <Skeleton
                         className={cn(
-                          kind !== "audit" && index === columns.length - 1
-                            ? "ml-auto h-8"
-                            : "h-4",
-                          width
+                          "h-4",
+                          width,
+                          kind !== "audit" &&
+                            index === columns.length - 1 &&
+                            "ml-auto"
                         )}
                       />
-                    </TableCell>
+                    </TableHead>
                   ))}
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[0, 1, 2].map((row) => (
+                  <TableRow key={row}>
+                    {columns.map((width, index) => (
+                      <TableCell key={index}>
+                        <Skeleton
+                          className={cn(
+                            kind !== "audit" && index === columns.length - 1
+                              ? "ml-auto h-8"
+                              : "h-4",
+                            width
+                          )}
+                        />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ListTable>
+          <ListMobile>
+            <Skeleton className="h-8 w-full rounded-md" />
+            <ItemGroup>
+              {[0, 1, 2].map((row) => (
+                <Item key={row} role="listitem" variant="outline" size="sm">
+                  <ItemContent>
+                    <Skeleton className="h-5 w-32 max-w-full" />
+                    <Skeleton className="h-5 w-40 max-w-full" />
+                  </ItemContent>
+                  <ItemFooter>
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                    <Skeleton className="h-8 w-28 rounded-md" />
+                  </ItemFooter>
+                </Item>
               ))}
-            </TableBody>
-          </Table>
+            </ItemGroup>
+          </ListMobile>
         </CardContent>
         {kind === "audit" ? (
           <CardFooter>

@@ -37,10 +37,12 @@ export function useListControls(
     update(Object.fromEntries(filterKeys.map((key) => [key, next[key]])))
   }
 
-  function setSort(key: string) {
+  function setSort(key: string, direction?: "asc" | "desc") {
     update({
       sort_by: key,
-      sort_dir: sort.key === key && sort.direction === "asc" ? "desc" : "asc",
+      sort_dir:
+        direction ??
+        (sort.key === key && sort.direction === "asc" ? "desc" : "asc"),
     })
   }
 

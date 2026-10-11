@@ -1,11 +1,26 @@
 "use client"
 
+import { ListTable, ListMobile } from "@/components/responsive-list"
+
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { startTransition, useState } from "react"
 import { toast } from "@/components/ui/toast"
-import { NetworkIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { NetworkIcon, PlusIcon } from "lucide-react"
 
-import type { Vlan } from "@/lib/api"
+import { GuardedDialog } from "@/components/guarded-dialog"
+import { RecordActions } from "@/components/record-actions"
+import { ListSort } from "@/components/list-sort"
+import {
+  Item,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+} from "@/components/ui/item"
+import { mutate } from "@/lib/mutations"
+import type { NetworkDevice, Vlan } from "@/lib/api"
 import { useListControls } from "@/hooks/use-list-controls"
 import { filterAndSort } from "@/lib/list-controls"
 import {
@@ -21,11 +36,7 @@ import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { vlanColors, type VlanColor } from "@/lib/vlan-colors"
 import { VlanBadge } from "@/components/vlan-badge"
-import {
-  IconOnlyButtonLabel,
-  responsiveCompactButtonClass,
-  iconOnlyButtonClass,
-} from "@/components/compact-button-label"
+import { responsiveCompactButtonClass } from "@/components/compact-button-label"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +57,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -88,11 +99,6 @@ type VlanFormState = {
   color: VlanColor
 }
 
-type ApiError = {
-  code: string
-  message: string
-}
-
 const defaultFormState: VlanFormState = {
   name: "",
   vlan_id: "",
@@ -109,18 +115,11 @@ function mapVlanToForm(vlan: Vlan): VlanFormState {
   }
 }
 
-async function parseApiError(response: Response) {
-  try {
-    const body = (await response.json()) as Partial<ApiError>
-    return body.message ?? `${response.status} ${response.statusText}`
-  } catch {
-    return `${response.status} ${response.statusText}`
-  }
-}
-
 export function VlanManager({
   initialItems,
+  devices,
 }: {
+  devices: NetworkDevice[]
   initialItems: Vlan[]
 }) {
   const router = useRouter()
@@ -128,6 +127,7 @@ export function VlanManager({
   const [editing, setEditing] = useState<Vlan | null>(null)
   const [deleting, setDeleting] = useState<Vlan | null>(null)
   const [form, setForm] = useState<VlanFormState>(defaultFormState)
+  const [initialForm, setInitialForm] = useState(defaultFormState)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
@@ -150,6 +150,7 @@ export function VlanManager({
   function openCreate() {
     setEditing(null)
     setForm(defaultFormState)
+    setInitialForm(defaultFormState)
     setSubmitError(null)
     setDialogOpen(true)
   }
@@ -157,6 +158,7 @@ export function VlanManager({
   function openEdit(vlan: Vlan) {
     setEditing(vlan)
     setForm(mapVlanToForm(vlan))
+    setInitialForm(mapVlanToForm(vlan))
     setSubmitError(null)
     setDialogOpen(true)
   }
@@ -173,52 +175,82 @@ export function VlanManager({
       color: form.color,
     }
 
-    const response = await fetch(
-      editing
-        ? buildBffPath(`/networks/vlans/${editing.vlan_id}`)
-        : buildBffPath("/networks/vlans"),
-      {
-        method: editing ? "PATCH" : "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    )
-
-    if (!response.ok) {
+    try {
+      await mutate(
+        editing
+          ? buildBffPath(`/networks/vlans/${editing.vlan_id}`)
+          : buildBffPath("/networks/vlans"),
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      )
+      toast.add({
+        type: "success",
+        title: editing ? "VLAN updated" : "VLAN created",
+      })
+      setDialogOpen(false)
+      startTransition(() => router.refresh())
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't save the VLAN. Try again."
+      )
+    } finally {
       setSubmitting(false)
-      setSubmitError(await parseApiError(response))
-      return
     }
-
-    toast.add({ type: "success", title: editing ? "VLAN updated" : "VLAN created" })
-    setDialogOpen(false)
-    setSubmitting(false)
-    startTransition(() => router.refresh())
   }
 
   async function handleDelete() {
-    if (!deleting) {
-      return
-    }
-
+    if (!deleting) return
     setDeletingBusy(true)
-
-    const response = await fetch(buildBffPath(`/networks/vlans/${deleting.vlan_id}`), {
-      method: "DELETE",
-    })
-
-    if (!response.ok) {
+    try {
+      await mutate(buildBffPath(`/networks/vlans/${deleting.vlan_id}`), {
+        method: "DELETE",
+      })
+      toast.add({ type: "success", title: "VLAN deleted" })
+      setDeleting(null)
+      startTransition(() => router.refresh())
+    } catch (error) {
+      toast.add({
+        type: "error",
+        title:
+          error instanceof Error ? error.message : "Couldn't delete the VLAN.",
+      })
+    } finally {
       setDeletingBusy(false)
-      toast.add({ type: "error", title: await parseApiError(response) })
-      return
     }
+  }
 
-    toast.add({ type: "success", title: "VLAN deleted" })
-    setDeleting(null)
-    setDeletingBusy(false)
-    startTransition(() => router.refresh())
+  const deviceCounts = new Map<number, number>()
+  for (const device of devices)
+    deviceCounts.set(
+      device.vlan.vlan_id,
+      (deviceCounts.get(device.vlan.vlan_id) ?? 0) + 1
+    )
+  function deviceCount(vlan: Vlan) {
+    const count = deviceCounts.get(vlan.vlan_id) ?? 0
+    return (
+      <Link
+        className="underline underline-offset-4"
+        href={`/networks/devices?vlan_id=${vlan.vlan_id}`}
+        aria-label={`View ${count} devices in ${vlan.name}`}
+      >
+        {count} {count === 1 ? "device" : "devices"}
+      </Link>
+    )
+  }
+  function vlanActions(vlan: Vlan) {
+    return (
+      <RecordActions
+        name={vlan.name}
+        onEdit={() => openEdit(vlan)}
+        onDelete={() => setDeleting(vlan)}
+        activityHref={`/admin/audit-logs?resource_type=vlan&resource_id=${vlan.vlan_id}`}
+      />
+    )
   }
 
   return (
@@ -227,7 +259,7 @@ export function VlanManager({
         <CardHeader>
           <CardTitle>VLANs</CardTitle>
           <CardDescription>
-            Create, update, and remove VLAN definitions for the network.
+            {sortedItems.length} of {initialItems.length} VLANs
           </CardDescription>
           <CardAction className="ml-3 sm:ml-0">
             <Button
@@ -268,77 +300,107 @@ export function VlanManager({
               </EmptyContent>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead
-                    sortKey="vlan_id"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    VLAN ID
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="name"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    Name
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="description"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    Description
-                  </SortableTableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedItems.map((vlan) => (
-                  <TableRow key={vlan.vlan_id}>
-                    <TableCell>{vlan.vlan_id}</TableCell>
-                    <TableCell>
-                      <VlanBadge name={vlan.name} color={vlan.color} />
-                    </TableCell>
-                    <TableCell className="max-w-[24rem] whitespace-normal text-muted-foreground">
-                      {vlan.description || "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className={iconOnlyButtonClass}
-                          onClick={() => openEdit(vlan)}
-                          aria-label="Edit VLAN"
-                        >
-                          <PencilIcon data-icon="inline-start" />
-                          <IconOnlyButtonLabel>Edit</IconOnlyButtonLabel>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className={responsiveCompactButtonClass}
-                          onClick={() => setDeleting(vlan)}
-                          aria-label="Delete VLAN"
-                        >
-                          <Trash2Icon data-icon="inline-start" />
-                          <IconOnlyButtonLabel>Delete</IconOnlyButtonLabel>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <ListTable>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortableTableHead
+                        sortKey="vlan_id"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        VLAN ID
+                      </SortableTableHead>
+                      <SortableTableHead
+                        sortKey="name"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        Name
+                      </SortableTableHead>
+                      <SortableTableHead
+                        sortKey="description"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        Description
+                      </SortableTableHead>
+                      <TableHead>Devices</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedItems.map((vlan) => (
+                      <TableRow key={vlan.vlan_id}>
+                        <TableCell>{vlan.vlan_id}</TableCell>
+                        <TableCell>
+                          <VlanBadge name={vlan.name} color={vlan.color} />
+                        </TableCell>
+                        <TableCell className="max-w-[24rem] whitespace-normal text-muted-foreground">
+                          {vlan.description || "-"}
+                        </TableCell>
+                        <TableCell>{deviceCount(vlan)}</TableCell>
+                        <TableCell className="text-right">
+                          {vlanActions(vlan)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ListTable>
+              <ListMobile>
+                <ListSort
+                  sort={controls.sort}
+                  onSort={controls.setSort}
+                  options={[
+                    { key: "vlan_id", label: "VLAN ID" },
+                    { key: "name", label: "Name" },
+                    { key: "description", label: "Description" },
+                  ]}
+                />
+                <ItemGroup>
+                  {sortedItems.map((vlan) => (
+                    <Item
+                      key={vlan.vlan_id}
+                      role="listitem"
+                      variant="outline"
+                      size="sm"
+                    >
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="max-w-full min-w-0 flex-wrap wrap-anywhere">
+                          <VlanBadge name={vlan.name} color={vlan.color} />
+                          VLAN {vlan.vlan_id}
+                        </ItemTitle>
+                        {vlan.description ? (
+                          <ItemDescription className="wrap-anywhere">
+                            {vlan.description}
+                          </ItemDescription>
+                        ) : null}
+                      </ItemContent>
+                      <ItemFooter>
+                        {deviceCount(vlan)}
+                        {vlanActions(vlan)}
+                      </ItemFooter>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              </ListMobile>
+            </>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl">
+      <GuardedDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        dirty={JSON.stringify(form) !== JSON.stringify(initialForm)}
+        busy={submitting}
+      >
+        <DialogContent
+          showCloseButton={!submitting}
+          className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
+        >
           <DialogHeader>
             <DialogTitle>{editing ? "Edit VLAN" : "Create VLAN"}</DialogTitle>
             <DialogDescription>
@@ -347,122 +409,142 @@ export function VlanManager({
                 : "Add a new VLAN definition for device assignment."}
             </DialogDescription>
           </DialogHeader>
-          <form className="grid gap-6" onSubmit={handleSubmit}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="vlan-name">Name</FieldLabel>
-                <Input
-                  id="vlan-name"
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, name: event.target.value }))
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="vlan-id">VLAN ID</FieldLabel>
-                <Input
-                  id="vlan-id"
-                  type="number"
-                  min={1}
-                  max={4094}
-                  value={form.vlan_id}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      vlan_id: event.target.value,
-                    }))
-                  }
-                  required
-                />
-                <FieldDescription>
-                  Valid range is 1 through 4094.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="vlan-description">Description</FieldLabel>
-                <Textarea
-                  id="vlan-description"
-                  value={form.description}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      description: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field data-disabled={submitting}>
-                <FieldTitle id="vlan-color-label">Color</FieldTitle>
-                <ToggleGroup
-                  aria-labelledby="vlan-color-label"
-                  variant="outline"
-                  size="sm"
-                  spacing={2}
-                  className="flex-wrap"
-                  value={[form.color]}
-                  onValueChange={(values) => {
-                    const color = values[0] as VlanColor | undefined
-                    if (color) {
-                      setForm((current) => ({ ...current, color }))
+          <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
+            <fieldset disabled={submitting} className="min-w-0">
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="vlan-name">Name</FieldLabel>
+                  <Input
+                    id="vlan-name"
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
                     }
-                  }}
-                  disabled={submitting}
-                >
-                  {vlanColors.map(({ value, label }) => (
-                    <ToggleGroupItem
-                      key={value}
-                      value={value}
-                      aria-label={label}
-                      title={label}
-                      type="button"
-                    >
-                      <span
-                        className="size-4 rounded-full"
-                        data-vlan-swatch
-                        data-vlan-color={value}
-                        aria-hidden="true"
-                      />
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </Field>
-              <FieldError>{submitError}</FieldError>
-            </FieldGroup>
+                    required
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="vlan-id">VLAN ID</FieldLabel>
+                  <Input
+                    id="vlan-id"
+                    type="number"
+                    min={1}
+                    max={4094}
+                    value={form.vlan_id}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        vlan_id: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                  <FieldDescription>
+                    Valid range is 1 through 4094.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="vlan-description">
+                    Description
+                  </FieldLabel>
+                  <Textarea
+                    id="vlan-description"
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                  />
+                </Field>
+                <Field data-disabled={submitting}>
+                  <FieldTitle id="vlan-color-label">Color</FieldTitle>
+                  <ToggleGroup
+                    aria-labelledby="vlan-color-label"
+                    variant="outline"
+                    size="sm"
+                    spacing={2}
+                    className="flex-wrap"
+                    value={[form.color]}
+                    onValueChange={(values) => {
+                      const color = values[0] as VlanColor | undefined
+                      if (color) {
+                        setForm((current) => ({ ...current, color }))
+                      }
+                    }}
+                    disabled={submitting}
+                  >
+                    {vlanColors.map(({ value, label }) => (
+                      <ToggleGroupItem
+                        key={value}
+                        value={value}
+                        aria-label={label}
+                        title={label}
+                        type="button"
+                      >
+                        <span
+                          className="size-4 rounded-full"
+                          data-vlan-swatch
+                          data-vlan-color={value}
+                          aria-hidden="true"
+                        />
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </Field>
+                <FieldError>{submitError}</FieldError>
+              </FieldGroup>
+            </fieldset>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-                disabled={submitting}
+              <DialogClose
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={submitting}
+                  />
+                }
               >
                 Cancel
-              </Button>
+              </DialogClose>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving..." : editing ? "Save changes" : "Create VLAN"}
+                {submitting
+                  ? "Saving..."
+                  : editing
+                    ? "Save changes"
+                    : "Create VLAN"}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </GuardedDialog>
 
       <AlertDialog
         open={Boolean(deleting)}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        onOpenChange={(open) => !open && !deletingBusy && setDeleting(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete VLAN</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting
-                ? `Delete ${deleting.name} (VLAN ${deleting.vlan_id})? This will remove the definition from the backend.`
+                ? `Delete ${deleting.name} (VLAN ${deleting.vlan_id})? This removes the VLAN definition.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingBusy}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={deletingBusy} onClick={handleDelete}>
+            <AlertDialogCancel disabled={deletingBusy}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingBusy}
+              onClick={handleDelete}
+            >
               {deletingBusy ? "Deleting..." : "Delete VLAN"}
             </AlertDialogAction>
           </AlertDialogFooter>

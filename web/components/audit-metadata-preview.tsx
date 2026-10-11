@@ -6,10 +6,6 @@ import { toast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
-  hoverPreviewCloseDelay,
-  hoverPreviewDelay,
-} from "@/lib/hover"
-import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -18,10 +14,13 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 function formatMetadata(metadata: Record<string, unknown>) {
   try {
@@ -38,33 +37,9 @@ function formatMetadata(metadata: Record<string, unknown>) {
   }
 }
 
-async function copyText(value: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value)
-    return
-  }
-
-  const textarea = document.createElement("textarea")
-  textarea.value = value
-  textarea.setAttribute("readonly", "")
-  textarea.style.position = "fixed"
-  textarea.style.opacity = "0"
-  document.body.appendChild(textarea)
-  textarea.select()
-
-  try {
-    const copied = document.execCommand("copy")
-    if (!copied) {
-      throw new Error("copy command failed")
-    }
-  } finally {
-    document.body.removeChild(textarea)
-  }
-}
-
 function MetadataPreviewCode({ preview }: { preview: string }) {
   return (
-    <code className="line-clamp-2 break-all text-xs text-muted-foreground">
+    <code className="line-clamp-2 text-xs break-all text-muted-foreground">
       {preview}
     </code>
   )
@@ -73,16 +48,14 @@ function MetadataPreviewCode({ preview }: { preview: string }) {
 function MetadataDetail({
   full,
   onCopy,
-  showTitle = true,
 }: {
   full: string
   onCopy: () => void
-  showTitle?: boolean
 }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        {showTitle ? <p className="text-xs font-semibold">Metadata</p> : <span />}
+        <p className="text-xs font-semibold">Metadata</p>
         <Button variant="ghost" size="xs" onClick={onCopy}>
           <CopyIcon data-icon="inline-start" />
           Copy
@@ -95,30 +68,13 @@ function MetadataDetail({
   )
 }
 
-function MetadataContext({
-  actorUsername,
-  action,
-  showTitle = true,
-}: {
-  actorUsername: string
-  action: string
-  showTitle?: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-      {showTitle ? <p className="font-medium text-foreground">Audit details</p> : null}
-      <p>
-        {actorUsername || "Unknown actor"} / {action}
-      </p>
-    </div>
-  )
-}
-
 export function AuditMetadataPreview({
   metadata,
   actorUsername,
   action,
+  compact = false,
 }: {
+  compact?: boolean
   metadata: Record<string, unknown>
   actorUsername: string
   action: string
@@ -128,38 +84,41 @@ export function AuditMetadataPreview({
 
   async function copyMetadata() {
     try {
-      await copyText(formatted.full)
+      await navigator.clipboard.writeText(formatted.full)
       toast.add({ type: "success", title: "Metadata copied." })
     } catch {
       toast.add({ type: "error", title: "Metadata copy failed." })
     }
   }
 
+  const trigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-auto min-h-8 max-w-full min-w-0 justify-start whitespace-normal"
+      aria-label={`View details for ${action} by ${actorUsername || "unknown actor"}`}
+    >
+      {compact ? (
+        "View details"
+      ) : (
+        <MetadataPreviewCode preview={formatted.preview} />
+      )}
+    </Button>
+  )
+
   if (isMobile) {
     return (
       <Drawer>
-        <DrawerTrigger asChild>
-          <button type="button" className="block w-full text-left">
-            <MetadataPreviewCode preview={formatted.preview} />
-          </button>
-        </DrawerTrigger>
+        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>Audit details</DrawerTitle>
-            <DrawerDescription asChild>
-              <MetadataContext
-                actorUsername={actorUsername}
-                action={action}
-                showTitle={false}
-              />
+            <DrawerDescription className="wrap-anywhere">
+              {actorUsername || "Unknown actor"} · {action}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="px-4 pb-4">
-            <MetadataDetail
-              full={formatted.full}
-              onCopy={copyMetadata}
-              showTitle
-            />
+          <div className="min-h-0 overflow-y-auto px-4 pb-4">
+            <MetadataDetail full={formatted.full} onCopy={copyMetadata} />
           </div>
         </DrawerContent>
       </Drawer>
@@ -167,17 +126,17 @@ export function AuditMetadataPreview({
   }
 
   return (
-    <HoverCard>
-      <HoverCardTrigger
-        delay={hoverPreviewDelay}
-        closeDelay={hoverPreviewCloseDelay}
-        render={<span className="block w-full" />}
-      >
-        <MetadataPreviewCode preview={formatted.preview} />
-      </HoverCardTrigger>
-      <HoverCardContent className="w-96 max-w-[90vw]">
+    <Dialog>
+      <DialogTrigger render={trigger} />
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Audit details</DialogTitle>
+          <DialogDescription className="wrap-anywhere">
+            {actorUsername || "Unknown actor"} · {action}
+          </DialogDescription>
+        </DialogHeader>
         <MetadataDetail full={formatted.full} onCopy={copyMetadata} />
-      </HoverCardContent>
-    </HoverCard>
+      </DialogContent>
+    </Dialog>
   )
 }

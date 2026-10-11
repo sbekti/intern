@@ -9,8 +9,13 @@ export function VlanBadge({
   color?: VlanColor
 }) {
   return (
-    <Badge variant="outline" data-vlan-color={color}>
-      {name}
+    <Badge
+      variant="outline"
+      data-vlan-color={color}
+      className="max-w-full"
+      title={name}
+    >
+      <span className="truncate">{name}</span>
     </Badge>
   )
 }

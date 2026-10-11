@@ -1,5 +1,16 @@
 "use client"
 
+import { ListTable, ListMobile } from "@/components/responsive-list"
+
+import { ListSort } from "@/components/list-sort"
+import {
+  Item,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+} from "@/components/ui/item"
 import { ScrollTextIcon } from "lucide-react"
 import { AuditLogPagination } from "@/components/audit-log-pagination"
 import { AuditMetadataPreview } from "@/components/audit-metadata-preview"
@@ -87,71 +98,117 @@ export function AuditLogTable({
             </EmptyHeader>
           </Empty>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortableTableHead
-                  sortKey="created_at"
-                  sort={controls.sort}
-                  onSort={controls.setSort}
-                  disabled={controls.pending}
-                >
-                  Timestamp
-                </SortableTableHead>
-                <SortableTableHead
-                  sortKey="actor_username"
-                  sort={controls.sort}
-                  onSort={controls.setSort}
-                  disabled={controls.pending}
-                >
-                  Actor
-                </SortableTableHead>
-                <SortableTableHead
-                  sortKey="action"
-                  sort={controls.sort}
-                  onSort={controls.setSort}
-                  disabled={controls.pending}
-                >
-                  Action
-                </SortableTableHead>
-                <SortableTableHead
-                  sortKey="resource"
-                  sort={controls.sort}
-                  onSort={controls.setSort}
-                  disabled={controls.pending}
-                >
-                  Resource
-                </SortableTableHead>
-                <TableHead>Metadata</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {page.items.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell>
-                    <LocalTimestamp value={entry.created_at} />
-                  </TableCell>
-                  <TableCell>{entry.actor_username}</TableCell>
-                  <TableCell>{entry.action}</TableCell>
-                  <TableCell className="align-top">
-                    <div className="flex flex-col">
-                      <span>{entry.resource_type}</span>
-                      <span className="max-w-[22rem] truncate text-xs text-muted-foreground">
-                        {entry.resource_id}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-[28rem] min-w-[20rem] whitespace-normal">
-                    <AuditMetadataPreview
-                      metadata={entry.metadata}
-                      actorUsername={entry.actor_username}
-                      action={entry.action}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <>
+            <ListTable>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableTableHead
+                      sortKey="created_at"
+                      sort={controls.sort}
+                      onSort={controls.setSort}
+                      disabled={controls.pending}
+                    >
+                      Timestamp
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="actor_username"
+                      sort={controls.sort}
+                      onSort={controls.setSort}
+                      disabled={controls.pending}
+                    >
+                      Actor
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="action"
+                      sort={controls.sort}
+                      onSort={controls.setSort}
+                      disabled={controls.pending}
+                    >
+                      Action
+                    </SortableTableHead>
+                    <SortableTableHead
+                      sortKey="resource"
+                      sort={controls.sort}
+                      onSort={controls.setSort}
+                      disabled={controls.pending}
+                    >
+                      Resource
+                    </SortableTableHead>
+                    <TableHead>Metadata</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {page.items.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <LocalTimestamp value={entry.created_at} />
+                      </TableCell>
+                      <TableCell>{entry.actor_username}</TableCell>
+                      <TableCell>{entry.action}</TableCell>
+                      <TableCell className="align-top">
+                        <div className="flex flex-col">
+                          <span>{entry.resource_type}</span>
+                          <span className="max-w-[22rem] truncate text-xs text-muted-foreground">
+                            {entry.resource_id}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[28rem] min-w-[20rem] whitespace-normal">
+                        <AuditMetadataPreview
+                          metadata={entry.metadata}
+                          actorUsername={entry.actor_username}
+                          action={entry.action}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ListTable>
+            <ListMobile>
+              <ListSort
+                sort={controls.sort}
+                onSort={controls.setSort}
+                disabled={controls.pending}
+                options={[
+                  { key: "created_at", label: "Timestamp" },
+                  { key: "actor_username", label: "Actor" },
+                  { key: "action", label: "Action" },
+                  { key: "resource", label: "Resource" },
+                ]}
+              />
+              <ItemGroup>
+                {page.items.map((entry) => (
+                  <Item
+                    key={entry.id}
+                    role="listitem"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="max-w-full min-w-0 wrap-anywhere">
+                        {entry.action}
+                      </ItemTitle>
+                      <ItemDescription>{entry.actor_username}</ItemDescription>
+                      <ItemDescription className="wrap-anywhere">
+                        {entry.resource_type} · {entry.resource_id}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemFooter className="flex-wrap">
+                      <LocalTimestamp value={entry.created_at} />
+                      <AuditMetadataPreview
+                        metadata={entry.metadata}
+                        actorUsername={entry.actor_username}
+                        action={entry.action}
+                        compact
+                      />
+                    </ItemFooter>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </ListMobile>
+          </>
         )}
       </CardContent>
       {page.items.length ? (

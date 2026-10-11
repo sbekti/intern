@@ -581,9 +581,10 @@ function MetricsGroupCard({
           rulerTimestamp={rulerTimestamp}
         />
         <div
-          className="flex touch-none flex-col"
+          className="flex flex-col"
           onPointerMove={handlePointerMove}
           onPointerLeave={() => onRulerTimestampChange(null)}
+          onPointerCancel={() => onRulerTimestampChange(null)}
         >
           {group.lanes.map((lane) => (
             <MetricLane

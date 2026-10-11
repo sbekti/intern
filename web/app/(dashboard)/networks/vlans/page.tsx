@@ -1,7 +1,7 @@
 import { ForbiddenState, UnauthorizedState } from "@/components/api-state"
 import { TableLoadingPanel } from "@/components/loading-panels"
 import { VlanManager } from "@/components/vlan-manager"
-import { listVlans } from "@/lib/api"
+import { listDevices, listVlans } from "@/lib/api"
 import { createPageMetadata } from "@/lib/page-titles"
 import { hasForcedGlimmer } from "@/lib/utils"
 
@@ -20,7 +20,7 @@ export default async function VlansPage({
     return <TableLoadingPanel kind="vlans" />
   }
 
-  const vlans = await listVlans()
+  const [vlans, devices] = await Promise.all([listVlans(), listDevices()])
 
   if (!vlans.ok) {
     if (vlans.status === 403) {
@@ -30,9 +30,16 @@ export default async function VlansPage({
     return <UnauthorizedState />
   }
 
+  if (!devices.ok) {
+    return devices.status === 403 ? <ForbiddenState /> : <UnauthorizedState />
+  }
+
   return (
     <div className="px-4 lg:px-6">
-      <VlanManager initialItems={vlans.data.items} />
+      <VlanManager
+        initialItems={vlans.data.items}
+        devices={devices.data.items}
+      />
     </div>
   )
 }

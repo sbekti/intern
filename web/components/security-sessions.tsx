@@ -1,5 +1,15 @@
 "use client"
 
+import { ListTable, ListMobile } from "@/components/responsive-list"
+
+import {
+  Item,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemActions,
+  ItemGroup,
+} from "@/components/ui/item"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { LaptopIcon, LoaderCircleIcon, LogOutIcon } from "lucide-react"
@@ -10,9 +20,7 @@ import { buildBffPath } from "@/lib/bff"
 import { AuthSessionPagination } from "@/components/auth-session-pagination"
 import {
   CompactButtonLabel,
-  IconOnlyButtonLabel,
   responsiveCompactButtonClass,
-  iconOnlyButtonClass,
 } from "@/components/compact-button-label"
 import { LocalTimestamp } from "@/components/local-timestamp"
 import { Badge } from "@/components/ui/badge"
@@ -25,7 +33,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,7 +95,11 @@ type SessionCardProps = {
 const personalBulkPath = buildBffPath("/profile/sessions/revoke_others")
 const adminBulkPath = buildBffPath("/admin/auth/sessions/revoke_all")
 
-function buildSecurityQuery(tab: "mine" | "all", limit?: number, offset?: number) {
+function buildSecurityQuery(
+  tab: "mine" | "all",
+  limit?: number,
+  offset?: number
+) {
   const params = new URLSearchParams()
 
   if (tab === "all") {
@@ -123,6 +141,25 @@ function SessionCard({
   emptyDescription,
   footer,
 }: SessionCardProps) {
+  function sessionAction(session: AuthSession) {
+    const path = revokePathFor(session)
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={isPending}
+        onClick={() => onRevoke(path, "Client session signed out.")}
+        aria-label={`Sign out ${session.client_name}`}
+      >
+        {pendingPath === path ? (
+          <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
+        ) : (
+          <LogOutIcon data-icon="inline-start" />
+        )}
+        Sign out
+      </Button>
+    )
+  }
   return (
     <Card className="border-border/70 shadow-xs">
       <CardHeader>
@@ -147,66 +184,95 @@ function SessionCard({
             </EmptyHeader>
           </Empty>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {showUsername ? <TableHead>Username</TableHead> : null}
-                <TableHead>Client</TableHead>
-                <TableHead>Last used</TableHead>
-                <TableHead>Idle expiry</TableHead>
-                <TableHead>Absolute expiry</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map((session) => {
-                const path = revokePathFor(session)
-                const busy = pendingPath === path
-
-                return (
-                  <TableRow key={session.id}>
-                    {showUsername ? <TableCell>{session.username}</TableCell> : null}
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-foreground">
-                          {session.client_name}
-                        </span>
-                        {session.is_current ? <Badge variant="secondary">Current</Badge> : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <LocalTimestamp value={session.last_used_at} />
-                    </TableCell>
-                    <TableCell>
-                      <LocalTimestamp value={session.idle_expires_at} />
-                    </TableCell>
-                    <TableCell>
-                      <LocalTimestamp value={session.expires_at} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className={iconOnlyButtonClass}
-                          disabled={isPending}
-                          onClick={() => onRevoke(path, "Client session signed out.")}
-                          aria-label="Sign out session"
-                        >
-                          {busy ? (
-                            <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
-                          ) : (
-                            <LogOutIcon data-icon="inline-start" />
-                          )}
-                          <IconOnlyButtonLabel>Sign out</IconOnlyButtonLabel>
-                        </Button>
-                      </div>
-                    </TableCell>
+          <>
+            <ListTable>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {showUsername ? <TableHead>Username</TableHead> : null}
+                    <TableHead>Client</TableHead>
+                    <TableHead>Last used</TableHead>
+                    <TableHead>Idle expiry</TableHead>
+                    <TableHead>Absolute expiry</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {sessions.map((session) => {
+                    return (
+                      <TableRow key={session.id}>
+                        {showUsername ? (
+                          <TableCell>{session.username}</TableCell>
+                        ) : null}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">
+                              {session.client_name}
+                            </span>
+                            {session.is_current ? (
+                              <Badge variant="secondary" className="self-start">
+                                Current
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <LocalTimestamp value={session.last_used_at} />
+                        </TableCell>
+                        <TableCell>
+                          <LocalTimestamp value={session.idle_expires_at} />
+                        </TableCell>
+                        <TableCell>
+                          <LocalTimestamp value={session.expires_at} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {sessionAction(session)}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </ListTable>
+            <ListMobile>
+              <ItemGroup>
+                {sessions.map((session) => (
+                  <Item
+                    key={session.id}
+                    role="listitem"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ItemContent className="min-w-0">
+                      <ItemTitle className="max-w-full min-w-0 wrap-anywhere">
+                        {session.client_name}
+                      </ItemTitle>
+                      {session.is_current ? (
+                        <Badge variant="secondary" className="self-start">
+                          Current
+                        </Badge>
+                      ) : null}
+                      {showUsername ? (
+                        <ItemDescription>{session.username}</ItemDescription>
+                      ) : null}
+                      <ItemDescription>
+                        Last used:{" "}
+                        <LocalTimestamp value={session.last_used_at} />
+                      </ItemDescription>
+                      <ItemDescription>
+                        Idle expiry:{" "}
+                        <LocalTimestamp value={session.idle_expires_at} />
+                      </ItemDescription>
+                      <ItemDescription>
+                        Expires: <LocalTimestamp value={session.expires_at} />
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>{sessionAction(session)}</ItemActions>
+                  </Item>
+                ))}
+              </ItemGroup>
+            </ListMobile>
+          </>
         )}
       </CardContent>
       {footer && sessions.length > 0 ? <CardFooter>{footer}</CardFooter> : null}
@@ -241,7 +307,9 @@ export function SecuritySessions({
       return
     }
 
-    router.push(buildSecurityQuery("mine", personalSessions.pagination.limit, 0))
+    router.push(
+      buildSecurityQuery("mine", personalSessions.pagination.limit, 0)
+    )
   }
 
   function runAction(path: string, successMessage: string) {
@@ -265,7 +333,9 @@ export function SecuritySessions({
       <div className="lg:hidden">
         <Select
           value={activeTab}
-          onValueChange={(value) => navigateToTab(value === "all" ? "all" : "mine")}
+          onValueChange={(value) =>
+            navigateToTab(value === "all" ? "all" : "mine")
+          }
           items={[
             { label: "My sessions", value: "mine" },
             { label: "All users", value: "all" },
@@ -316,7 +386,9 @@ export function SecuritySessions({
       showUsername={false}
       pendingPath={pendingPath}
       isPending={isPending}
-      revokePathFor={(session) => buildBffPath(`/profile/sessions/${session.id}/revoke`)}
+      revokePathFor={(session) =>
+        buildBffPath(`/profile/sessions/${session.id}/revoke`)
+      }
       onRevoke={runAction}
       scopeControl={activeTab === "mine" ? sessionScopeControl : null}
       action={
@@ -349,14 +421,14 @@ export function SecuritySessions({
   const adminCard = (
     <SessionCard
       title="All Client Sessions"
-      description={
-        "Active client sessions across all users."
-      }
+      description={"Active client sessions across all users."}
       sessions={adminPage.items}
       showUsername
       pendingPath={pendingPath}
       isPending={isPending}
-      revokePathFor={(session) => buildBffPath(`/admin/auth/sessions/${session.id}/revoke`)}
+      revokePathFor={(session) =>
+        buildBffPath(`/admin/auth/sessions/${session.id}/revoke`)
+      }
       onRevoke={runAction}
       scopeControl={activeTab === "all" ? sessionScopeControl : null}
       action={
@@ -391,23 +463,33 @@ export function SecuritySessions({
       <>
         {personalCard}
 
-        <AlertDialog open={dialogTarget === "mine"} onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}>
+        <AlertDialog
+          open={dialogTarget === "mine"}
+          onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Sign out all clients?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will sign out all active client sessions for your account. Your
-                current browser SSO session will stay active.
+                This will sign out all active client sessions for your account.
+                Your current browser SSO session will stay active.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={pendingPath === personalBulkPath}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={pendingPath === personalBulkPath}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 disabled={pendingPath === personalBulkPath}
-                onClick={() => runAction(personalBulkPath, "All client sessions signed out.")}
+                onClick={() =>
+                  runAction(personalBulkPath, "All client sessions signed out.")
+                }
               >
                 {pendingPath === personalBulkPath ? (
-                  <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
+                  <LoaderCircleIcon
+                    className="animate-spin"
+                    data-icon="inline-start"
+                  />
                 ) : null}
                 Sign out all
               </AlertDialogAction>
@@ -422,23 +504,33 @@ export function SecuritySessions({
     <>
       {activeTab === "all" ? adminCard : personalCard}
 
-      <AlertDialog open={dialogTarget === "mine"} onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}>
+      <AlertDialog
+        open={dialogTarget === "mine"}
+        onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out all clients?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will sign out all active client sessions for your account. Your
-              current browser SSO session will stay active.
+              This will sign out all active client sessions for your account.
+              Your current browser SSO session will stay active.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingPath === personalBulkPath}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={pendingPath === personalBulkPath}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={pendingPath === personalBulkPath}
-              onClick={() => runAction(personalBulkPath, "All client sessions signed out.")}
+              onClick={() =>
+                runAction(personalBulkPath, "All client sessions signed out.")
+              }
             >
               {pendingPath === personalBulkPath ? (
-                <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
+                <LoaderCircleIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
               ) : null}
               Sign out all
             </AlertDialogAction>
@@ -446,7 +538,10 @@ export function SecuritySessions({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={dialogTarget === "all"} onOpenChange={(open) => setDialogTarget(open ? "all" : null)}>
+      <AlertDialog
+        open={dialogTarget === "all"}
+        onOpenChange={(open) => setDialogTarget(open ? "all" : null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out everyone?</AlertDialogTitle>
@@ -457,13 +552,20 @@ export function SecuritySessions({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingPath === adminBulkPath}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={pendingPath === adminBulkPath}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={pendingPath === adminBulkPath}
-              onClick={() => runAction(adminBulkPath, "All client sessions signed out.")}
+              onClick={() =>
+                runAction(adminBulkPath, "All client sessions signed out.")
+              }
             >
               {pendingPath === adminBulkPath ? (
-                <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
+                <LoaderCircleIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
               ) : null}
               Sign out all
             </AlertDialogAction>

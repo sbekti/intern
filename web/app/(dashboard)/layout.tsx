@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { cookies } from "next/headers"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { DashboardShellProvider } from "@/components/dashboard-shell-provider"
@@ -6,6 +7,7 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getProfile } from "@/lib/api"
 import { getFrontendSsoConfig } from "@/lib/frontend-config"
+import { listLayoutCookie } from "@/lib/list-layout"
 
 export default async function DashboardLayout({
   children,
@@ -14,9 +16,12 @@ export default async function DashboardLayout({
 }>) {
   const profile = await getProfile()
   const frontendSso = getFrontendSsoConfig()
+  const listLayout = (await cookies()).get(listLayoutCookie)?.value
 
   if (!profile.ok) {
-    throw new Error("Required authenticated profile unavailable for dashboard shell.")
+    throw new Error(
+      "Required authenticated profile unavailable for dashboard shell."
+    )
   }
 
   return (
@@ -28,7 +33,10 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <DashboardShellProvider isAdmin={profile.data.is_admin}>
+      <DashboardShellProvider
+        isAdmin={profile.data.is_admin}
+        initialListLayout={listLayout === "table" ? "table" : "auto"}
+      >
         <AppSidebar
           variant="inset"
           user={{

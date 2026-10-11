@@ -1,15 +1,26 @@
 "use client"
 
+import { ListTable, ListMobile } from "@/components/responsive-list"
+
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { startTransition, useMemo, useState } from "react"
 import { toast } from "@/components/ui/toast"
-import {
-  MonitorSmartphoneIcon,
-  PencilIcon,
-  PlusIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { MonitorSmartphoneIcon, PlusIcon } from "lucide-react"
 
+import { GuardedDialog } from "@/components/guarded-dialog"
+import { RecordActions } from "@/components/record-actions"
+import { ListSort } from "@/components/list-sort"
+import {
+  Item,
+  ItemContent,
+  ItemTitle,
+  ItemDescription,
+  ItemFooter,
+  ItemGroup,
+} from "@/components/ui/item"
+import { Badge } from "@/components/ui/badge"
+import { mutate } from "@/lib/mutations"
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { VlanBadge } from "@/components/vlan-badge"
 import { useListControls } from "@/hooks/use-list-controls"
@@ -25,11 +36,7 @@ import {
 } from "@/components/token-filter-bar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
-import {
-  IconOnlyButtonLabel,
-  responsiveCompactButtonClass,
-  iconOnlyButtonClass,
-} from "@/components/compact-button-label"
+import { responsiveCompactButtonClass } from "@/components/compact-button-label"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,7 +57,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import {
-  Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -101,11 +108,6 @@ type DeviceFormState = {
   vlan_id: string
 }
 
-type ApiError = {
-  code: string
-  message: string
-}
-
 const defaultFormState: DeviceFormState = {
   display_name: "",
   mac_address: "",
@@ -124,15 +126,6 @@ function mapDeviceToForm(device: NetworkDevice): DeviceFormState {
   }
 }
 
-async function parseApiError(response: Response) {
-  try {
-    const body = (await response.json()) as Partial<ApiError>
-    return body.message ?? `${response.status} ${response.statusText}`
-  } catch {
-    return `${response.status} ${response.statusText}`
-  }
-}
-
 export function DeviceManager({
   initialItems,
   vlans,
@@ -145,6 +138,7 @@ export function DeviceManager({
   const [editing, setEditing] = useState<NetworkDevice | null>(null)
   const [deleting, setDeleting] = useState<NetworkDevice | null>(null)
   const [form, setForm] = useState<DeviceFormState>(defaultFormState)
+  const [initialForm, setInitialForm] = useState(defaultFormState)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
@@ -171,10 +165,12 @@ export function DeviceManager({
 
   function openCreate() {
     setEditing(null)
-    setForm({
+    const next = {
       ...defaultFormState,
       vlan_id: sortedVlans[0] ? String(sortedVlans[0].vlan_id) : "",
-    })
+    }
+    setForm(next)
+    setInitialForm(next)
     setSubmitError(null)
     setDialogOpen(true)
   }
@@ -182,6 +178,7 @@ export function DeviceManager({
   function openEdit(device: NetworkDevice) {
     setEditing(device)
     setForm(mapDeviceToForm(device))
+    setInitialForm(mapDeviceToForm(device))
     setSubmitError(null)
     setDialogOpen(true)
   }
@@ -198,55 +195,79 @@ export function DeviceManager({
       vlan_id: Number(form.vlan_id),
     }
 
-    const response = await fetch(
-      editing
-        ? buildBffPath(`/networks/devices/${editing.id}`)
-        : buildBffPath("/networks/devices"),
-      {
-        method: editing ? "PATCH" : "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      }
-    )
-
-    if (!response.ok) {
+    try {
+      await mutate(
+        editing
+          ? buildBffPath(`/networks/devices/${editing.id}`)
+          : buildBffPath("/networks/devices"),
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      )
+      toast.add({
+        type: "success",
+        title: editing ? "Device updated" : "Device created",
+      })
+      setDialogOpen(false)
+      startTransition(() => router.refresh())
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't save the device. Try again."
+      )
+    } finally {
       setSubmitting(false)
-      setSubmitError(await parseApiError(response))
-      return
     }
-
-    toast.add({ type: "success", title: editing ? "Device updated" : "Device created" })
-    setDialogOpen(false)
-    setSubmitting(false)
-    startTransition(() => router.refresh())
   }
 
   async function handleDelete() {
-    if (!deleting) {
-      return
-    }
-
+    if (!deleting) return
     setDeletingBusy(true)
-
-    const response = await fetch(
-      buildBffPath(`/networks/devices/${deleting.id}`),
-      {
+    try {
+      await mutate(buildBffPath(`/networks/devices/${deleting.id}`), {
         method: "DELETE",
-      }
-    )
-
-    if (!response.ok) {
+      })
+      toast.add({ type: "success", title: "Device deleted" })
+      setDeleting(null)
+      startTransition(() => router.refresh())
+    } catch (error) {
+      toast.add({
+        type: "error",
+        title:
+          error instanceof Error
+            ? error.message
+            : "Couldn't delete the device.",
+      })
+    } finally {
       setDeletingBusy(false)
-      toast.add({ type: "error", title: await parseApiError(response) })
-      return
     }
+  }
 
-    toast.add({ type: "success", title: "Device deleted" })
-    setDeleting(null)
-    setDeletingBusy(false)
-    startTransition(() => router.refresh())
+  function deviceActions(device: NetworkDevice) {
+    return (
+      <RecordActions
+        name={device.display_name}
+        onEdit={() => openEdit(device)}
+        onDelete={() => setDeleting(device)}
+        activityHref={`/admin/audit-logs?resource_type=network_device&resource_id=${encodeURIComponent(device.id)}`}
+        copies={[{ label: "MAC address", value: device.mac_address }]}
+      />
+    )
+  }
+
+  function deviceVlan(device: NetworkDevice) {
+    return (
+      <Link
+        href={`/networks/vlans?vlan_id=${device.vlan.vlan_id}`}
+        aria-label={`View VLAN ${device.vlan.name}`}
+        className="min-w-0"
+      >
+        <VlanBadge name={device.vlan.name} color={device.vlan.color} />
+      </Link>
+    )
   }
 
   return (
@@ -255,7 +276,7 @@ export function DeviceManager({
         <CardHeader>
           <CardTitle>Devices</CardTitle>
           <CardDescription>
-            Register devices and assign each MAC address to the correct VLAN.
+            {sortedItems.length} of {initialItems.length} devices
           </CardDescription>
           <CardAction className="ml-3 sm:ml-0">
             <Button
@@ -309,92 +330,120 @@ export function DeviceManager({
               </EmptyContent>
             </Empty>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <SortableTableHead
-                    sortKey="display_name"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    Name
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="mac_address"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    MAC Address
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="vlan"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    VLAN
-                  </SortableTableHead>
-                  <SortableTableHead
-                    sortKey="status"
-                    sort={controls.sort}
-                    onSort={controls.setSort}
-                  >
-                    Status
-                  </SortableTableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedItems.map((device) => (
-                  <TableRow key={device.id}>
-                    <TableCell className="font-medium">
-                      {device.display_name}
-                    </TableCell>
-                    <TableCell className="font-mono">
-                      {device.mac_address}
-                    </TableCell>
-                    <TableCell>
-                      <VlanBadge
-                        name={device.vlan.name}
-                        color={device.vlan.color}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {device.disabled ? "Disabled" : "Enabled"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className={iconOnlyButtonClass}
-                          onClick={() => openEdit(device)}
-                          aria-label="Edit device"
-                        >
-                          <PencilIcon data-icon="inline-start" />
-                          <IconOnlyButtonLabel>Edit</IconOnlyButtonLabel>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className={responsiveCompactButtonClass}
-                          onClick={() => setDeleting(device)}
-                          aria-label="Delete device"
-                        >
-                          <Trash2Icon data-icon="inline-start" />
-                          <IconOnlyButtonLabel>Delete</IconOnlyButtonLabel>
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <ListTable>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <SortableTableHead
+                        sortKey="display_name"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        Name
+                      </SortableTableHead>
+                      <SortableTableHead
+                        sortKey="mac_address"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        MAC Address
+                      </SortableTableHead>
+                      <SortableTableHead
+                        sortKey="vlan"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        VLAN
+                      </SortableTableHead>
+                      <SortableTableHead
+                        sortKey="status"
+                        sort={controls.sort}
+                        onSort={controls.setSort}
+                      >
+                        Status
+                      </SortableTableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedItems.map((device) => (
+                      <TableRow key={device.id}>
+                        <TableCell className="font-medium">
+                          {device.display_name}
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {device.mac_address}
+                        </TableCell>
+                        <TableCell>{deviceVlan(device)}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={device.disabled ? "outline" : "secondary"}
+                          >
+                            {device.disabled ? "Disabled" : "Enabled"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {deviceActions(device)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ListTable>
+              <ListMobile>
+                <ListSort
+                  sort={controls.sort}
+                  onSort={controls.setSort}
+                  options={[
+                    { key: "display_name", label: "Name" },
+                    { key: "mac_address", label: "MAC address" },
+                    { key: "vlan", label: "VLAN" },
+                    { key: "status", label: "Status" },
+                  ]}
+                />
+                <ItemGroup>
+                  {sortedItems.map((device) => (
+                    <Item
+                      key={device.id}
+                      role="listitem"
+                      variant="outline"
+                      size="sm"
+                    >
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="max-w-full min-w-0 wrap-anywhere">
+                          {device.display_name}
+                        </ItemTitle>
+                        <ItemDescription>{device.mac_address}</ItemDescription>
+                      </ItemContent>
+                      <Badge
+                        variant={device.disabled ? "outline" : "secondary"}
+                      >
+                        {device.disabled ? "Disabled" : "Enabled"}
+                      </Badge>
+                      <ItemFooter className="min-w-0">
+                        {deviceVlan(device)}
+                        {deviceActions(device)}
+                      </ItemFooter>
+                    </Item>
+                  ))}
+                </ItemGroup>
+              </ListMobile>
+            </>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+      <GuardedDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        dirty={JSON.stringify(form) !== JSON.stringify(initialForm)}
+        busy={submitting}
+      >
+        <DialogContent
+          showCloseButton={!submitting}
+          className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
+        >
           <DialogHeader>
             <DialogTitle>
               {editing ? "Edit device" : "Create device"}
@@ -405,108 +454,115 @@ export function DeviceManager({
                 : "Register a MAC address, attach it to a VLAN, and choose whether it should authenticate through RADIUS."}
             </DialogDescription>
           </DialogHeader>
-          <form className="grid gap-6" onSubmit={handleSubmit}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="device-name">Display name</FieldLabel>
-                <Input
-                  id="device-name"
-                  value={form.display_name}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      display_name: event.target.value,
-                    }))
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="device-mac">MAC address</FieldLabel>
-                <Input
-                  id="device-mac"
-                  value={form.mac_address}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      mac_address: event.target.value,
-                    }))
-                  }
-                  required
-                />
-                <FieldDescription>
-                  Accepted formats include colon, hyphen, dotted, or bare
-                  hexadecimal.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="device-vlan">VLAN</FieldLabel>
-                <Select
-                  value={form.vlan_id}
-                  onValueChange={(value) =>
-                    setForm((current) => ({
-                      ...current,
-                      vlan_id: value ?? "",
-                    }))
-                  }
-                  items={sortedVlans.map((vlan) => ({
-                    label: vlan.name,
-                    value: String(vlan.vlan_id),
-                  }))}
-                >
-                  <SelectTrigger id="device-vlan" className="w-full">
-                    <SelectValue placeholder="Select a VLAN" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {sortedVlans.map((vlan) => (
-                        <SelectItem
-                          key={vlan.vlan_id}
-                          value={String(vlan.vlan_id)}
-                        >
-                          {vlan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <FieldSet>
-                <FieldLegend variant="label">Authentication</FieldLegend>
-                <Field orientation="horizontal" className="items-start">
-                  <Checkbox
-                    id={deviceDisabledFieldId}
-                    checked={form.disabled}
-                    onCheckedChange={(checked) =>
+          <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
+            <fieldset disabled={submitting} className="min-w-0">
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="device-name">Display name</FieldLabel>
+                  <Input
+                    id="device-name"
+                    value={form.display_name}
+                    onChange={(event) =>
                       setForm((current) => ({
                         ...current,
-                        disabled: checked,
+                        display_name: event.target.value,
                       }))
                     }
+                    required
                   />
-                  <FieldContent>
-                    <FieldLabel htmlFor={deviceDisabledFieldId}>
-                      Disable this device
-                    </FieldLabel>
-                    <FieldDescription>
-                      Disabled devices stay visible and keep their MAC address,
-                      but they are excluded from RADIUS authentication until
-                      they are enabled again.
-                    </FieldDescription>
-                  </FieldContent>
                 </Field>
-              </FieldSet>
-              <FieldError>{submitError}</FieldError>
-            </FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="device-mac">MAC address</FieldLabel>
+                  <Input
+                    id="device-mac"
+                    value={form.mac_address}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        mac_address: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                  <FieldDescription>
+                    Accepted formats include colon, hyphen, dotted, or bare
+                    hexadecimal.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="device-vlan">VLAN</FieldLabel>
+                  <Select
+                    disabled={submitting}
+                    value={form.vlan_id}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        vlan_id: value ?? "",
+                      }))
+                    }
+                    items={sortedVlans.map((vlan) => ({
+                      label: vlan.name,
+                      value: String(vlan.vlan_id),
+                    }))}
+                  >
+                    <SelectTrigger id="device-vlan" className="w-full">
+                      <SelectValue placeholder="Select a VLAN" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {sortedVlans.map((vlan) => (
+                          <SelectItem
+                            key={vlan.vlan_id}
+                            value={String(vlan.vlan_id)}
+                          >
+                            {vlan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <FieldSet>
+                  <FieldLegend variant="label">Authentication</FieldLegend>
+                  <Field orientation="horizontal" className="items-start">
+                    <Checkbox
+                      id={deviceDisabledFieldId}
+                      disabled={submitting}
+                      checked={form.disabled}
+                      onCheckedChange={(checked) =>
+                        setForm((current) => ({
+                          ...current,
+                          disabled: checked,
+                        }))
+                      }
+                    />
+                    <FieldContent>
+                      <FieldLabel htmlFor={deviceDisabledFieldId}>
+                        Disable this device
+                      </FieldLabel>
+                      <FieldDescription>
+                        Disabled devices stay visible and keep their MAC
+                        address, but they are excluded from RADIUS
+                        authentication until they are enabled again.
+                      </FieldDescription>
+                    </FieldContent>
+                  </Field>
+                </FieldSet>
+                <FieldError>{submitError}</FieldError>
+              </FieldGroup>
+            </fieldset>
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setDialogOpen(false)}
-                disabled={submitting}
+              <DialogClose
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={submitting}
+                  />
+                }
               >
                 Cancel
-              </Button>
+              </DialogClose>
               <Button type="submit" disabled={submitting}>
                 {submitting
                   ? "Saving..."
@@ -517,11 +573,11 @@ export function DeviceManager({
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </GuardedDialog>
 
       <AlertDialog
         open={Boolean(deleting)}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        onOpenChange={(open) => !open && !deletingBusy && setDeleting(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -536,7 +592,11 @@ export function DeviceManager({
             <AlertDialogCancel disabled={deletingBusy}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction disabled={deletingBusy} onClick={handleDelete}>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deletingBusy}
+              onClick={handleDelete}
+            >
               {deletingBusy ? "Deleting..." : "Delete device"}
             </AlertDialogAction>
           </AlertDialogFooter>
