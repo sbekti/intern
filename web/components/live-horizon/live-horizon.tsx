@@ -220,7 +220,7 @@ export function LiveHorizon({
         width: "100%",
         height,
         overflow: "hidden",
-        touchAction: "pan-y pinch-zoom",
+        touchAction: "none",
       }}
       role="img"
       aria-label={ariaLabel}

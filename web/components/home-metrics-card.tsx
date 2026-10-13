@@ -549,9 +549,6 @@ function MetricsGroupCard({
     }
 
     activePointerId.current = null
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
     onRulerTimestampChange(null)
   }
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -584,16 +581,11 @@ function MetricsGroupCard({
     }
   }
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (
-      event.pointerType === "mouse" ||
-      !event.isPrimary ||
-      activePointerId.current !== null
-    ) {
+    if (event.pointerType === "mouse" || !event.isPrimary) {
       return
     }
 
     activePointerId.current = event.pointerId
-    event.currentTarget.setPointerCapture(event.pointerId)
     handlePointerMove(event)
   }
 
@@ -624,8 +616,7 @@ function MetricsGroupCard({
           rulerTimestamp={rulerTimestamp}
         />
         <div
-          className="flex flex-col"
-          style={{ touchAction: "pan-y pinch-zoom" }}
+          className="flex touch-none flex-col"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={endScrub}
@@ -635,7 +626,6 @@ function MetricsGroupCard({
             }
           }}
           onPointerCancel={endScrub}
-          onLostPointerCapture={endScrub}
         >
           {group.lanes.map((lane) => (
             <MetricLane
