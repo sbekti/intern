@@ -90,7 +90,6 @@ export function useMetricsSnapshot(
     const cadenceMilliseconds = cadenceSeconds * 1000
 
     snapshotRef.current = null
-    setSnapshot(null)
     if (identities.length === 0) {
       return
     }
