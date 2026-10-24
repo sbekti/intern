@@ -2,7 +2,8 @@ export type FilterOption = { value: string; label: string }
 export type FilterField = {
   key: string
   label: string
-  options: readonly FilterOption[]
+  // Omit options for a free-text field; provide them for exact choices.
+  options?: readonly FilterOption[]
 }
 export type Filters = Record<string, string>
 export type Sort<Key extends string = string> = {
@@ -61,32 +62,21 @@ function compareText(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: "base" })
 }
 
-export function searchItems<T>(
-  items: readonly T[],
-  query: string,
-  values: (item: T) => readonly string[]
-) {
-  const text = query.trim().toLowerCase()
-  return text
-    ? items.filter((item) =>
-        values(item).some((value) => value.toLowerCase().includes(text))
-      )
-    : items
+export function contains(value: string, query: string) {
+  return value.toLowerCase().includes(query.trim().toLowerCase())
 }
 
 export function filterAndSort<T>(
   items: readonly T[],
   filters: Filters,
-  fields: Record<string, (item: T) => string>,
+  fields: Record<string, (item: T, value: string) => boolean>,
   sort: Sort,
   sorts: Record<string, (item: T) => SortValue>,
   id: (item: T) => string | number
 ) {
   return items
     .filter((item) =>
-      Object.entries(filters).every(
-        ([key, value]) => fields[key](item) === value
-      )
+      Object.entries(filters).every(([key, value]) => fields[key](item, value))
     )
     .sort((a, b) => {
       const left = sorts[sort.key](a),

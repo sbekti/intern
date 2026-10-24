@@ -3,12 +3,6 @@
 import { useEffect, useEffectEvent, useState } from "react"
 import { SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
 import { Field, FieldGroup } from "@/components/ui/field"
 import {
   InputGroup,
@@ -24,19 +18,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { FilterField, Filters } from "@/lib/list-controls"
-
-export function NoMatchingRecords() {
-  return (
-    <Empty className="min-h-[16rem] border bg-muted/20">
-      <EmptyHeader>
-        <EmptyTitle>No matching records</EmptyTitle>
-        <EmptyDescription>
-          Change or clear the search and filters to see more records.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  )
-}
 
 export function ListToolbar({
   query,
@@ -100,7 +81,7 @@ export function ListToolbar({
         </InputGroup>
       </Field>
       {fields.map((field) => {
-        const options = [{ value: "", label: "All" }, ...field.options]
+        const options = [{ value: "", label: "All" }, ...(field.options ?? [])]
         const selected = filters[field.key]
         if (selected && !options.some(({ value }) => value === selected))
           options.push({ value: selected, label: selected })

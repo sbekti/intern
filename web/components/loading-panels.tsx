@@ -174,9 +174,11 @@ export function TableLoadingPanel({
             data-slot="list-toolbar-skeleton"
           >
             <Skeleton className="h-9 min-w-48 flex-1 basis-full rounded-md sm:basis-0" />
-            <Skeleton className="h-9 w-28 rounded-md" />
-            {kind === "devices" || kind === "audit" ? (
-              <Skeleton className="h-9 w-28 rounded-md" />
+            {kind === "audit" ? (
+              <>
+                <Skeleton className="h-9 w-28 rounded-md" />
+                <Skeleton className="h-9 w-28 rounded-md" />
+              </>
             ) : null}
           </div>
           <ListTable>

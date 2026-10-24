@@ -20,14 +20,16 @@ import {
 import { mutate } from "@/lib/mutations"
 import type { Gizmo, NetworkDevice } from "@/lib/api"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort, searchItems } from "@/lib/list-controls"
+import { filterAndSort } from "@/lib/list-controls"
 import {
   gizmoFilterFields,
-  gizmoFilterValues,
+  gizmoFilters,
   gizmoSortValues,
-  gizmoSearchValues,
 } from "@/lib/network-list"
-import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
+import {
+  TokenFilterBar,
+  NoMatchingRecords,
+} from "@/components/token-filter-bar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { responsiveCompactButtonClass } from "@/components/compact-button-label"
@@ -112,14 +114,14 @@ export function GizmoManager({
   const [removingBusy, setRemovingBusy] = useState(false)
 
   const controls = useListControls(
-    Object.keys(gizmoFilterValues),
+    Object.keys(gizmoFilters),
     Object.keys(gizmoSortValues),
     { key: "display_name", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    searchItems(initialItems, controls.query, gizmoSearchValues),
+    initialItems,
     controls.filters,
-    gizmoFilterValues,
+    gizmoFilters,
     controls.sort,
     gizmoSortValues,
     (item) => item.network_device.id
@@ -254,14 +256,10 @@ export function GizmoManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <ListToolbar
-            query={controls.query}
-            onQueryChange={controls.setQuery}
-            searchLabel="Search Gizmos"
+          <TokenFilterBar
             fields={filterFields}
             filters={controls.filters}
-            onFiltersChange={controls.setFilters}
-            onClear={controls.clear}
+            onChange={controls.setFilters}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />

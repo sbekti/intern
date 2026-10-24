@@ -22,14 +22,16 @@ import {
 import { mutate } from "@/lib/mutations"
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort, searchItems } from "@/lib/list-controls"
+import { filterAndSort } from "@/lib/list-controls"
 import {
   vlanFilterFields,
-  vlanFilterValues,
+  vlanFilters,
   vlanSortValues,
-  vlanSearchValues,
 } from "@/lib/network-list"
-import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
+import {
+  TokenFilterBar,
+  NoMatchingRecords,
+} from "@/components/token-filter-bar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { vlanColors, type VlanColor } from "@/lib/vlan-colors"
@@ -131,19 +133,19 @@ export function VlanManager({
   const [deletingBusy, setDeletingBusy] = useState(false)
 
   const controls = useListControls(
-    Object.keys(vlanFilterValues),
+    Object.keys(vlanFilters),
     Object.keys(vlanSortValues),
     { key: "vlan_id", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    searchItems(initialItems, controls.query, vlanSearchValues),
+    initialItems,
     controls.filters,
-    vlanFilterValues,
+    vlanFilters,
     controls.sort,
     vlanSortValues,
     (item) => item.vlan_id
   )
-  const filterFields = vlanFilterFields()
+  const filterFields = vlanFilterFields(initialItems)
 
   function openCreate() {
     setEditing(null)
@@ -272,14 +274,10 @@ export function VlanManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <ListToolbar
-            query={controls.query}
-            onQueryChange={controls.setQuery}
-            searchLabel="Search VLANs"
+          <TokenFilterBar
             fields={filterFields}
             filters={controls.filters}
-            onFiltersChange={controls.setFilters}
-            onClear={controls.clear}
+            onChange={controls.setFilters}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />

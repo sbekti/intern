@@ -23,14 +23,16 @@ import { mutate } from "@/lib/mutations"
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { VlanBadge } from "@/components/vlan-badge"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort, searchItems } from "@/lib/list-controls"
+import { filterAndSort } from "@/lib/list-controls"
 import {
   deviceFilterFields,
-  deviceFilterValues,
+  deviceFilters,
   deviceSortValues,
-  deviceSearchValues,
 } from "@/lib/network-list"
-import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
+import {
+  TokenFilterBar,
+  NoMatchingRecords,
+} from "@/components/token-filter-bar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { responsiveCompactButtonClass } from "@/components/compact-button-label"
@@ -141,14 +143,14 @@ export function DeviceManager({
   const [deletingBusy, setDeletingBusy] = useState(false)
 
   const controls = useListControls(
-    Object.keys(deviceFilterValues),
+    Object.keys(deviceFilters),
     Object.keys(deviceSortValues),
     { key: "display_name", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    searchItems(initialItems, controls.query, deviceSearchValues),
+    initialItems,
     controls.filters,
-    deviceFilterValues,
+    deviceFilters,
     controls.sort,
     deviceSortValues,
     (item) => item.id
@@ -277,14 +279,10 @@ export function DeviceManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <ListToolbar
-            query={controls.query}
-            onQueryChange={controls.setQuery}
-            searchLabel="Search devices"
+          <TokenFilterBar
             fields={filterFields}
             filters={controls.filters}
-            onFiltersChange={controls.setFilters}
-            onClear={controls.clear}
+            onChange={controls.setFilters}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />

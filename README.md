@@ -15,13 +15,15 @@ For these lanes, `extent` scales the excursion from the nearest bound, while
 live and hover readouts retain the actual measurement. Missing samples remain
 gaps. Lanes without `normalRange` continue showing measurement magnitude.
 
-List pages use `q` for literal, case-insensitive substring search after a 300 ms
-typing pause. Devices search names, MACs, and VLAN names/IDs; VLANs search IDs,
-names, and descriptions; Gizmos search names, MACs, and destination URLs.
-Category filters remain exact and combine with search using AND.
+Inventory pages use segmented filters. Each text token searches its selected
+field with literal, case-insensitive substring matching and applies on Enter or
+focus-out. Names, MACs, VLAN descriptions, and Gizmo URLs accept text fragments;
+VLAN IDs, colors, status, and destination state remain exact. Tokens combine
+using AND. Escape cancels an edit; removing or clearing filters discards drafts.
 
-Audit search runs on the server across actor, action, resource type/ID, and JSON
-metadata before pagination. The audit API retains its exact filters for Activity
+Audit search currently uses `q` after a 300 ms typing pause and runs on the server
+across actor, action, resource type/ID, and JSON metadata before pagination.
+The audit API retains its exact filters for Activity
 links and returns complete category choices in `filter_options`, independently
 of the current search or page. Update both list and count predicates when
 changing audit search, and regenerate OpenAPI and SQLC output.

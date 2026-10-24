@@ -4,19 +4,16 @@ import {
   filterAndSort,
   readFilters,
   readSort,
-  searchItems,
+  contains,
   updateListQuery,
 } from "./list-controls.ts"
 import {
-  deviceFilterValues,
+  deviceFilters,
   deviceSortValues,
-  deviceSearchValues,
-  gizmoFilterValues,
+  gizmoFilters,
   gizmoSortValues,
-  gizmoSearchValues,
-  vlanFilterValues,
+  vlanFilters,
   vlanSortValues,
-  vlanSearchValues,
 } from "./network-list.ts"
 import type { Gizmo, NetworkDevice, Vlan } from "./api"
 
@@ -73,7 +70,7 @@ test("category filters remain exact AND conditions without changing source recor
   const rows = filterAndSort(
     devices,
     { vlan_id: "20", status: "enabled" },
-    deviceFilterValues,
+    deviceFilters,
     { key: "display_name", direction: "asc" },
     deviceSortValues,
     (d) => d.id
@@ -87,7 +84,7 @@ test("category filters remain exact AND conditions without changing source recor
       filterAndSort(
         devices,
         { status },
-        deviceFilterValues,
+        deviceFilters,
         { key: "display_name", direction: "asc" },
         deviceSortValues,
         (d) => d.id
@@ -99,21 +96,41 @@ test("category filters remain exact AND conditions without changing source recor
   assert.equal(rows[0], devices[0])
 })
 
-test("inventory search matches partial text regardless of case and combines with categories", () => {
+test("contains matching is literal, trimmed, and case insensitive", () => {
+  for (const value of ["cam", "CAM", " camera "])
+    assert.ok(contains("Camera", value))
+  assert.ok(contains("Office_LAN 100%", "_"))
+  assert.ok(contains("Office_LAN 100%", "%"))
+  assert.equal(contains("Office_LAN", "Office LAN"), false)
+})
+
+test("text tokens search their selected field and combine with exact categories", () => {
   const before = structuredClone(devices)
-  for (const query of ["cam", "CAM", " camera "])
+  for (const name of ["cam", "CAM", " camera "])
     assert.deepEqual(
-      searchItems(devices, query, deviceSearchValues).map((d) => d.id),
-      ["b", "a"]
+      filterAndSort(
+        devices,
+        { display_name: name },
+        deviceFilters,
+        { key: "display_name", direction: "asc" },
+        deviceSortValues,
+        (d) => d.id
+      ).map((d) => d.id),
+      ["a", "b"]
     )
-  for (const query of ["00:02", "IoT", "20"])
-    assert.ok(
-      searchItems(devices, query, deviceSearchValues).some((d) => d.id === "b")
-    )
+  assert.equal(deviceFilters.display_name(devices[0], "iot"), false)
+  assert.equal(deviceFilters.mac_address(devices[0], "Camera"), false)
+  assert.equal(deviceFilters.mac_address(devices[0], "00:02"), true)
+  assert.equal(deviceFilters.vlan_id(devices[0], "2"), false)
   const rows = filterAndSort(
-    searchItems(devices, "am", deviceSearchValues),
-    { vlan_id: "20", status: "enabled" },
-    deviceFilterValues,
+    devices,
+    {
+      display_name: "am",
+      mac_address: "00:02",
+      vlan_id: "20",
+      status: "enabled",
+    },
+    deviceFilters,
     { key: "display_name", direction: "asc" },
     deviceSortValues,
     (d) => d.id
@@ -123,37 +140,36 @@ test("inventory search matches partial text regardless of case and combines with
     ["b"]
   )
   assert.deepEqual(devices, before)
-  assert.equal(searchItems(devices, "  ", deviceSearchValues).length, 3)
-  assert.equal(searchItems(devices, "missing", deviceSearchValues).length, 0)
 })
 
-test("VLAN search includes IDs and descriptions and treats punctuation literally", () => {
-  const items = [{ ...vlans[0], description: "Office_LAN 100%" }, vlans[1]]
-  for (const query of ["20", "oT", "office", "_", "%"])
-    assert.deepEqual(
-      searchItems(items, query, vlanSearchValues).map((v) => v.vlan_id),
-      [20]
-    )
-  assert.equal(searchItems(items, "Office LAN", vlanSearchValues).length, 0)
+test("VLAN names and descriptions contain text while IDs and colors remain exact", () => {
+  const item = { ...vlans[0], description: "Office_LAN 100%" }
+  for (const query of ["office", "_", "%"])
+    assert.ok(vlanFilters.description(item, query))
+  assert.ok(vlanFilters.name(item, "oT"))
+  assert.equal(vlanFilters.name(item, "office"), false)
+  assert.equal(vlanFilters.vlan_id(item, "2"), false)
+  assert.ok(vlanFilters.vlan_id(item, "20"))
+  assert.equal(vlanFilters.color(item, "vio"), false)
 })
 
-test("Gizmo search includes names, MACs, and destination URLs", () => {
-  const items: Gizmo[] = devices.map((d, i) => ({
-    network_device: {
-      ...d,
-      display_name: i === 0 ? "jfk1-av-gzm-x1" : d.display_name,
-    },
-    kiosk_url: i === 0 ? "https://ha.example.test/gizmo-home?kiosk" : null,
+test("Gizmo name, MAC and URL tokens match independently", () => {
+  const item: Gizmo = {
+    network_device: { ...devices[0], display_name: "jfk1-av-gzm-x1" },
+    kiosk_url: "https://ha.example.test/gizmo-home?kiosk",
     created_at: stamp,
     updated_at: stamp,
-  }))
-  for (const query of ["gZm", "00:02", "HA.EXAMPLE", "?kiosk"])
-    assert.deepEqual(
-      searchItems(items, query, gizmoSearchValues).map(
-        (g) => g.network_device.id
-      ),
-      ["b"]
-    )
+  }
+  assert.ok(gizmoFilters.display_name(item, "gZm"))
+  assert.ok(gizmoFilters.mac_address(item, "00:02"))
+  assert.ok(gizmoFilters.kiosk_url(item, "HA.EXAMPLE"))
+  assert.ok(gizmoFilters.kiosk_url(item, "?kiosk"))
+  assert.equal(gizmoFilters.display_name(item, "HA.EXAMPLE"), false)
+  assert.equal(
+    gizmoFilters.kiosk_url({ ...item, kiosk_url: null }, "ha"),
+    false
+  )
+  assert.equal(gizmoFilters.destination(item, "config"), false)
 })
 
 test("sorts by displayed values with stable ID ties in both directions", () => {
@@ -161,7 +177,7 @@ test("sorts by displayed values with stable ID ties in both directions", () => {
     const rows = filterAndSort(
       devices,
       {},
-      deviceFilterValues,
+      deviceFilters,
       { key: "display_name", direction },
       deviceSortValues,
       (d) => d.id
@@ -174,7 +190,7 @@ test("sorts by displayed values with stable ID ties in both directions", () => {
   const rows = filterAndSort(
     devices,
     {},
-    deviceFilterValues,
+    deviceFilters,
     { key: "vlan", direction: "asc" },
     deviceSortValues,
     (d) => d.id
@@ -190,7 +206,7 @@ test("VLAN sorting is numeric and old API color omissions mean Default", () => {
     filterAndSort(
       vlans,
       {},
-      vlanFilterValues,
+      vlanFilters,
       { key: "vlan_id", direction: "asc" },
       vlanSortValues,
       (v) => v.vlan_id
@@ -201,7 +217,7 @@ test("VLAN sorting is numeric and old API color omissions mean Default", () => {
     filterAndSort(
       vlans,
       { color: "default" },
-      vlanFilterValues,
+      vlanFilters,
       { key: "name", direction: "asc" },
       vlanSortValues,
       (v) => v.vlan_id
@@ -221,7 +237,7 @@ test("Gizmo destination filtering and sorting always leave unconfigured destinat
     const rows = filterAndSort(
       items,
       {},
-      gizmoFilterValues,
+      gizmoFilters,
       { key: "destination", direction },
       gizmoSortValues,
       (g) => g.network_device.id
@@ -232,7 +248,7 @@ test("Gizmo destination filtering and sorting always leave unconfigured destinat
     filterAndSort(
       items,
       { destination: "unconfigured" },
-      gizmoFilterValues,
+      gizmoFilters,
       { key: "display_name", direction: "asc" },
       gizmoSortValues,
       (g) => g.network_device.id

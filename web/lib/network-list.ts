@@ -1,22 +1,23 @@
 import type { Gizmo, NetworkDevice, Vlan } from "./api"
 import { vlanColors } from "./vlan-colors.ts"
-import type { FilterField } from "./list-controls.ts"
+import { contains, type FilterField } from "./list-controls.ts"
 
-export const vlanSearchValues = (v: Vlan) => [
-  String(v.vlan_id),
-  v.name,
-  v.description,
-]
-export const vlanFilterValues = {
-  color: (v: Vlan) => v.color ?? "default",
+export const vlanFilters = {
+  vlan_id: (v: Vlan, value: string) => String(v.vlan_id) === value,
+  name: (v: Vlan, value: string) => contains(v.name, value),
+  description: (v: Vlan, value: string) => contains(v.description, value),
+  color: (v: Vlan, value: string) => (v.color ?? "default") === value,
 }
 export const vlanSortValues = {
   vlan_id: (v: Vlan) => v.vlan_id,
   name: (v: Vlan) => v.name,
   description: (v: Vlan) => v.description,
 }
-export function vlanFilterFields(): FilterField[] {
+export function vlanFilterFields(items: readonly Vlan[]): FilterField[] {
   return [
+    { key: "vlan_id", label: "VLAN ID", options: vlanOptions(items) },
+    { key: "name", label: "Name" },
+    { key: "description", label: "Description" },
     {
       key: "color",
       label: "Color",
@@ -33,15 +34,15 @@ function vlanOptions(items: readonly Vlan[]) {
       label: `${v.name} (${v.vlan_id})`,
     }))
 }
-export const deviceSearchValues = (d: NetworkDevice) => [
-  d.display_name,
-  d.mac_address,
-  d.vlan.name,
-  String(d.vlan.vlan_id),
-]
-export const deviceFilterValues = {
-  vlan_id: (d: NetworkDevice) => String(d.vlan.vlan_id),
-  status: (d: NetworkDevice) => (d.disabled ? "disabled" : "enabled"),
+export const deviceFilters = {
+  display_name: (d: NetworkDevice, value: string) =>
+    contains(d.display_name, value),
+  mac_address: (d: NetworkDevice, value: string) =>
+    contains(d.mac_address, value),
+  vlan_id: (d: NetworkDevice, value: string) =>
+    String(d.vlan.vlan_id) === value,
+  status: (d: NetworkDevice, value: string) =>
+    (d.disabled ? "disabled" : "enabled") === value,
 }
 export const deviceSortValues = {
   display_name: (d: NetworkDevice) => d.display_name,
@@ -51,6 +52,8 @@ export const deviceSortValues = {
 }
 export function deviceFilterFields(vlans: readonly Vlan[]): FilterField[] {
   return [
+    { key: "display_name", label: "Name" },
+    { key: "mac_address", label: "MAC" },
     { key: "vlan_id", label: "VLAN", options: vlanOptions(vlans) },
     {
       key: "status",
@@ -62,13 +65,14 @@ export function deviceFilterFields(vlans: readonly Vlan[]): FilterField[] {
     },
   ]
 }
-export const gizmoSearchValues = (g: Gizmo) => [
-  g.network_device.display_name,
-  g.network_device.mac_address,
-  g.kiosk_url ?? "",
-]
-export const gizmoFilterValues = {
-  destination: (g: Gizmo) => (g.kiosk_url ? "configured" : "unconfigured"),
+export const gizmoFilters = {
+  display_name: (g: Gizmo, value: string) =>
+    contains(g.network_device.display_name, value),
+  mac_address: (g: Gizmo, value: string) =>
+    contains(g.network_device.mac_address, value),
+  kiosk_url: (g: Gizmo, value: string) => contains(g.kiosk_url ?? "", value),
+  destination: (g: Gizmo, value: string) =>
+    (g.kiosk_url ? "configured" : "unconfigured") === value,
 }
 export const gizmoSortValues = {
   display_name: (g: Gizmo) => g.network_device.display_name,
@@ -77,6 +81,9 @@ export const gizmoSortValues = {
 }
 export function gizmoFilterFields(): FilterField[] {
   return [
+    { key: "display_name", label: "Name" },
+    { key: "mac_address", label: "MAC" },
+    { key: "kiosk_url", label: "URL" },
     {
       key: "destination",
       label: "Destination",
