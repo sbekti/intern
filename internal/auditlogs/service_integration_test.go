@@ -43,16 +43,32 @@ func TestAuditSearchAcrossPages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	type filterCase struct {
+		name   string
+		filter Filter
+	}
+	var filters []filterCase
 	for _, query := range []string{" camera ", "ALIce", "ice", "DEVICE.UP", "work_dev", "device-", "aa:bb", "100%", "%", "_", "office_lan"} {
-		t.Run(query, func(t *testing.T) {
+		filters = append(filters, filterCase{"q/" + query, Filter{Query: query}})
+	}
+	for _, actor := range []string{" ALIce ", "ice"} {
+		filters = append(filters, filterCase{"actor/" + actor, Filter{ActorUsernameContains: actor}})
+	}
+	for _, metadata := range []string{" CAMERA ", "display_name", "aa:bb", "100%", "%", "_", "office_lan"} {
+		filters = append(filters, filterCase{"metadata/" + metadata, Filter{MetadataContains: metadata}})
+	}
+	for _, tc := range filters {
+		t.Run(tc.name, func(t *testing.T) {
 			seen := map[string]bool{}
 			for offset := int32(0); offset < 6; offset += 2 {
-				page, err := service.List(ctx, Filter{Query: query, Limit: 2, Offset: offset})
+				filter := tc.filter
+				filter.Limit, filter.Offset = 2, offset
+				page, err := service.List(ctx, filter)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if page.TotalCount != 6 || len(page.Items) != 2 {
-					t.Fatalf("query %q: %#v", query, page)
+					t.Fatalf("filter %#v: %#v", filter, page)
 				}
 				for _, row := range page.Items {
 					seen[row.Id.String()] = true
@@ -70,6 +86,15 @@ func TestAuditSearchAcrossPages(t *testing.T) {
 	for _, filter := range []Filter{
 		{Query: "camera", Action: "vlan.create"},
 		{Query: "camera", ActorUsername: "alice"},
+		{ActorUsernameContains: "Camera"},
+		{MetadataContains: "Alice"},
+		{MetadataContains: "100_"},
+		{MetadataContains: "' OR true --"},
+		{ActorUsernameContains: "ice", MetadataContains: "Guest"},
+		{ActorUsernameContains: "ice", ActorUsername: "alice"},
+		{MetadataContains: "Camera", Action: "vlan.create"},
+		{MetadataContains: "Camera", ResourceType: "vlan"},
+		{MetadataContains: "Camera", ResourceID: "device-"},
 		{Query: "missing"},
 		{Query: "100_"},
 		{Query: "' OR true --"},
@@ -82,14 +107,14 @@ func TestAuditSearchAcrossPages(t *testing.T) {
 			t.Fatalf("unexpected matches: %#v", filter)
 		}
 	}
-	page, err := service.List(ctx, Filter{Query: "CAMERA", ResourceType: "network_device", ResourceID: "device-4", ActorUsername: "Alice"})
+	page, err := service.List(ctx, Filter{Query: "CAMERA", ActorUsernameContains: " ICE ", MetadataContains: "office_LAN", ResourceType: "network_device", ResourceID: "device-4", ActorUsername: "Alice", Action: "device.update"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if page.TotalCount != 1 || len(page.Items) != 1 || page.Items[0].ResourceId != "device-4" {
 		t.Fatal("search must AND with exact Activity filters")
 	}
-	page, err = service.List(ctx, Filter{Query: " \t "})
+	page, err = service.List(ctx, Filter{Query: " \t ", ActorUsernameContains: " \t ", MetadataContains: " \t "})
 	if err != nil {
 		t.Fatal(err)
 	}

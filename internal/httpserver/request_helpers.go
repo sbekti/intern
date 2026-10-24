@@ -95,6 +95,12 @@ func decodeAdminAuditLogParams(r *http.Request) (api.ListAdminAuditLogsParams, e
 	if value := strings.TrimSpace(query.Get("actor_username")); value != "" {
 		params.ActorUsername = &value
 	}
+	if value := strings.TrimSpace(query.Get("actor_username_contains")); value != "" {
+		params.ActorUsernameContains = &value
+	}
+	if value := strings.TrimSpace(query.Get("metadata_contains")); value != "" {
+		params.MetadataContains = &value
+	}
 	sortBy := api.ListAdminAuditLogsParamsSortBy(query.Get("sort_by"))
 	if sortBy == "" {
 		sortBy = api.CreatedAt

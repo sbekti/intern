@@ -194,7 +194,7 @@ paths:
         - name: q
           in: query
           required: false
-          description: Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with exact filters using AND.
+          description: Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with other filters using AND.
           schema:
             type: string
         - name: action
@@ -215,6 +215,18 @@ paths:
         - name: actor_username
           in: query
           required: false
+          schema:
+            type: string
+        - name: actor_username_contains
+          in: query
+          required: false
+          description: Literal, case-insensitive substring match on actor username. Combined with other filters using AND.
+          schema:
+            type: string
+        - name: metadata_contains
+          in: query
+          required: false
+          description: Literal, case-insensitive substring match on JSON metadata, including keys and values. Combined with other filters using AND.
           schema:
             type: string
         - name: sort_by

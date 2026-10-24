@@ -89,15 +89,17 @@ func registerAdminRoutes(
 		}
 
 		page, err := auditLogService.List(r.Context(), auditlogs.Filter{
-			Query:         trimmedString(params.Q),
-			Action:        trimmedString(params.Action),
-			ResourceType:  trimmedString(params.ResourceType),
-			ResourceID:    trimmedString(params.ResourceId),
-			ActorUsername: trimmedString(params.ActorUsername),
-			SortBy:        string(*params.SortBy),
-			SortDir:       string(*params.SortDir),
-			Limit:         int32Value(params.Limit, auditlogs.DefaultLimit),
-			Offset:        int32Value(params.Offset, 0),
+			Query:                 trimmedString(params.Q),
+			Action:                trimmedString(params.Action),
+			ResourceType:          trimmedString(params.ResourceType),
+			ResourceID:            trimmedString(params.ResourceId),
+			ActorUsername:         trimmedString(params.ActorUsername),
+			ActorUsernameContains: trimmedString(params.ActorUsernameContains),
+			MetadataContains:      trimmedString(params.MetadataContains),
+			SortBy:                string(*params.SortBy),
+			SortDir:               string(*params.SortDir),
+			Limit:                 int32Value(params.Limit, auditlogs.DefaultLimit),
+			Offset:                int32Value(params.Offset, 0),
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "internal_error", "failed to list audit logs")

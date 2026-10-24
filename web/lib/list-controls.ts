@@ -4,6 +4,7 @@ export type FilterField = {
   label: string
   // Omit options for a free-text field; provide them for exact choices.
   options?: readonly FilterOption[]
+  exact?: boolean
 }
 export type Filters = Record<string, string>
 export type Sort<Key extends string = string> = {

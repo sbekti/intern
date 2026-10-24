@@ -21,14 +21,20 @@ focus-out. Names, MACs, VLAN descriptions, and Gizmo URLs accept text fragments;
 VLAN IDs, colors, status, and destination state remain exact. Tokens combine
 using AND. Escape cancels an edit; removing or clearing filters discards drafts.
 
-Audit search currently uses `q` after a 300 ms typing pause and runs on the server
-across actor, action, resource type/ID, and JSON metadata before pagination.
-The audit API retains its exact filters for Activity
-links and returns complete category choices in `filter_options`, independently
-of the current search or page. Update both list and count predicates when
-changing audit search, and regenerate OpenAPI and SQLC output.
-For a split API/web rollout, update the API first: the web app requires the
-`filter_options` response. No database migration is needed for search.
+Audit Logs use the same segmented bar. Actor and Metadata tokens use literal,
+case-insensitive contains matching; Action, Resource Type, and Resource ID match
+exactly. All filters combine using AND on the server before pagination. The
+API exposes `actor_username_contains` and `metadata_contains` for text tokens;
+existing exact filters and global `q` search remain available to API clients.
+Exact actor restrictions in Activity URLs appear as removable `Actor (exact)`
+tokens. Category choices come from `filter_options` across all records,
+independent of the current filters or page. Changing a filter resets the page
+and preserves page size and sort order.
+
+Update both list and count predicates when changing audit search, and regenerate
+OpenAPI and SQLC output. For a split API/web rollout, update the API first: the
+web app requires the contains parameters and `filter_options` response.
+No database migration is needed for search.
 
 ## Development
 

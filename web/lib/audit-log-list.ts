@@ -1,16 +1,19 @@
 import type { AuditLogPage } from "./api"
-import { filterOptions, type FilterField, type Sort } from "./list-controls.ts"
+import {
+  filterOptions,
+  type FilterField,
+  type Filters,
+  type Sort,
+} from "./list-controls.ts"
 
-const auditFilters = [
-  { key: "action", label: "Action" },
-  { key: "resource_type", label: "Resource Type" },
-  { key: "resource_id", label: "Resource ID" },
-  { key: "actor_username", label: "Actor" },
+export const auditFilterKeys = [
+  "actor_username_contains",
+  "action",
+  "resource_type",
+  "resource_id",
+  "metadata_contains",
+  "actor_username",
 ] as const
-export const auditFilterKeys = auditFilters.map(({ key }) => key)
-export const auditContextFields = auditFilters.filter(
-  ({ key }) => key === "resource_id" || key === "actor_username"
-)
 export const auditSortKeys = [
   "created_at",
   "actor_username",
@@ -23,14 +26,21 @@ export const defaultAuditSort: Sort<(typeof auditSortKeys)[number]> = {
 }
 
 export function auditFilterFields(
-  options: AuditLogPage["filter_options"]
+  options: AuditLogPage["filter_options"],
+  filters: Filters
 ): FilterField[] {
   return [
+    { key: "actor_username_contains", label: "Actor" },
     { key: "action", label: "Action", options: filterOptions(options.actions) },
     {
       key: "resource_type",
       label: "Resource Type",
       options: filterOptions(options.resource_types),
     },
+    { key: "resource_id", label: "Resource ID", exact: true },
+    { key: "metadata_contains", label: "Metadata" },
+    ...(filters.actor_username
+      ? [{ key: "actor_username", label: "Actor (exact)", exact: true }]
+      : []),
   ]
 }

@@ -19,19 +19,25 @@ WHERE ($1 = '' OR action = $1)
   AND ($3 = '' OR resource_id = $3)
   AND ($4 = '' OR actor_username = $4)
   AND ($5::text = ''
-    OR strpos(lower(actor_username), lower($5::text)) > 0
-    OR strpos(lower(action), lower($5::text)) > 0
-    OR strpos(lower(resource_type), lower($5::text)) > 0
-    OR strpos(lower(resource_id), lower($5::text)) > 0
-    OR strpos(lower(metadata::text), lower($5::text)) > 0)
+    OR strpos(lower(actor_username), lower($5::text)) > 0)
+  AND ($6::text = ''
+    OR strpos(lower(metadata::text), lower($6::text)) > 0)
+  AND ($7::text = ''
+    OR strpos(lower(actor_username), lower($7::text)) > 0
+    OR strpos(lower(action), lower($7::text)) > 0
+    OR strpos(lower(resource_type), lower($7::text)) > 0
+    OR strpos(lower(resource_id), lower($7::text)) > 0
+    OR strpos(lower(metadata::text), lower($7::text)) > 0)
 `
 
 type CountAuditLogsParams struct {
-	Action        interface{} `db:"action" json:"action"`
-	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
-	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
-	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
-	Query         string      `db:"query" json:"query"`
+	Action                interface{} `db:"action" json:"action"`
+	ResourceType          interface{} `db:"resource_type" json:"resource_type"`
+	ResourceID            interface{} `db:"resource_id" json:"resource_id"`
+	ActorUsername         interface{} `db:"actor_username" json:"actor_username"`
+	ActorUsernameContains string      `db:"actor_username_contains" json:"actor_username_contains"`
+	MetadataContains      string      `db:"metadata_contains" json:"metadata_contains"`
+	Query                 string      `db:"query" json:"query"`
 }
 
 func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
@@ -40,6 +46,8 @@ func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) 
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.ActorUsername,
+		arg.ActorUsernameContains,
+		arg.MetadataContains,
 		arg.Query,
 	)
 	var count int64
@@ -124,37 +132,43 @@ WHERE ($1 = '' OR action = $1)
   AND ($3 = '' OR resource_id = $3)
   AND ($4 = '' OR actor_username = $4)
   AND ($5::text = ''
-    OR strpos(lower(actor_username), lower($5::text)) > 0
-    OR strpos(lower(action), lower($5::text)) > 0
-    OR strpos(lower(resource_type), lower($5::text)) > 0
-    OR strpos(lower(resource_id), lower($5::text)) > 0
-    OR strpos(lower(metadata::text), lower($5::text)) > 0)
+    OR strpos(lower(actor_username), lower($5::text)) > 0)
+  AND ($6::text = ''
+    OR strpos(lower(metadata::text), lower($6::text)) > 0)
+  AND ($7::text = ''
+    OR strpos(lower(actor_username), lower($7::text)) > 0
+    OR strpos(lower(action), lower($7::text)) > 0
+    OR strpos(lower(resource_type), lower($7::text)) > 0
+    OR strpos(lower(resource_id), lower($7::text)) > 0
+    OR strpos(lower(metadata::text), lower($7::text)) > 0)
 ORDER BY
-  CASE WHEN $6::text = 'actor_username' AND $7::text = 'asc' THEN actor_username END ASC,
-  CASE WHEN $6::text = 'actor_username' AND $7::text = 'desc' THEN actor_username END DESC,
-  CASE WHEN $6::text = 'action' AND $7::text = 'asc' THEN action END ASC,
-  CASE WHEN $6::text = 'action' AND $7::text = 'desc' THEN action END DESC,
-  CASE WHEN $6::text = 'resource' AND $7::text = 'asc' THEN resource_type END ASC,
-  CASE WHEN $6::text = 'resource' AND $7::text = 'desc' THEN resource_type END DESC,
-  CASE WHEN $6::text = 'resource' AND $7::text = 'asc' THEN resource_id END ASC,
-  CASE WHEN $6::text = 'resource' AND $7::text = 'desc' THEN resource_id END DESC,
-  CASE WHEN $6::text = 'created_at' AND $7::text = 'asc' THEN created_at END ASC,
-  CASE WHEN $6::text = 'created_at' AND $7::text = 'asc' THEN id END ASC,
+  CASE WHEN $8::text = 'actor_username' AND $9::text = 'asc' THEN actor_username END ASC,
+  CASE WHEN $8::text = 'actor_username' AND $9::text = 'desc' THEN actor_username END DESC,
+  CASE WHEN $8::text = 'action' AND $9::text = 'asc' THEN action END ASC,
+  CASE WHEN $8::text = 'action' AND $9::text = 'desc' THEN action END DESC,
+  CASE WHEN $8::text = 'resource' AND $9::text = 'asc' THEN resource_type END ASC,
+  CASE WHEN $8::text = 'resource' AND $9::text = 'desc' THEN resource_type END DESC,
+  CASE WHEN $8::text = 'resource' AND $9::text = 'asc' THEN resource_id END ASC,
+  CASE WHEN $8::text = 'resource' AND $9::text = 'desc' THEN resource_id END DESC,
+  CASE WHEN $8::text = 'created_at' AND $9::text = 'asc' THEN created_at END ASC,
+  CASE WHEN $8::text = 'created_at' AND $9::text = 'asc' THEN id END ASC,
   created_at DESC, id DESC
-LIMIT $9
-OFFSET $8
+LIMIT $11
+OFFSET $10
 `
 
 type ListAuditLogsParams struct {
-	Action        interface{} `db:"action" json:"action"`
-	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
-	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
-	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
-	Query         string      `db:"query" json:"query"`
-	SortBy        string      `db:"sort_by" json:"sort_by"`
-	SortDir       string      `db:"sort_dir" json:"sort_dir"`
-	OffsetCount   int32       `db:"offset_count" json:"offset_count"`
-	LimitCount    int32       `db:"limit_count" json:"limit_count"`
+	Action                interface{} `db:"action" json:"action"`
+	ResourceType          interface{} `db:"resource_type" json:"resource_type"`
+	ResourceID            interface{} `db:"resource_id" json:"resource_id"`
+	ActorUsername         interface{} `db:"actor_username" json:"actor_username"`
+	ActorUsernameContains string      `db:"actor_username_contains" json:"actor_username_contains"`
+	MetadataContains      string      `db:"metadata_contains" json:"metadata_contains"`
+	Query                 string      `db:"query" json:"query"`
+	SortBy                string      `db:"sort_by" json:"sort_by"`
+	SortDir               string      `db:"sort_dir" json:"sort_dir"`
+	OffsetCount           int32       `db:"offset_count" json:"offset_count"`
+	LimitCount            int32       `db:"limit_count" json:"limit_count"`
 }
 
 func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error) {
@@ -163,6 +177,8 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.ActorUsername,
+		arg.ActorUsernameContains,
+		arg.MetadataContains,
 		arg.Query,
 		arg.SortBy,
 		arg.SortDir,

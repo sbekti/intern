@@ -23,6 +23,10 @@ WHERE (sqlc.arg(action) = '' OR action = sqlc.arg(action))
   AND (sqlc.arg(resource_type) = '' OR resource_type = sqlc.arg(resource_type))
   AND (sqlc.arg(resource_id) = '' OR resource_id = sqlc.arg(resource_id))
   AND (sqlc.arg(actor_username) = '' OR actor_username = sqlc.arg(actor_username))
+  AND (sqlc.arg(actor_username_contains)::text = ''
+    OR strpos(lower(actor_username), lower(sqlc.arg(actor_username_contains)::text)) > 0)
+  AND (sqlc.arg(metadata_contains)::text = ''
+    OR strpos(lower(metadata::text), lower(sqlc.arg(metadata_contains)::text)) > 0)
   AND (sqlc.arg(query)::text = ''
     OR strpos(lower(actor_username), lower(sqlc.arg(query)::text)) > 0
     OR strpos(lower(action), lower(sqlc.arg(query)::text)) > 0
@@ -51,6 +55,10 @@ WHERE (sqlc.arg(action) = '' OR action = sqlc.arg(action))
   AND (sqlc.arg(resource_type) = '' OR resource_type = sqlc.arg(resource_type))
   AND (sqlc.arg(resource_id) = '' OR resource_id = sqlc.arg(resource_id))
   AND (sqlc.arg(actor_username) = '' OR actor_username = sqlc.arg(actor_username))
+  AND (sqlc.arg(actor_username_contains)::text = ''
+    OR strpos(lower(actor_username), lower(sqlc.arg(actor_username_contains)::text)) > 0)
+  AND (sqlc.arg(metadata_contains)::text = ''
+    OR strpos(lower(metadata::text), lower(sqlc.arg(metadata_contains)::text)) > 0)
   AND (sqlc.arg(query)::text = ''
     OR strpos(lower(actor_username), lower(sqlc.arg(query)::text)) > 0
     OR strpos(lower(action), lower(sqlc.arg(query)::text)) > 0

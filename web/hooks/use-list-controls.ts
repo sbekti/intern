@@ -23,13 +23,9 @@ export function useListControls(
   const [optimisticQuery, setOptimisticQuery] = useOptimistic(params.toString())
   const listParams = server ? new URLSearchParams(optimisticQuery) : params
   const filters = readFilters(listParams, filterKeys)
-  const query = listParams.get("q")?.trim() ?? ""
   const sort = readSort(listParams, sortKeys, fallback)
 
-  function update(
-    changes: Record<string, string | undefined>,
-    replace = false
-  ) {
+  function update(changes: Record<string, string | undefined>) {
     const current = server ? optimisticQuery : window.location.search
     const query = updateListQuery(current, changes, server)
     const href = pathname + (query ? `?${query}` : "") + window.location.hash
@@ -37,10 +33,9 @@ export function useListControls(
     if (server)
       startTransition(() => {
         setOptimisticQuery(query)
-        if (replace) router.replace(href, { scroll: false })
-        else router.push(href, { scroll: false })
+        router.push(href, { scroll: false })
       })
-    else window.history[replace ? "replaceState" : "pushState"](null, "", href)
+    else window.history.pushState(null, "", href)
   }
 
   function setFilters(next: Filters) {
@@ -57,16 +52,5 @@ export function useListControls(
     })
   }
 
-  function setQuery(value: string) {
-    update({ q: value.trim() }, true)
-  }
-
-  function clear() {
-    update({
-      ...Object.fromEntries(filterKeys.map((key) => [key, undefined])),
-      q: undefined,
-    })
-  }
-
-  return { filters, query, sort, pending, setFilters, setQuery, setSort, clear }
+  return { filters, sort, pending, setFilters, setSort }
 }

@@ -22,15 +22,17 @@ type Querier interface {
 }
 
 type Filter struct {
-	Query         string
-	Action        string
-	ResourceType  string
-	ResourceID    string
-	ActorUsername string
-	SortBy        string
-	SortDir       string
-	Limit         int32
-	Offset        int32
+	Query                 string
+	Action                string
+	ResourceType          string
+	ResourceID            string
+	ActorUsername         string
+	ActorUsernameContains string
+	MetadataContains      string
+	SortBy                string
+	SortDir               string
+	Limit                 int32
+	Offset                int32
 }
 
 type Page struct {
@@ -71,23 +73,27 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 	}
 
 	args := db.ListAuditLogsParams{
-		Query:         strings.TrimSpace(filter.Query),
-		Action:        filter.Action,
-		ResourceType:  filter.ResourceType,
-		ResourceID:    filter.ResourceID,
-		ActorUsername: filter.ActorUsername,
-		SortBy:        sortBy,
-		SortDir:       sortDir,
-		LimitCount:    limit,
-		OffsetCount:   offset,
+		Query:                 strings.TrimSpace(filter.Query),
+		Action:                filter.Action,
+		ResourceType:          filter.ResourceType,
+		ResourceID:            filter.ResourceID,
+		ActorUsername:         filter.ActorUsername,
+		ActorUsernameContains: strings.TrimSpace(filter.ActorUsernameContains),
+		MetadataContains:      strings.TrimSpace(filter.MetadataContains),
+		SortBy:                sortBy,
+		SortDir:               sortDir,
+		LimitCount:            limit,
+		OffsetCount:           offset,
 	}
 
 	total, err := s.queries.CountAuditLogs(ctx, db.CountAuditLogsParams{
-		Query:         args.Query,
-		Action:        filter.Action,
-		ResourceType:  filter.ResourceType,
-		ResourceID:    filter.ResourceID,
-		ActorUsername: filter.ActorUsername,
+		Query:                 args.Query,
+		Action:                args.Action,
+		ResourceType:          args.ResourceType,
+		ResourceID:            args.ResourceID,
+		ActorUsername:         args.ActorUsername,
+		ActorUsernameContains: args.ActorUsernameContains,
+		MetadataContains:      args.MetadataContains,
 	})
 	if err != nil {
 		return nil, err

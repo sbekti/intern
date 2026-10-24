@@ -1170,6 +1170,9 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 				if filter.Action != "device.update" {
 					t.Fatalf("expected action filter to be passed through, got %q", filter.Action)
 				}
+				if filter.ActorUsernameContains != "BO" || filter.MetadataContains != "Office_LAN" {
+					t.Fatalf("contains filters not trimmed and passed through: %#v", filter)
+				}
 				if filter.Query != "camera%" {
 					t.Fatalf("expected trimmed literal query, got %q", filter.Query)
 				}
@@ -1197,7 +1200,7 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?q=%20camera%25%20&action=device.update&limit=25&offset=50&sort_by=actor_username&sort_dir=asc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?q=%20camera%25%20&actor_username_contains=%20BO%20&metadata_contains=%20Office_LAN%20&action=device.update&limit=25&offset=50&sort_by=actor_username&sort_dir=asc", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()

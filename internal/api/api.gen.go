@@ -395,16 +395,22 @@ type Unauthorized = ErrorResponse
 
 // ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
 type ListAdminAuditLogsParams struct {
-	// Q Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with exact filters using AND.
-	Q             *string                          `form:"q,omitempty" json:"q,omitempty"`
-	Action        *string                          `form:"action,omitempty" json:"action,omitempty"`
-	ResourceType  *string                          `form:"resource_type,omitempty" json:"resource_type,omitempty"`
-	ResourceId    *string                          `form:"resource_id,omitempty" json:"resource_id,omitempty"`
-	ActorUsername *string                          `form:"actor_username,omitempty" json:"actor_username,omitempty"`
-	SortBy        *ListAdminAuditLogsParamsSortBy  `form:"sort_by,omitempty" json:"sort_by,omitempty"`
-	SortDir       *ListAdminAuditLogsParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
-	Limit         *int32                           `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset        *int32                           `form:"offset,omitempty" json:"offset,omitempty"`
+	// Q Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with other filters using AND.
+	Q             *string `form:"q,omitempty" json:"q,omitempty"`
+	Action        *string `form:"action,omitempty" json:"action,omitempty"`
+	ResourceType  *string `form:"resource_type,omitempty" json:"resource_type,omitempty"`
+	ResourceId    *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
+	ActorUsername *string `form:"actor_username,omitempty" json:"actor_username,omitempty"`
+
+	// ActorUsernameContains Literal, case-insensitive substring match on actor username. Combined with other filters using AND.
+	ActorUsernameContains *string `form:"actor_username_contains,omitempty" json:"actor_username_contains,omitempty"`
+
+	// MetadataContains Literal, case-insensitive substring match on JSON metadata, including keys and values. Combined with other filters using AND.
+	MetadataContains *string                          `form:"metadata_contains,omitempty" json:"metadata_contains,omitempty"`
+	SortBy           *ListAdminAuditLogsParamsSortBy  `form:"sort_by,omitempty" json:"sort_by,omitempty"`
+	SortDir          *ListAdminAuditLogsParamsSortDir `form:"sort_dir,omitempty" json:"sort_dir,omitempty"`
+	Limit            *int32                           `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset           *int32                           `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // ListAdminAuditLogsParamsSortBy defines parameters for ListAdminAuditLogs.
@@ -1481,6 +1487,30 @@ func NewListAdminAuditLogsRequest(server string, params *ListAdminAuditLogsParam
 		if params.ActorUsername != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "actor_username", *params.ActorUsername, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ActorUsernameContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "actor_username_contains", *params.ActorUsernameContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.MetadataContains != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "metadata_contains", *params.MetadataContains, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

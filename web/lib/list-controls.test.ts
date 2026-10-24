@@ -276,25 +276,29 @@ test("query changes encode values and preserve page size, sorting and unrelated 
   assert.equal(cleared.get("sort_dir"), "asc")
 })
 
-test("search and category changes preserve each other and reset server pagination", () => {
+test("text and category changes preserve each other and reset server pagination", () => {
   const searched = updateListQuery(
     "action=device.update&resource_id=device-4&limit=25&offset=50&sort_by=action&sort_dir=asc",
-    { q: "Camera %_" },
+    { metadata_contains: "Camera %_" },
     true
   )
   let params = new URLSearchParams(searched)
-  assert.equal(params.get("q"), "Camera %_")
+  assert.equal(params.get("metadata_contains"), "Camera %_")
   assert.equal(params.get("action"), "device.update")
   assert.equal(params.get("resource_id"), "device-4")
   assert.equal(params.get("offset"), null)
   params = new URLSearchParams(
     updateListQuery(searched, { action: "vlan.create" }, true)
   )
-  assert.equal(params.get("q"), "Camera %_")
+  assert.equal(params.get("metadata_contains"), "Camera %_")
   params = new URLSearchParams(
     updateListQuery(
       params.toString(),
-      { q: undefined, action: undefined, resource_id: undefined },
+      {
+        metadata_contains: undefined,
+        action: undefined,
+        resource_id: undefined,
+      },
       true
     )
   )

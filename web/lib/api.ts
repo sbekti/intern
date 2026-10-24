@@ -254,6 +254,8 @@ export function listAdminAuditLogs(filters: {
   resource_type?: string
   resource_id?: string
   actor_username?: string
+  actor_username_contains?: string
+  metadata_contains?: string
   sort_by?: "created_at" | "actor_username" | "action" | "resource"
   sort_dir?: "asc" | "desc"
   limit?: number

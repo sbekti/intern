@@ -172,8 +172,10 @@ export function TokenFilterBar({
             autoFocus
             ref={setInput}
             aria-label={`${field.label} filter value`}
-            aria-description="Matches text anywhere, ignoring case. Press Enter or leave the field to apply."
-            placeholder="Type text to match…"
+            aria-description={`${field.exact ? "Matches the exact value." : "Matches text anywhere, ignoring case."} Press Enter or leave the field to apply.`}
+            placeholder={
+              field.exact ? "Type an exact value…" : "Type text to match…"
+            }
             value={picker?.query ?? ""}
             onChange={(event) =>
               setPicker({ fieldKey: field.key, query: event.target.value })
