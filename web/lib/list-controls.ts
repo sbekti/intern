@@ -62,6 +62,19 @@ function compareText(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: "base" })
 }
 
+export function searchItems<T>(
+  items: readonly T[],
+  query: string,
+  values: (item: T) => readonly string[]
+) {
+  const text = query.trim().toLowerCase()
+  return text
+    ? items.filter((item) =>
+        values(item).some((value) => value.toLowerCase().includes(text))
+      )
+    : items
+}
+
 export function filterAndSort<T>(
   items: readonly T[],
   filters: Filters,

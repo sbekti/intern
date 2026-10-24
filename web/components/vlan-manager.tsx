@@ -22,16 +22,14 @@ import {
 import { mutate } from "@/lib/mutations"
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort } from "@/lib/list-controls"
+import { filterAndSort, searchItems } from "@/lib/list-controls"
 import {
   vlanFilterFields,
   vlanFilterValues,
   vlanSortValues,
+  vlanSearchValues,
 } from "@/lib/network-list"
-import {
-  NoMatchingRecords,
-  TokenFilterBar,
-} from "@/components/token-filter-bar"
+import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { vlanColors, type VlanColor } from "@/lib/vlan-colors"
@@ -138,14 +136,14 @@ export function VlanManager({
     { key: "vlan_id", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    initialItems,
+    searchItems(initialItems, controls.query, vlanSearchValues),
     controls.filters,
     vlanFilterValues,
     controls.sort,
     vlanSortValues,
     (item) => item.vlan_id
   )
-  const filterFields = vlanFilterFields(initialItems)
+  const filterFields = vlanFilterFields()
 
   function openCreate() {
     setEditing(null)
@@ -274,10 +272,14 @@ export function VlanManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <TokenFilterBar
+          <ListToolbar
+            query={controls.query}
+            onQueryChange={controls.setQuery}
+            searchLabel="Search VLANs"
             fields={filterFields}
             filters={controls.filters}
-            onChange={controls.setFilters}
+            onFiltersChange={controls.setFilters}
+            onClear={controls.clear}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />

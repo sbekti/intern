@@ -2,7 +2,6 @@
 
 import { ListTable, ListMobile } from "@/components/responsive-list"
 
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { startTransition, useMemo, useState } from "react"
 import { toast } from "@/components/ui/toast"
@@ -24,16 +23,14 @@ import { mutate } from "@/lib/mutations"
 import type { NetworkDevice, Vlan } from "@/lib/api"
 import { VlanBadge } from "@/components/vlan-badge"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort } from "@/lib/list-controls"
+import { filterAndSort, searchItems } from "@/lib/list-controls"
 import {
   deviceFilterFields,
   deviceFilterValues,
   deviceSortValues,
+  deviceSearchValues,
 } from "@/lib/network-list"
-import {
-  NoMatchingRecords,
-  TokenFilterBar,
-} from "@/components/token-filter-bar"
+import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { responsiveCompactButtonClass } from "@/components/compact-button-label"
@@ -149,14 +146,14 @@ export function DeviceManager({
     { key: "display_name", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    initialItems,
+    searchItems(initialItems, controls.query, deviceSearchValues),
     controls.filters,
     deviceFilterValues,
     controls.sort,
     deviceSortValues,
     (item) => item.id
   )
-  const filterFields = deviceFilterFields(initialItems, vlans)
+  const filterFields = deviceFilterFields(vlans)
 
   const sortedVlans = useMemo(
     () => [...vlans].sort((a, b) => a.vlan_id - b.vlan_id),
@@ -258,18 +255,6 @@ export function DeviceManager({
     )
   }
 
-  function deviceVlan(device: NetworkDevice) {
-    return (
-      <Link
-        href={`/networks/vlans?vlan_id=${device.vlan.vlan_id}`}
-        aria-label={`View VLAN ${device.vlan.name}`}
-        className="min-w-0"
-      >
-        <VlanBadge name={device.vlan.name} color={device.vlan.color} />
-      </Link>
-    )
-  }
-
   return (
     <>
       <Card className="border-border/70 shadow-xs">
@@ -292,10 +277,14 @@ export function DeviceManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <TokenFilterBar
+          <ListToolbar
+            query={controls.query}
+            onQueryChange={controls.setQuery}
+            searchLabel="Search devices"
             fields={filterFields}
             filters={controls.filters}
-            onChange={controls.setFilters}
+            onFiltersChange={controls.setFilters}
+            onClear={controls.clear}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />
@@ -375,7 +364,12 @@ export function DeviceManager({
                         <TableCell className="font-mono">
                           {device.mac_address}
                         </TableCell>
-                        <TableCell>{deviceVlan(device)}</TableCell>
+                        <TableCell>
+                          <VlanBadge
+                            name={device.vlan.name}
+                            color={device.vlan.color}
+                          />
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={device.disabled ? "outline" : "secondary"}
@@ -429,7 +423,10 @@ export function DeviceManager({
                         {device.disabled ? "Disabled" : "Enabled"}
                       </Badge>
                       <ItemFooter className="min-w-0">
-                        {deviceVlan(device)}
+                        <VlanBadge
+                          name={device.vlan.name}
+                          color={device.vlan.color}
+                        />
                         {deviceActions(device)}
                       </ItemFooter>
                     </Item>

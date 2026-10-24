@@ -4,12 +4,7 @@ import { useRef, useState } from "react"
 import { SearchIcon, XIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
+
 import { InputGroupAddon, InputGroupButton } from "@/components/ui/input-group"
 import {
   Combobox,
@@ -22,19 +17,6 @@ import {
   useComboboxFilter,
 } from "@/components/ui/combobox"
 import type { FilterField, FilterOption, Filters } from "@/lib/list-controls"
-
-export function NoMatchingRecords() {
-  return (
-    <Empty className="min-h-[16rem] border bg-muted/20">
-      <EmptyHeader>
-        <EmptyTitle>No matching records</EmptyTitle>
-        <EmptyDescription>
-          Change or clear the filters to see more records.
-        </EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  )
-}
 
 export function TokenFilterBar({
   fields,

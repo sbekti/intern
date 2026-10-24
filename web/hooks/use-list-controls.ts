@@ -21,15 +21,24 @@ export function useListControls(
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const filters = readFilters(params, filterKeys)
+  const query = params.get("q")?.trim() ?? ""
   const sort = readSort(params, sortKeys, fallback)
 
-  function update(changes: Record<string, string | undefined>) {
+  function update(
+    changes: Record<string, string | undefined>,
+    replace = false
+  ) {
     const query = updateListQuery(window.location.search, changes, server)
     const href = pathname + (query ? `?${query}` : "") + window.location.hash
     if (href === pathname + window.location.search + window.location.hash)
       return
-    if (server) startTransition(() => router.push(href, { scroll: false }))
-    else window.history.pushState(null, "", href)
+    if (server)
+      startTransition(() =>
+        replace
+          ? router.replace(href, { scroll: false })
+          : router.push(href, { scroll: false })
+      )
+    else window.history[replace ? "replaceState" : "pushState"](null, "", href)
   }
 
   function setFilters(next: Filters) {
@@ -46,5 +55,16 @@ export function useListControls(
     })
   }
 
-  return { filters, sort, pending, setFilters, setSort }
+  function setQuery(value: string) {
+    update({ q: value.trim() }, true)
+  }
+
+  function clear() {
+    update({
+      ...Object.fromEntries(filterKeys.map((key) => [key, undefined])),
+      q: undefined,
+    })
+  }
+
+  return { filters, query, sort, pending, setFilters, setQuery, setSort, clear }
 }

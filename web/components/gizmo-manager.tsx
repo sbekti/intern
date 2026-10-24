@@ -2,7 +2,6 @@
 
 import { ListTable, ListMobile } from "@/components/responsive-list"
 
-import Link from "next/link"
 import { startTransition, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { PlusIcon, TabletSmartphoneIcon } from "lucide-react"
@@ -21,16 +20,14 @@ import {
 import { mutate } from "@/lib/mutations"
 import type { Gizmo, NetworkDevice } from "@/lib/api"
 import { useListControls } from "@/hooks/use-list-controls"
-import { filterAndSort } from "@/lib/list-controls"
+import { filterAndSort, searchItems } from "@/lib/list-controls"
 import {
   gizmoFilterFields,
   gizmoFilterValues,
   gizmoSortValues,
+  gizmoSearchValues,
 } from "@/lib/network-list"
-import {
-  NoMatchingRecords,
-  TokenFilterBar,
-} from "@/components/token-filter-bar"
+import { ListToolbar, NoMatchingRecords } from "@/components/list-toolbar"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { buildBffPath } from "@/lib/bff"
 import { responsiveCompactButtonClass } from "@/components/compact-button-label"
@@ -120,14 +117,14 @@ export function GizmoManager({
     { key: "display_name", direction: "asc" }
   )
   const sortedItems = filterAndSort(
-    initialItems,
+    searchItems(initialItems, controls.query, gizmoSearchValues),
     controls.filters,
     gizmoFilterValues,
     controls.sort,
     gizmoSortValues,
     (item) => item.network_device.id
   )
-  const filterFields = gizmoFilterFields(initialItems)
+  const filterFields = gizmoFilterFields()
 
   const availableDevices = useMemo(() => {
     const assigned = new Set(initialItems.map((item) => item.network_device.id))
@@ -234,16 +231,6 @@ export function GizmoManager({
       />
     )
   }
-  function deviceLink(item: Gizmo) {
-    return (
-      <Link
-        className="underline underline-offset-4"
-        href={`/networks/devices?mac_address=${encodeURIComponent(item.network_device.mac_address)}`}
-      >
-        {item.network_device.display_name}
-      </Link>
-    )
-  }
 
   return (
     <>
@@ -267,10 +254,14 @@ export function GizmoManager({
           </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <TokenFilterBar
+          <ListToolbar
+            query={controls.query}
+            onQueryChange={controls.setQuery}
+            searchLabel="Search Gizmos"
             fields={filterFields}
             filters={controls.filters}
-            onChange={controls.setFilters}
+            onFiltersChange={controls.setFilters}
+            onClear={controls.clear}
           />
           {initialItems.length > 0 && sortedItems.length === 0 ? (
             <NoMatchingRecords />
@@ -328,7 +319,7 @@ export function GizmoManager({
                     {sortedItems.map((item) => (
                       <TableRow key={item.network_device.id}>
                         <TableCell className="font-medium">
-                          {deviceLink(item)}
+                          {item.network_device.display_name}
                         </TableCell>
                         <TableCell className="font-mono">
                           {item.network_device.mac_address}
@@ -373,7 +364,7 @@ export function GizmoManager({
                     >
                       <ItemContent className="min-w-0">
                         <ItemTitle className="max-w-full min-w-0 wrap-anywhere">
-                          {deviceLink(item)}
+                          {item.network_device.display_name}
                         </ItemTitle>
                         <ItemDescription>
                           {item.network_device.mac_address}
