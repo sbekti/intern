@@ -89,6 +89,7 @@ func registerAdminRoutes(
 		}
 
 		page, err := auditLogService.List(r.Context(), auditlogs.Filter{
+			Query:         trimmedString(params.Q),
 			Action:        trimmedString(params.Action),
 			ResourceType:  trimmedString(params.ResourceType),
 			ResourceID:    trimmedString(params.ResourceId),
@@ -104,7 +105,8 @@ func registerAdminRoutes(
 		}
 
 		writeJSON(w, http.StatusOK, api.AuditLogList{
-			Items: page.Items,
+			Items:         page.Items,
+			FilterOptions: page.FilterOptions,
 			Pagination: api.AuditLogPagination{
 				Limit:  page.Limit,
 				Offset: page.Offset,

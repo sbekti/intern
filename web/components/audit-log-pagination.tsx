@@ -4,6 +4,7 @@ import { TablePagination } from "@/components/table-pagination"
 import type { Filters, Sort } from "@/lib/list-controls"
 
 type AuditLogPaginationProps = {
+  query: string
   filters: Filters
   sort: Sort
   limit: number
@@ -27,6 +28,7 @@ function buildQuery(values: Record<string, string | number | undefined>) {
 }
 
 export function AuditLogPagination({
+  query,
   filters,
   sort,
   limit,
@@ -35,6 +37,7 @@ export function AuditLogPagination({
   pageSizes,
 }: AuditLogPaginationProps) {
   const baseQuery = {
+    q: query,
     ...filters,
     sort_by: sort.key,
     sort_dir: sort.direction,

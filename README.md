@@ -15,6 +15,19 @@ For these lanes, `extent` scales the excursion from the nearest bound, while
 live and hover readouts retain the actual measurement. Missing samples remain
 gaps. Lanes without `normalRange` continue showing measurement magnitude.
 
+List pages use `q` for literal, case-insensitive substring search after a 300 ms
+typing pause. Devices search names, MACs, and VLAN names/IDs; VLANs search IDs,
+names, and descriptions; Gizmos search names, MACs, and destination URLs.
+Category filters remain exact and combine with search using AND.
+
+Audit search runs on the server across actor, action, resource type/ID, and JSON
+metadata before pagination. The audit API retains its exact filters for Activity
+links and returns complete category choices in `filter_options`, independently
+of the current search or page. Update both list and count predicates when
+changing audit search, and regenerate OpenAPI and SQLC output.
+For a split API/web rollout, update the API first: the web app requires the
+`filter_options` response. No database migration is needed for search.
+
 ## Development
 
 Intern development connects to the production PostgreSQL and Prometheus services

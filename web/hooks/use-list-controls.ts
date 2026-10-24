@@ -1,7 +1,7 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useTransition } from "react"
+import { useOptimistic, useTransition } from "react"
 import {
   readFilters,
   readSort,
@@ -20,24 +20,26 @@ export function useListControls(
   const pathname = usePathname()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const filters = readFilters(params, filterKeys)
-  const query = params.get("q")?.trim() ?? ""
-  const sort = readSort(params, sortKeys, fallback)
+  const [optimisticQuery, setOptimisticQuery] = useOptimistic(params.toString())
+  const listParams = server ? new URLSearchParams(optimisticQuery) : params
+  const filters = readFilters(listParams, filterKeys)
+  const query = listParams.get("q")?.trim() ?? ""
+  const sort = readSort(listParams, sortKeys, fallback)
 
   function update(
     changes: Record<string, string | undefined>,
     replace = false
   ) {
-    const query = updateListQuery(window.location.search, changes, server)
+    const current = server ? optimisticQuery : window.location.search
+    const query = updateListQuery(current, changes, server)
     const href = pathname + (query ? `?${query}` : "") + window.location.hash
-    if (href === pathname + window.location.search + window.location.hash)
-      return
+    if (query === new URLSearchParams(current).toString()) return
     if (server)
-      startTransition(() =>
-        replace
-          ? router.replace(href, { scroll: false })
-          : router.push(href, { scroll: false })
-      )
+      startTransition(() => {
+        setOptimisticQuery(query)
+        if (replace) router.replace(href, { scroll: false })
+        else router.push(href, { scroll: false })
+      })
     else window.history[replace ? "replaceState" : "pushState"](null, "", href)
   }
 

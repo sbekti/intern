@@ -80,6 +80,9 @@ func decodeAdminAuditLogParams(r *http.Request) (api.ListAdminAuditLogsParams, e
 	query := r.URL.Query()
 	params := api.ListAdminAuditLogsParams{}
 
+	if value := strings.TrimSpace(query.Get("q")); value != "" {
+		params.Q = &value
+	}
 	if value := strings.TrimSpace(query.Get("action")); value != "" {
 		params.Action = &value
 	}

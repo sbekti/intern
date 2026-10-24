@@ -11,12 +11,14 @@ import {
   ItemFooter,
   ItemGroup,
 } from "@/components/ui/item"
-import { ScrollTextIcon } from "lucide-react"
+import { ScrollTextIcon, XIcon } from "lucide-react"
 import { AuditLogPagination } from "@/components/audit-log-pagination"
 import { AuditMetadataPreview } from "@/components/audit-metadata-preview"
 import { LocalTimestamp } from "@/components/local-timestamp"
 import { SortableTableHead } from "@/components/sortable-table-head"
-import { TokenFilterBar } from "@/components/token-filter-bar"
+import { ListToolbar } from "@/components/list-toolbar"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
@@ -44,6 +46,7 @@ import { useListControls } from "@/hooks/use-list-controls"
 import type { AuditLogPage } from "@/lib/api"
 import {
   auditFilterFields,
+  auditContextFields,
   auditFilterKeys,
   auditSortKeys,
   defaultAuditSort,
@@ -78,12 +81,46 @@ export function AuditLogTable({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <TokenFilterBar
-          fields={auditFilterFields(page.items)}
+        <ListToolbar
+          query={controls.query}
+          onQueryChange={controls.setQuery}
+          searchLabel="Search audit logs"
+          fields={auditFilterFields(page.filter_options)}
           filters={controls.filters}
-          onChange={controls.setFilters}
-          disabled={controls.pending}
+          onFiltersChange={controls.setFilters}
+          onClear={controls.clear}
         />
+        {auditContextFields.some(({ key }) => controls.filters[key]) ? (
+          <div
+            role="group"
+            className="flex flex-wrap gap-2"
+            aria-label="Activity filters"
+          >
+            {auditContextFields.map(({ key, label }) =>
+              controls.filters[key] ? (
+                <Badge
+                  key={key}
+                  variant="secondary"
+                  className="max-w-full gap-1"
+                >
+                  <span className="truncate">
+                    {label}: {controls.filters[key]}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Remove ${label} filter`}
+                    onClick={() =>
+                      controls.setFilters({ ...controls.filters, [key]: "" })
+                    }
+                  >
+                    <XIcon />
+                  </Button>
+                </Badge>
+              ) : null
+            )}
+          </div>
+        ) : null}
         {page.items.length === 0 ? (
           <Empty className="min-h-[16rem] border bg-muted/20">
             <EmptyHeader>
@@ -92,8 +129,8 @@ export function AuditLogTable({
               </EmptyMedia>
               <EmptyTitle>No audit logs</EmptyTitle>
               <EmptyDescription>
-                Change or clear the filters, or wait for new audit events to
-                appear.
+                Change or clear the search and filters, or wait for new audit
+                events to appear.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -218,6 +255,7 @@ export function AuditLogTable({
       {page.items.length ? (
         <CardFooter inert={controls.pending}>
           <AuditLogPagination
+            query={controls.query}
             filters={controls.filters}
             sort={controls.sort}
             limit={page.pagination.limit}

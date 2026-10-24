@@ -3,7 +3,6 @@ export type FilterField = {
   key: string
   label: string
   options: readonly FilterOption[]
-  allowCustom?: boolean
 }
 export type Filters = Record<string, string>
 export type Sort<Key extends string = string> = {

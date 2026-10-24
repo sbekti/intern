@@ -63,6 +63,10 @@ type AuditLogEntry = {
 
 export type AuditLogPage = {
   items: AuditLogEntry[]
+  filter_options: {
+    actions: string[]
+    resource_types: string[]
+  }
   pagination: {
     limit: number
     offset: number
@@ -245,6 +249,7 @@ export function listAdminAuthSessions(filters: {
 }
 
 export function listAdminAuditLogs(filters: {
+  q?: string
   action?: string
   resource_type?: string
   resource_id?: string

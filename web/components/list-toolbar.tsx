@@ -83,7 +83,7 @@ export function ListToolbar({
 
   return (
     <FieldGroup className="flex-row flex-wrap items-center gap-2">
-      <Field className="min-w-48 flex-1 basis-full sm:basis-auto">
+      <Field className="min-w-48 flex-1 basis-full sm:basis-0">
         <InputGroup>
           <InputGroupAddon>
             <SearchIcon aria-hidden="true" />
@@ -101,6 +101,9 @@ export function ListToolbar({
       </Field>
       {fields.map((field) => {
         const options = [{ value: "", label: "All" }, ...field.options]
+        const selected = filters[field.key]
+        if (selected && !options.some(({ value }) => value === selected))
+          options.push({ value: selected, label: selected })
         return (
           <Field key={field.key} className="w-auto">
             <Select

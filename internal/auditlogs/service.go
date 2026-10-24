@@ -3,6 +3,7 @@ package auditlogs
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sbekti/intern/internal/api"
@@ -17,9 +18,11 @@ const (
 type Querier interface {
 	CountAuditLogs(ctx context.Context, arg db.CountAuditLogsParams) (int64, error)
 	ListAuditLogs(ctx context.Context, arg db.ListAuditLogsParams) ([]db.AuditLog, error)
+	GetAuditLogFilterOptions(ctx context.Context) (db.GetAuditLogFilterOptionsRow, error)
 }
 
 type Filter struct {
+	Query         string
 	Action        string
 	ResourceType  string
 	ResourceID    string
@@ -31,10 +34,11 @@ type Filter struct {
 }
 
 type Page struct {
-	Items      []api.AuditLogEntry
-	Limit      int32
-	Offset     int32
-	TotalCount int64
+	Items         []api.AuditLogEntry
+	Limit         int32
+	Offset        int32
+	TotalCount    int64
+	FilterOptions api.AuditLogFilterOptions
 }
 
 type Service struct {
@@ -67,6 +71,7 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 	}
 
 	args := db.ListAuditLogsParams{
+		Query:         strings.TrimSpace(filter.Query),
 		Action:        filter.Action,
 		ResourceType:  filter.ResourceType,
 		ResourceID:    filter.ResourceID,
@@ -78,6 +83,7 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 	}
 
 	total, err := s.queries.CountAuditLogs(ctx, db.CountAuditLogsParams{
+		Query:         args.Query,
 		Action:        filter.Action,
 		ResourceType:  filter.ResourceType,
 		ResourceID:    filter.ResourceID,
@@ -88,6 +94,11 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 	}
 
 	rows, err := s.queries.ListAuditLogs(ctx, args)
+	if err != nil {
+		return nil, err
+	}
+
+	options, err := s.queries.GetAuditLogFilterOptions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +117,10 @@ func (s *Service) List(ctx context.Context, filter Filter) (*Page, error) {
 		Limit:      limit,
 		Offset:     offset,
 		TotalCount: total,
+		FilterOptions: api.AuditLogFilterOptions{
+			Actions:       options.Actions,
+			ResourceTypes: options.ResourceTypes,
+		},
 	}, nil
 }
 

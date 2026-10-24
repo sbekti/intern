@@ -59,6 +59,7 @@ export default async function AuditLogsPage({
   }
 
   const auditLogs = await listAdminAuditLogs({
+    q: query.get("q").trim(),
     ...filters,
     sort_by: sort.key,
     sort_dir: sort.direction,

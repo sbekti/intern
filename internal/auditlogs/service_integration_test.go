@@ -4,6 +4,7 @@ package auditlogs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -11,6 +12,91 @@ import (
 	"github.com/sbekti/intern/internal/db"
 	"github.com/sbekti/intern/internal/testutil"
 )
+
+func TestAuditSearchAcrossPages(t *testing.T) {
+	t.Parallel()
+	pg := testutil.StartPostgres(t)
+	ctx := context.Background()
+	service := NewService(db.New(pg.Pool))
+	empty, err := service.List(ctx, Filter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.FilterOptions.Actions == nil || empty.FilterOptions.ResourceTypes == nil || len(empty.Items) != 0 {
+		t.Fatalf("empty table must return empty arrays: %#v", empty)
+	}
+	for i := 0; i < 6; i++ {
+		metadata, err := json.Marshal(map[string]any{
+			"display_name": "BDO1 Camera", "mac": "AA:BB:CC:00:01", "note": "100% Office_LAN",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = pg.Pool.Exec(ctx, `INSERT INTO audit_logs (actor_username,action,resource_type,resource_id,metadata)
+			VALUES ($1,$2,$3,$4,$5)`, "Alice", "device.update", "network_device", fmt.Sprintf("device-%d", i), metadata)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = pg.Pool.Exec(ctx, `INSERT INTO audit_logs (actor_username,action,resource_type,resource_id,metadata)
+		VALUES ('Bob','vlan.create','vlan','20','{}')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, query := range []string{" camera ", "ALIce", "ice", "DEVICE.UP", "work_dev", "device-", "aa:bb", "100%", "%", "_", "office_lan"} {
+		t.Run(query, func(t *testing.T) {
+			seen := map[string]bool{}
+			for offset := int32(0); offset < 6; offset += 2 {
+				page, err := service.List(ctx, Filter{Query: query, Limit: 2, Offset: offset})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if page.TotalCount != 6 || len(page.Items) != 2 {
+					t.Fatalf("query %q: %#v", query, page)
+				}
+				for _, row := range page.Items {
+					seen[row.Id.String()] = true
+				}
+				if !reflect.DeepEqual(page.FilterOptions.Actions, []string{"device.update", "vlan.create"}) ||
+					!reflect.DeepEqual(page.FilterOptions.ResourceTypes, []string{"network_device", "vlan"}) {
+					t.Fatalf("options must cover all records: %#v", page.FilterOptions)
+				}
+			}
+			if len(seen) != 6 {
+				t.Fatal("search pages duplicated or lost records")
+			}
+		})
+	}
+	for _, filter := range []Filter{
+		{Query: "camera", Action: "vlan.create"},
+		{Query: "camera", ActorUsername: "alice"},
+		{Query: "missing"},
+		{Query: "100_"},
+		{Query: "' OR true --"},
+	} {
+		page, err := service.List(ctx, filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.TotalCount != 0 || len(page.Items) != 0 {
+			t.Fatalf("unexpected matches: %#v", filter)
+		}
+	}
+	page, err := service.List(ctx, Filter{Query: "CAMERA", ResourceType: "network_device", ResourceID: "device-4", ActorUsername: "Alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.TotalCount != 1 || len(page.Items) != 1 || page.Items[0].ResourceId != "device-4" {
+		t.Fatal("search must AND with exact Activity filters")
+	}
+	page, err = service.List(ctx, Filter{Query: " \t "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.TotalCount != 7 {
+		t.Fatal("blank query must not restrict results")
+	}
+}
 
 func TestAuditSortAcrossPages(t *testing.T) {
 	t.Parallel()

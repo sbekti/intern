@@ -1170,6 +1170,9 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 				if filter.Action != "device.update" {
 					t.Fatalf("expected action filter to be passed through, got %q", filter.Action)
 				}
+				if filter.Query != "camera%" {
+					t.Fatalf("expected trimmed literal query, got %q", filter.Query)
+				}
 				return &auditlogs.Page{
 					Items: []api.AuditLogEntry{{
 						Id:            openapi_types.UUID(uuid.MustParse("11111111-1111-1111-1111-111111111111")),
@@ -1185,12 +1188,16 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 					Limit:      25,
 					Offset:     50,
 					TotalCount: 101,
+					FilterOptions: api.AuditLogFilterOptions{
+						Actions:       []string{"device.create", "device.update"},
+						ResourceTypes: []string{"network_device", "vlan"},
+					},
 				}, nil
 			},
 		},
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?action=device.update&limit=25&offset=50&sort_by=actor_username&sort_dir=asc", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit_logs?q=%20camera%25%20&action=device.update&limit=25&offset=50&sort_by=actor_username&sort_dir=asc", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
 	rec := httptest.NewRecorder()
@@ -1198,6 +1205,13 @@ func TestListAdminAuditLogsReturnsPage(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	var page api.AuditLogList
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.FilterOptions.Actions) != 2 || len(page.FilterOptions.ResourceTypes) != 2 {
+		t.Fatalf("missing complete category options: %#v", page.FilterOptions)
 	}
 }
 

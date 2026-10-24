@@ -137,10 +137,18 @@ type AuditLogEntry struct {
 	ResourceType  string                 `json:"resource_type"`
 }
 
+// AuditLogFilterOptions Sorted distinct category values from all audit records, independent of search, filters, and pagination.
+type AuditLogFilterOptions struct {
+	Actions       []string `json:"actions"`
+	ResourceTypes []string `json:"resource_types"`
+}
+
 // AuditLogList defines model for AuditLogList.
 type AuditLogList struct {
-	Items      []AuditLogEntry    `json:"items"`
-	Pagination AuditLogPagination `json:"pagination"`
+	// FilterOptions Sorted distinct category values from all audit records, independent of search, filters, and pagination.
+	FilterOptions AuditLogFilterOptions `json:"filter_options"`
+	Items         []AuditLogEntry       `json:"items"`
+	Pagination    AuditLogPagination    `json:"pagination"`
 }
 
 // AuditLogPagination defines model for AuditLogPagination.
@@ -387,6 +395,8 @@ type Unauthorized = ErrorResponse
 
 // ListAdminAuditLogsParams defines parameters for ListAdminAuditLogs.
 type ListAdminAuditLogsParams struct {
+	// Q Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with exact filters using AND.
+	Q             *string                          `form:"q,omitempty" json:"q,omitempty"`
 	Action        *string                          `form:"action,omitempty" json:"action,omitempty"`
 	ResourceType  *string                          `form:"resource_type,omitempty" json:"resource_type,omitempty"`
 	ResourceId    *string                          `form:"resource_id,omitempty" json:"resource_id,omitempty"`
@@ -1419,6 +1429,18 @@ func NewListAdminAuditLogsRequest(server string, params *ListAdminAuditLogsParam
 		// styled parameters, preserving literal commas as delimiters
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
 
 		if params.Action != nil {
 

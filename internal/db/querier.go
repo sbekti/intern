@@ -21,6 +21,7 @@ type Querier interface {
 	DeleteGizmo(ctx context.Context, arg DeleteGizmoParams) error
 	DeleteNetworkDevice(ctx context.Context, arg DeleteNetworkDeviceParams) error
 	DeleteVlan(ctx context.Context, arg DeleteVlanParams) error
+	GetAuditLogFilterOptions(ctx context.Context) (GetAuditLogFilterOptionsRow, error)
 	GetAuthDeviceAuthorizationByDeviceCode(ctx context.Context, arg GetAuthDeviceAuthorizationByDeviceCodeParams) (AuthDeviceAuthorization, error)
 	GetAuthDeviceAuthorizationByUserCode(ctx context.Context, arg GetAuthDeviceAuthorizationByUserCodeParams) (AuthDeviceAuthorization, error)
 	GetAuthSessionByID(ctx context.Context, arg GetAuthSessionByIDParams) (AuthSession, error)

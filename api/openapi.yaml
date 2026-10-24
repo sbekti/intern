@@ -191,6 +191,12 @@ paths:
       security:
         - bearerAuth: []
       parameters:
+        - name: q
+          in: query
+          required: false
+          description: Literal, case-insensitive substring search across actor, action, resource type, resource ID, and JSON metadata. Combined with exact filters using AND.
+          schema:
+            type: string
         - name: action
           in: query
           required: false
@@ -958,7 +964,7 @@ components:
           format: int64
     AuditLogList:
       type: object
-      required: [items, pagination]
+      required: [items, pagination, filter_options]
       properties:
         items:
           type: array
@@ -966,6 +972,21 @@ components:
             $ref: '#/components/schemas/AuditLogEntry'
         pagination:
           $ref: '#/components/schemas/AuditLogPagination'
+        filter_options:
+          $ref: '#/components/schemas/AuditLogFilterOptions'
+    AuditLogFilterOptions:
+      type: object
+      description: Sorted distinct category values from all audit records, independent of search, filters, and pagination.
+      required: [actions, resource_types]
+      properties:
+        actions:
+          type: array
+          items:
+            type: string
+        resource_types:
+          type: array
+          items:
+            type: string
     VlanColor:
       type: string
       enum: [default, blue, amber, violet, rose, orange, cyan, slate, green]

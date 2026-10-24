@@ -18,6 +18,12 @@ WHERE ($1 = '' OR action = $1)
   AND ($2 = '' OR resource_type = $2)
   AND ($3 = '' OR resource_id = $3)
   AND ($4 = '' OR actor_username = $4)
+  AND ($5::text = ''
+    OR strpos(lower(actor_username), lower($5::text)) > 0
+    OR strpos(lower(action), lower($5::text)) > 0
+    OR strpos(lower(resource_type), lower($5::text)) > 0
+    OR strpos(lower(resource_id), lower($5::text)) > 0
+    OR strpos(lower(metadata::text), lower($5::text)) > 0)
 `
 
 type CountAuditLogsParams struct {
@@ -25,6 +31,7 @@ type CountAuditLogsParams struct {
 	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
 	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
 	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
+	Query         string      `db:"query" json:"query"`
 }
 
 func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error) {
@@ -33,6 +40,7 @@ func (q *Queries) CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) 
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.ActorUsername,
+		arg.Query,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -90,6 +98,24 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 	return i, err
 }
 
+const getAuditLogFilterOptions = `-- name: GetAuditLogFilterOptions :one
+SELECT
+  ARRAY(SELECT DISTINCT action FROM audit_logs ORDER BY action)::text[] AS actions,
+  ARRAY(SELECT DISTINCT resource_type FROM audit_logs ORDER BY resource_type)::text[] AS resource_types
+`
+
+type GetAuditLogFilterOptionsRow struct {
+	Actions       []string `db:"actions" json:"actions"`
+	ResourceTypes []string `db:"resource_types" json:"resource_types"`
+}
+
+func (q *Queries) GetAuditLogFilterOptions(ctx context.Context) (GetAuditLogFilterOptionsRow, error) {
+	row := q.db.QueryRow(ctx, getAuditLogFilterOptions)
+	var i GetAuditLogFilterOptionsRow
+	err := row.Scan(&i.Actions, &i.ResourceTypes)
+	return i, err
+}
+
 const listAuditLogs = `-- name: ListAuditLogs :many
 SELECT id, actor_user_id, actor_username, action, resource_type, resource_id, metadata, created_at
 FROM audit_logs
@@ -97,20 +123,26 @@ WHERE ($1 = '' OR action = $1)
   AND ($2 = '' OR resource_type = $2)
   AND ($3 = '' OR resource_id = $3)
   AND ($4 = '' OR actor_username = $4)
+  AND ($5::text = ''
+    OR strpos(lower(actor_username), lower($5::text)) > 0
+    OR strpos(lower(action), lower($5::text)) > 0
+    OR strpos(lower(resource_type), lower($5::text)) > 0
+    OR strpos(lower(resource_id), lower($5::text)) > 0
+    OR strpos(lower(metadata::text), lower($5::text)) > 0)
 ORDER BY
-  CASE WHEN $5::text = 'actor_username' AND $6::text = 'asc' THEN actor_username END ASC,
-  CASE WHEN $5::text = 'actor_username' AND $6::text = 'desc' THEN actor_username END DESC,
-  CASE WHEN $5::text = 'action' AND $6::text = 'asc' THEN action END ASC,
-  CASE WHEN $5::text = 'action' AND $6::text = 'desc' THEN action END DESC,
-  CASE WHEN $5::text = 'resource' AND $6::text = 'asc' THEN resource_type END ASC,
-  CASE WHEN $5::text = 'resource' AND $6::text = 'desc' THEN resource_type END DESC,
-  CASE WHEN $5::text = 'resource' AND $6::text = 'asc' THEN resource_id END ASC,
-  CASE WHEN $5::text = 'resource' AND $6::text = 'desc' THEN resource_id END DESC,
-  CASE WHEN $5::text = 'created_at' AND $6::text = 'asc' THEN created_at END ASC,
-  CASE WHEN $5::text = 'created_at' AND $6::text = 'asc' THEN id END ASC,
+  CASE WHEN $6::text = 'actor_username' AND $7::text = 'asc' THEN actor_username END ASC,
+  CASE WHEN $6::text = 'actor_username' AND $7::text = 'desc' THEN actor_username END DESC,
+  CASE WHEN $6::text = 'action' AND $7::text = 'asc' THEN action END ASC,
+  CASE WHEN $6::text = 'action' AND $7::text = 'desc' THEN action END DESC,
+  CASE WHEN $6::text = 'resource' AND $7::text = 'asc' THEN resource_type END ASC,
+  CASE WHEN $6::text = 'resource' AND $7::text = 'desc' THEN resource_type END DESC,
+  CASE WHEN $6::text = 'resource' AND $7::text = 'asc' THEN resource_id END ASC,
+  CASE WHEN $6::text = 'resource' AND $7::text = 'desc' THEN resource_id END DESC,
+  CASE WHEN $6::text = 'created_at' AND $7::text = 'asc' THEN created_at END ASC,
+  CASE WHEN $6::text = 'created_at' AND $7::text = 'asc' THEN id END ASC,
   created_at DESC, id DESC
-LIMIT $8
-OFFSET $7
+LIMIT $9
+OFFSET $8
 `
 
 type ListAuditLogsParams struct {
@@ -118,6 +150,7 @@ type ListAuditLogsParams struct {
 	ResourceType  interface{} `db:"resource_type" json:"resource_type"`
 	ResourceID    interface{} `db:"resource_id" json:"resource_id"`
 	ActorUsername interface{} `db:"actor_username" json:"actor_username"`
+	Query         string      `db:"query" json:"query"`
 	SortBy        string      `db:"sort_by" json:"sort_by"`
 	SortDir       string      `db:"sort_dir" json:"sort_dir"`
 	OffsetCount   int32       `db:"offset_count" json:"offset_count"`
@@ -130,6 +163,7 @@ func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([
 		arg.ResourceType,
 		arg.ResourceID,
 		arg.ActorUsername,
+		arg.Query,
 		arg.SortBy,
 		arg.SortDir,
 		arg.OffsetCount,

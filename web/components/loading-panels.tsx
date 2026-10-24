@@ -169,10 +169,16 @@ export function TableLoadingPanel({
           ) : null}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <Skeleton
-            className="h-9 w-full rounded-md"
-            data-slot="filter-bar-skeleton"
-          />
+          <div
+            className="flex flex-wrap gap-2"
+            data-slot="list-toolbar-skeleton"
+          >
+            <Skeleton className="h-9 min-w-48 flex-1 basis-full rounded-md sm:basis-0" />
+            <Skeleton className="h-9 w-28 rounded-md" />
+            {kind === "devices" || kind === "audit" ? (
+              <Skeleton className="h-9 w-28 rounded-md" />
+            ) : null}
+          </div>
           <ListTable>
             <Table>
               <TableHeader>

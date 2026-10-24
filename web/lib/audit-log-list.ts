@@ -8,6 +8,9 @@ const auditFilters = [
   { key: "actor_username", label: "Actor" },
 ] as const
 export const auditFilterKeys = auditFilters.map(({ key }) => key)
+export const auditContextFields = auditFilters.filter(
+  ({ key }) => key === "resource_id" || key === "actor_username"
+)
 export const auditSortKeys = [
   "created_at",
   "actor_username",
@@ -19,11 +22,15 @@ export const defaultAuditSort: Sort<(typeof auditSortKeys)[number]> = {
   direction: "desc",
 }
 
-export function auditFilterFields(items: AuditLogPage["items"]): FilterField[] {
-  return auditFilters.map(({ key, label }) => ({
-    key,
-    label,
-    allowCustom: true,
-    options: filterOptions(items.map((item) => item[key])),
-  }))
+export function auditFilterFields(
+  options: AuditLogPage["filter_options"]
+): FilterField[] {
+  return [
+    { key: "action", label: "Action", options: filterOptions(options.actions) },
+    {
+      key: "resource_type",
+      label: "Resource Type",
+      options: filterOptions(options.resource_types),
+    },
+  ]
 }
