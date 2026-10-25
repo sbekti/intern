@@ -18,6 +18,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { toast } from "@/components/ui/toast"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export function RecordActions({
   name,
@@ -36,15 +41,21 @@ export function RecordActions({
 }) {
   return (
     <div className="flex shrink-0 items-center justify-end gap-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={onEdit}
-        aria-label={`Edit ${name}`}
-      >
-        <PencilIcon data-icon="inline-start" />
-        Edit
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={onEdit}
+              aria-label={`Edit ${name}`}
+            />
+          }
+        >
+          <PencilIcon />
+        </TooltipTrigger>
+        <TooltipContent>Edit {name}</TooltipContent>
+      </Tooltip>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

@@ -13,12 +13,6 @@ export type Sort<Key extends string = string> = {
 }
 export type SortValue = string | number | null
 
-export function filterOptions(values: readonly string[]): FilterOption[] {
-  return [...new Set(values)]
-    .sort(compareText)
-    .map((value) => ({ value, label: value }))
-}
-
 export function readFilters(
   params: Pick<URLSearchParams, "get">,
   keys: readonly string[]

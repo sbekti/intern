@@ -249,7 +249,6 @@ export function listAdminAuthSessions(filters: {
 }
 
 export function listAdminAuditLogs(filters: {
-  q?: string
   action?: string
   resource_type?: string
   resource_id?: string

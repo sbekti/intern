@@ -3,8 +3,8 @@ import test from "node:test"
 import { auditFilterFields, auditFilterKeys } from "./audit-log-list.ts"
 
 const options = {
-  actions: ["vlan.create", "device.update", "device.update"],
-  resource_types: ["vlan", "network_device"],
+  actions: ["device.update", "vlan.create"],
+  resource_types: ["network_device", "vlan"],
 }
 
 test("audit fields offer contains text and complete, exact category choices", () => {

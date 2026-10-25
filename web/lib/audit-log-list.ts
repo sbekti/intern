@@ -1,10 +1,5 @@
 import type { AuditLogPage } from "./api"
-import {
-  filterOptions,
-  type FilterField,
-  type Filters,
-  type Sort,
-} from "./list-controls.ts"
+import type { FilterField, Filters, Sort } from "./list-controls.ts"
 
 export const auditFilterKeys = [
   "actor_username_contains",
@@ -31,11 +26,15 @@ export function auditFilterFields(
 ): FilterField[] {
   return [
     { key: "actor_username_contains", label: "Actor" },
-    { key: "action", label: "Action", options: filterOptions(options.actions) },
+    {
+      key: "action",
+      label: "Action",
+      options: options.actions.map((value) => ({ value, label: value })),
+    },
     {
       key: "resource_type",
       label: "Resource Type",
-      options: filterOptions(options.resource_types),
+      options: options.resource_types.map((value) => ({ value, label: value })),
     },
     { key: "resource_id", label: "Resource ID", exact: true },
     { key: "metadata_contains", label: "Metadata" },
