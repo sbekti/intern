@@ -156,9 +156,10 @@ export function VlanManager({
   }
 
   function openEdit(vlan: Vlan) {
+    const next = mapVlanToForm(vlan)
     setEditing(vlan)
-    setForm(mapVlanToForm(vlan))
-    setInitialForm(mapVlanToForm(vlan))
+    setForm(next)
+    setInitialForm(next)
     setSubmitError(null)
     setDialogOpen(true)
   }

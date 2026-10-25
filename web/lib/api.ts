@@ -1,6 +1,7 @@
 import { headers } from "next/headers"
 import { connection } from "next/server"
 import type { VlanColor } from "@/lib/vlan-colors"
+import { withQuery } from "@/lib/query-string"
 
 export type Profile = {
   username: string
@@ -216,36 +217,14 @@ export function listProfileSessions(filters: {
   limit?: number
   offset?: number
 }) {
-  const query = new URLSearchParams()
-
-  for (const [key, rawValue] of Object.entries(filters)) {
-    if (rawValue === undefined || rawValue === null) {
-      continue
-    }
-
-    query.set(key, String(rawValue))
-  }
-
-  const suffix = query.size > 0 ? `?${query.toString()}` : ""
-  return getJson<AuthSessionPage>(`/api/v1/profile/sessions${suffix}`)
+  return getJson<AuthSessionPage>(withQuery("/api/v1/profile/sessions", filters))
 }
 
 export function listAdminAuthSessions(filters: {
   limit?: number
   offset?: number
 }) {
-  const query = new URLSearchParams()
-
-  for (const [key, rawValue] of Object.entries(filters)) {
-    if (rawValue === undefined || rawValue === null) {
-      continue
-    }
-
-    query.set(key, String(rawValue))
-  }
-
-  const suffix = query.size > 0 ? `?${query.toString()}` : ""
-  return getJson<AuthSessionPage>(`/api/v1/admin/auth/sessions${suffix}`)
+  return getJson<AuthSessionPage>(withQuery("/api/v1/admin/auth/sessions", filters))
 }
 
 export function listAdminAuditLogs(filters: {
@@ -260,16 +239,5 @@ export function listAdminAuditLogs(filters: {
   limit?: number
   offset?: number
 }) {
-  const query = new URLSearchParams()
-
-  for (const [key, rawValue] of Object.entries(filters)) {
-    if (rawValue === undefined || rawValue === null || rawValue === "") {
-      continue
-    }
-
-    query.set(key, String(rawValue))
-  }
-
-  const suffix = query.size > 0 ? `?${query.toString()}` : ""
-  return getJson<AuditLogPage>(`/api/v1/admin/audit_logs${suffix}`)
+  return getJson<AuditLogPage>(withQuery("/api/v1/admin/audit_logs", filters))
 }

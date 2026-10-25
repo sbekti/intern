@@ -175,9 +175,10 @@ export function DeviceManager({
   }
 
   function openEdit(device: NetworkDevice) {
+    const next = mapDeviceToForm(device)
     setEditing(device)
-    setForm(mapDeviceToForm(device))
-    setInitialForm(mapDeviceToForm(device))
+    setForm(next)
+    setInitialForm(next)
     setSubmitError(null)
     setDialogOpen(true)
   }

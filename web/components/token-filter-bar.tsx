@@ -89,10 +89,6 @@ export function TokenFilterBar({
     return () => window.removeEventListener("popstate", cancel)
   }, [])
 
-  function apply(next: Filters) {
-    if (fields.some(({ key }) => next[key] !== filters[key])) onChange(next)
-  }
-
   function finish(focus = false): Filters {
     const current = draft.current
     const field = fields.find((f) => f.key === current?.fieldKey)
@@ -106,7 +102,7 @@ export function TokenFilterBar({
 
   function edit(field: FilterField) {
     const next = finish()
-    apply(next)
+    onChange(next)
     focusOnMount.current = true
     setPicker({
       fieldKey: field.key,
@@ -148,7 +144,7 @@ export function TokenFilterBar({
                 setPicker(null)
                 const next = { ...filters }
                 delete next[f.key]
-                apply(next)
+                onChange(next)
               }}
             >
               <XIcon data-icon="inline-end" />
@@ -180,7 +176,7 @@ export function TokenFilterBar({
             onChange={(event) =>
               setPicker({ fieldKey: field.key, query: event.target.value })
             }
-            onBlur={() => apply(finish())}
+            onBlur={() => onChange(finish())}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault()
@@ -191,7 +187,7 @@ export function TokenFilterBar({
                 !event.nativeEvent.isComposing
               ) {
                 event.preventDefault()
-                apply(finish(true))
+                onChange(finish(true))
               }
             }}
           />
@@ -233,7 +229,7 @@ export function TokenFilterBar({
               setPicker({ fieldKey: choice.value, query: "" })
             } else {
               setPicker(null)
-              apply({ ...filters, [field.key]: choice.value })
+              onChange({ ...filters, [field.key]: choice.value })
             }
           }}
         >
@@ -272,7 +268,7 @@ export function TokenFilterBar({
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => {
             setPicker(null)
-            apply({})
+            onChange({})
           }}
         >
           Clear
