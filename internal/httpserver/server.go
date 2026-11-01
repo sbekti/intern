@@ -59,6 +59,8 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 			writeJSON(w, http.StatusOK, response{Status: "ok"})
 		})
 
+		registerPreferencesRoutes(r, authorizer, deps.PreferencesStore)
+
 		registerAPIRoutes(r, logger, authorizer, vlanService, deviceService, gizmoService, clientAuthService, authSpamService, sessionService, auditLogService)
 	})
 

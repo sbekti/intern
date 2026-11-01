@@ -36,6 +36,21 @@ OpenAPI and SQLC output. For a split API/web rollout, update the API first: the
 web app requires the contains parameters and `filter_options` response.
 No database migration is needed for search.
 
+## Dashboard layout
+
+Admins can use **Sections** on Home to show, hide, and reorder whole metric
+sections for everyone. Save applies the shared layout; Cancel discards edits,
+and Reset restores the metrics configuration order with all sections visible.
+New sections appear automatically after the saved order. Other viewers see
+changes on reload. Hiding sections does not change metric collection or polling.
+
+Shared display preferences use authenticated `GET /api/v1/preferences` and
+admin-only `PATCH /api/v1/preferences`. Patches replace supplied top-level
+namespaces and preserve others. The first namespace is `dashboard`, containing
+`section_order` and `hidden_sections` arrays of configured IDs. Storage is generic;
+there are no per-account overrides. Deploy the additive database migration
+before the updated API and frontend.
+
 ## Development
 
 Intern development connects to the production PostgreSQL and Prometheus services

@@ -985,6 +985,7 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	sessionService := sessions.NewService(queries)
 
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
+		PreferencesStore:  queries,
 		UserStore:         queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
 		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),

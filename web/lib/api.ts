@@ -197,6 +197,10 @@ async function getJson<T>(path: string): Promise<ApiResult<T>> {
   )
 }
 
+export function getPreferences() {
+  return getJson<Record<string, unknown>>("/api/v1/preferences")
+}
+
 export function getProfile() {
   return getJson<Profile>("/api/v1/profile")
 }

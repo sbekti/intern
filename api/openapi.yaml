@@ -31,6 +31,48 @@ tags:
   - name: Admin
     description: Administrator-only auth session inspection and revocation.
 paths:
+  /api/v1/preferences:
+    get:
+      operationId: getPreferences
+      tags: [Profile]
+      summary: Read shared application display preferences.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Preferences, or an empty object before the first save.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: patchPreferences
+      tags: [Profile]
+      summary: Update shared display preferences (administrators only).
+      description: Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Preferences'
+      responses:
+        '200':
+          description: Updated preferences.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Preferences'
+        '400':
+          description: Invalid preferences object.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/profile:
     get:
       operationId: getProfile
@@ -847,6 +889,11 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    Preferences:
+      type: object
+      additionalProperties:
+        type: object
+        additionalProperties: true
     ErrorResponse:
       type: object
       required: [code, message]

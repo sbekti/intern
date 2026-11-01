@@ -19,6 +19,10 @@ import {
   timeRangeTimestampAtFraction,
   timeRangeTicks,
 } from "@/components/live-horizon"
+import { SectionsDialog } from "@/components/sections-dialog"
+import { useDashboardShell } from "@/components/dashboard-shell-provider"
+import { orderedSections, type DashboardLayout } from "@/lib/dashboard-layout"
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Badge } from "@/components/ui/badge"
 import {
   Card,
@@ -646,12 +650,19 @@ function MetricsGroupCard({
 }
 
 export function HomeMetricsDashboard({
+  initialLayout,
   groups,
   initialPresetId,
 }: {
   groups: readonly ClientMetricGroup[] | null
+  initialLayout: DashboardLayout
   initialPresetId: MetricTimePresetId
 }) {
+  const { isAdmin } = useDashboardShell()
+  const [layout, setLayout] = useState(initialLayout)
+  const visibleGroups = orderedSections(groups ?? [], layout).filter(
+    (group) => !layout.hidden_sections.includes(group.id)
+  )
   const [preset, setPreset] = useState<TimePreset>(
     () =>
       metricTimePresets.find(({ id }) => id === initialPresetId) ??
@@ -700,7 +711,10 @@ export function HomeMetricsDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        {isAdmin && (
+          <SectionsDialog groups={groups} layout={layout} onSave={setLayout} />
+        )}
         <ToggleGroup
           aria-label="Metric time range"
           value={[preset.id]}
@@ -716,7 +730,14 @@ export function HomeMetricsDashboard({
           ))}
         </ToggleGroup>
       </div>
-      {groups.map((group) => (
+      {visibleGroups.length === 0 && (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>No sections selected.</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      )}
+      {visibleGroups.map((group) => (
         <MetricsGroupCard
           key={group.id}
           group={group}

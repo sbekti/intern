@@ -69,6 +69,7 @@ func main() {
 	server := &http.Server{
 		Addr: cfg.Server.Addr,
 		Handler: httpserver.NewHandler(logger, cfg, httpserver.Dependencies{
+			PreferencesStore:  queries,
 			UserStore:         queries,
 			DatabasePinger:    pool,
 			VLANService:       vlanService,

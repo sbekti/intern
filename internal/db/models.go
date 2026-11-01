@@ -8,6 +8,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApplicationPreference struct {
+	ID          bool   `db:"id" json:"id"`
+	Preferences []byte `db:"preferences" json:"preferences"`
+}
+
 type AuditLog struct {
 	ID            pgtype.UUID        `db:"id" json:"id"`
 	ActorUserID   pgtype.UUID        `db:"actor_user_id" json:"actor_user_id"`

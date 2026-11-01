@@ -1,3 +1,5 @@
+import { getPreferences } from "@/lib/api"
+import { readDashboardLayout } from "@/lib/dashboard-layout"
 import { connection } from "next/server"
 
 import { HomeMetricsDashboard } from "@/components/home-metrics-card"
@@ -17,6 +19,8 @@ export default async function HomePage({
 }) {
   await connection()
   const params = await searchParams
+  const preferences = await getPreferences()
+  if (!preferences.ok) throw new Error("Shared preferences unavailable")
   const config = readMetricsConfig()
   const initialPreset = metricTimePreset(params.range)
 
@@ -26,6 +30,7 @@ export default async function HomePage({
         key={initialPreset.id}
         groups={config ? clientMetricGroups(config) : null}
         initialPresetId={initialPreset.id}
+        initialLayout={readDashboardLayout(preferences.data.dashboard)}
       />
     </div>
   )

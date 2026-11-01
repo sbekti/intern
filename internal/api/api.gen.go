@@ -292,6 +292,9 @@ type NetworkDeviceWrite struct {
 	VlanId     int32  `json:"vlan_id"`
 }
 
+// Preferences defines model for Preferences.
+type Preferences map[string]map[string]interface{}
+
 // Profile defines model for Profile.
 type Profile struct {
 	Email    openapi_types.Email `json:"email"`
@@ -460,6 +463,9 @@ type CreateVlanJSONRequestBody = VlanWrite
 
 // PatchVlanJSONRequestBody defines body for PatchVlan for application/json ContentType.
 type PatchVlanJSONRequestBody = VlanPatch
+
+// PatchPreferencesJSONRequestBody defines body for PatchPreferences for application/json ContentType.
+type PatchPreferencesJSONRequestBody = Preferences
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -751,6 +757,29 @@ type ClientInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/networks/vlans/{vlan_id} (the `PatchVlan` operationId).
 	PatchVlan(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPreferences Read shared application display preferences.
+	//
+	// Corresponds with GET /api/v1/preferences (the `GetPreferences` operationId).
+	GetPreferences(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchPreferencesWithBody Update shared display preferences (administrators only).
+	//
+	// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+	PatchPreferencesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PatchPreferences Update shared display preferences (administrators only).
+	//
+	// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+	PatchPreferences(ctx context.Context, body PatchPreferencesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetProfile Get the current authenticated user's profile.
 	//
@@ -1334,6 +1363,59 @@ func (c *Client) PatchVlanWithBody(ctx context.Context, vlanId VlanId, contentTy
 // Corresponds with PATCH /api/v1/networks/vlans/{vlan_id} (the `PatchVlan` operationId).
 func (c *Client) PatchVlan(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchVlanRequest(c.Server, vlanId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPreferences Read shared application display preferences.
+//
+// Corresponds with GET /api/v1/preferences (the `GetPreferences` operationId).
+func (c *Client) GetPreferences(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPreferencesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PatchPreferencesWithBody Update shared display preferences (administrators only).
+//
+// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+func (c *Client) PatchPreferencesWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchPreferencesRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PatchPreferences Update shared display preferences (administrators only).
+//
+// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+func (c *Client) PatchPreferences(ctx context.Context, body PatchPreferencesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPatchPreferencesRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2483,6 +2565,73 @@ func NewPatchVlanRequestWithBody(server string, vlanId VlanId, contentType strin
 	return req, nil
 }
 
+// NewGetPreferencesRequest constructs an http.Request for the GetPreferences method
+func NewGetPreferencesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/preferences")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPatchPreferencesRequest calls the generic PatchPreferences builder with application/json body
+func NewPatchPreferencesRequest(server string, body PatchPreferencesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPatchPreferencesRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPatchPreferencesRequestWithBody constructs an http.Request for the PatchPreferences method, with any body, and a specified content type
+func NewPatchPreferencesRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/preferences")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetProfileRequest constructs an http.Request for the GetProfile method
 func NewGetProfileRequest(server string) (*http.Request, error) {
 	var err error
@@ -2927,6 +3076,31 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/networks/vlans/{vlan_id} (the `PatchVlan` operationId).
 	PatchVlanWithResponse(ctx context.Context, vlanId VlanId, body PatchVlanJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchVlanResponse, error)
+
+	// GetPreferencesWithResponse Read shared application display preferences.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/preferences (the `GetPreferences` operationId).
+	GetPreferencesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPreferencesResponse, error)
+
+	// PatchPreferencesWithBodyWithResponse Update shared display preferences (administrators only).
+	//
+	// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+	PatchPreferencesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchPreferencesResponse, error)
+
+	// PatchPreferencesWithResponse Update shared display preferences (administrators only).
+	//
+	// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+	PatchPreferencesWithResponse(ctx context.Context, body PatchPreferencesJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchPreferencesResponse, error)
 
 	// GetProfileWithResponse Get the current authenticated user's profile.
 	//
@@ -4490,6 +4664,109 @@ func (r PatchVlanResponse) ContentType() string {
 	return ""
 }
 
+type GetPreferencesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Preferences
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPreferencesResponse) GetJSON200() *Preferences {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetPreferencesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPreferencesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPreferencesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPreferencesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPreferencesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PatchPreferencesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Preferences
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PatchPreferencesResponse) GetJSON200() *Preferences {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PatchPreferencesResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PatchPreferencesResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetBody returns the raw response body bytes
+func (r PatchPreferencesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PatchPreferencesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PatchPreferencesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PatchPreferencesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -5137,6 +5414,49 @@ func (c *ClientWithResponses) PatchVlanWithResponse(ctx context.Context, vlanId 
 		return nil, err
 	}
 	return ParsePatchVlanResponse(rsp)
+}
+
+// GetPreferencesWithResponse Read shared application display preferences.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/preferences (the `GetPreferences` operationId).
+func (c *ClientWithResponses) GetPreferencesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPreferencesResponse, error) {
+	rsp, err := c.GetPreferences(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPreferencesResponse(rsp)
+}
+
+// PatchPreferencesWithBodyWithResponse Update shared display preferences (administrators only).
+//
+// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+func (c *ClientWithResponses) PatchPreferencesWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchPreferencesResponse, error) {
+	rsp, err := c.PatchPreferencesWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchPreferencesResponse(rsp)
+}
+
+// PatchPreferencesWithResponse Update shared display preferences (administrators only).
+//
+// Supplied top-level namespaces replace their existing values atomically. Other namespaces are preserved.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/preferences (the `PatchPreferences` operationId).
+func (c *ClientWithResponses) PatchPreferencesWithResponse(ctx context.Context, body PatchPreferencesJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchPreferencesResponse, error) {
+	rsp, err := c.PatchPreferences(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePatchPreferencesResponse(rsp)
 }
 
 // GetProfileWithResponse Get the current authenticated user's profile.
@@ -6367,6 +6687,82 @@ func ParsePatchVlanResponse(rsp *http.Response) (*PatchVlanResponse, error) {
 			return nil, err
 		}
 		response.JSON409 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPreferencesResponse parses an HTTP response from a GetPreferencesWithResponse call
+func ParseGetPreferencesResponse(rsp *http.Response) (*GetPreferencesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPreferencesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Preferences
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePatchPreferencesResponse parses an HTTP response from a PatchPreferencesWithResponse call
+func ParsePatchPreferencesResponse(rsp *http.Response) (*PatchPreferencesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PatchPreferencesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Preferences
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 400:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
 
 	}
 

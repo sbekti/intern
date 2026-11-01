@@ -19,7 +19,13 @@ type response struct {
 	User    string `json:"user,omitempty"`
 }
 
+type PreferencesStore interface {
+	GetApplicationPreferences(context.Context) ([]byte, error)
+	MergeApplicationPreferences(context.Context, db.MergeApplicationPreferencesParams) ([]byte, error)
+}
+
 type Dependencies struct {
+	PreferencesStore  PreferencesStore
 	UserStore         identity.UserStore
 	DatabasePinger    DatabasePinger
 	VLANService       VLANService

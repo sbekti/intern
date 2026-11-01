@@ -4,6 +4,7 @@ const browserApiResources = new Set([
   "gizmos",
   "networks",
   "profile",
+  "preferences",
 ])
 
 export function resolveBffTarget(
