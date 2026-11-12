@@ -57,7 +57,8 @@ The device editor can save a private Wi-Fi password or retain the shared-passwor
 policy. Generate fills an unsaved four-word EFF passphrase; Save commits it and
 Cancel discards edits. Blank password fields retain the saved value. Turning
 private access off retains the encrypted password for later reuse. These are
-saved policies, not live access-point status; network policy delivery is separate.
+saved policies, not live access-point status. Network policy delivery is described
+below.
 
 Passwords accept 8 to 63 printable ASCII characters. They are encrypted with
 AES-256-GCM using random nonces and the immutable device UUID as authenticated
@@ -96,6 +97,65 @@ internctl device password generate
 internctl device password show <id>
 ```
 
+## RADIUS policy delivery
+
+`GET /api/v1/radius/mab-snapshot` retains its credential-free v1 users-file
+format. `GET /api/v1/radius/policy-snapshot` returns a separate versioned users
+file with the same active device VLANs and any enabled private passwords.
+Disabled devices and retained passwords with private access off are excluded.
+Unknown devices use the shared password configured at the RADIUS server.
+
+Configure separate `RADIUS_MAB_TOKEN_HASHES` and `RADIUS_SNAPSHOT_TOKEN_HASHES`
+environment variables as comma-separated `site=sha256` entries. Hash the exact
+opaque bearer token supplied to the router. Each site has its own token for
+independent attribution and revocation; private passwords are shared across
+migrated sites, so every authorized site receives the same inventory policy.
+An empty setting denies all downloads for that endpoint. The API rejects token
+reuse between sites or between the two endpoint types. These download tokens
+cannot access ordinary API routes or human password-reveal endpoints. After a
+site's verified cutover and rollback window, retire its old MAB token and hash
+entry. Other sites keep their MAB credentials until they migrate.
+
+Set the required `RADIUS_SNAPSHOT_MAX_BYTES` environment variable to a positive
+byte limit appropriate for the router transport. Homeinfra supplies one shared
+`snapshot_max_bytes` deployment setting to Ansible, RouterOS, and the backend
+ConfigMap. Development loads that deployed ConfigMap value. There is no numeric
+default in the application. The device service handles inventory and decryption.
+Both HTTP endpoints share the FreeRADIUS renderer; the policy endpoint enforces
+the configured byte limit.
+
+Both downloads use `Cache-Control: no-store`. The private-policy response and
+its persistent cache, staging file, and rollback copy contain recoverable secrets.
+Use HTTPS with certificate validation and protected, read-only container mounts.
+FreeRADIUS holds private passwords in control attributes; only a successful PPSK
+request copies the selected password into the encrypted `Tunnel-Password` reply.
+Wired MAB, Enterprise Wi-Fi, operator authentication, and rejected requests do not
+receive Wi-Fi passwords. Literal values are escaped for FreeRADIUS before parsing.
+
+Revisions depend on effective policy, not inventory names or encryption nonces.
+Unchanged polls need no disk write or restart. Policy responses at or above the
+configured byte limit, unreadable active ciphertext, or unavailable inventory
+return HTTP 503
+without partial policy. The router retains its last-good file. Revoking a
+download token stops updates; it does not erase already cached policy.
+
+Homeinfra uses its existing five-minute scheduler and container restart/rollback
+procedure. It downloads changed content directly to disk because RouterOS logs
+values supplied to file-content commands. The staged file must match the
+validated in-memory response before installation. A second download is needed
+only when the revision changes. Changes apply at a fresh RADIUS authorization;
+there is no automatic disconnect or CoA.
+
+The optional integration check below exercises a real API/database policy with
+Homeinfra's native FreeRADIUS protocol tests. Use the published runtime image
+pinned by the deployment being tested; all credentials in this check are synthetic.
+
+```sh
+HOMEINFRA_ANSIBLE_DIR=/path/to/homeinfra/ansible \
+RADIUS_NATIVE_TEST_IMAGE=<published-runtime-image> \
+  go test -tags integration ./internal/httpserver -run TestHandlerIntegrationRADIUSPolicy -v
+```
+
 ## Development
 
 Intern development connects to the production PostgreSQL and Prometheus services
@@ -113,7 +173,7 @@ machine, change `AUTH_PUBLIC_BASE_URL` in `.env` to the URL used by your browser
 such as `http://<host-ip>:3000`. This is the only host-specific setting.
 
 At startup, the helper reads `INTERN_API_DATABASE_URL`, the deployed Wi-Fi
-encryption key, and the deployed metrics
+encryption key, the backend snapshot limit, and the deployed metrics
 ConfigMap from the current Kubernetes namespace. It rewrites the database host
 to the local PostgreSQL port-forward and mounts the metrics definition from a
 temporary file, without storing either value in `.env`. The temporary metrics

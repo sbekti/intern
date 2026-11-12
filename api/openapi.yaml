@@ -31,6 +31,49 @@ tags:
   - name: Admin
     description: Administrator-only auth session inspection and revocation.
 paths:
+  /api/v1/radius/mab-snapshot:
+    get:
+      operationId: getRadiusMabSnapshot
+      tags: [Networks]
+      summary: Download credential-free RADIUS MAB policy.
+      description: Uses a site-specific MAB download token, separate from human authentication and private-policy tokens.
+      security:
+        - radiusMabToken: []
+      responses:
+        '200':
+          description: Versioned FreeRADIUS users file with a content revision; contains no Wi-Fi passwords.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Inventory unavailable; retain the last-good snapshot.
+  /api/v1/radius/policy-snapshot:
+    get:
+      operationId: getRadiusPolicySnapshot
+      tags: [Networks]
+      summary: Download secret RADIUS policy for PPSK.
+      description: Uses a separate site-specific policy token. Returns active device VLANs and enabled private passwords. Treat the response and all cached copies as secrets. Unknown devices use the shared fallback configured at the RADIUS server.
+      security:
+        - radiusSnapshotToken: []
+      responses:
+        '200':
+          description: Versioned FreeRADIUS users file below the configured byte limit, with a content revision.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          description: Policy unavailable or too large; retain the last-good snapshot.
   /api/v1/preferences:
     get:
       operationId: getPreferences
@@ -872,6 +915,14 @@ paths:
           $ref: '#/components/responses/BadRequest'
 components:
   securitySchemes:
+    radiusMabToken:
+      type: http
+      scheme: bearer
+      description: Opaque MAB download token; cannot download private policy.
+    radiusSnapshotToken:
+      type: http
+      scheme: bearer
+      description: Opaque private-policy download token; cannot access human or MAB routes.
     bearerAuth:
       type: http
       scheme: bearer

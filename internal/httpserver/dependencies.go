@@ -50,6 +50,7 @@ type VLANService interface {
 }
 
 type DeviceService interface {
+	RADIUSPolicy(ctx context.Context) ([]devices.RADIUSPolicyRecord, error)
 	List(ctx context.Context) ([]devices.DeviceRecord, error)
 	Get(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error)
 	Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)

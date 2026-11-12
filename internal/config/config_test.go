@@ -13,6 +13,7 @@ import (
 func testConfig(secret string) Config {
 	return Config{
 		WiFiPasswordEncryptionKey: make([]byte, 32),
+		RADIUSSnapshotMaxBytes:    4096,
 		Server:                    ServerConfig{Addr: ":8080"},
 		Database:                  DatabaseConfig{URL: "postgres://localhost/intern"},
 		LogLevel:                  LogLevelInfo,
@@ -50,7 +51,9 @@ func TestLoadWiFiPasswordKeyIsRequiredAndValidated(t *testing.T) {
 		"AUTH_PUBLIC_BASE_URL":    "https://example.test", "AUTH_JWT_ISSUER": "example.test",
 		"AUTH_JWT_AUDIENCE": "test", "AUTH_JWT_HMAC_SECRET": "test-jwt-secret",
 		"AUTH_FORWARD_AUTH_MARKER_HEADER": "X-Test-Auth", "AUTH_FORWARD_AUTH_MARKER_VALUE": "test-marker",
-		"RADIUS_MAB_TOKEN_HASHES": "",
+		"RADIUS_MAB_TOKEN_HASHES":      "",
+		"RADIUS_SNAPSHOT_TOKEN_HASHES": "",
+		"RADIUS_SNAPSHOT_MAX_BYTES":    "4096",
 	} {
 		t.Setenv(key, value)
 	}
@@ -59,7 +62,7 @@ func TestLoadWiFiPasswordKeyIsRequiredAndValidated(t *testing.T) {
 		t.Setenv("WIFI_PASSWORD_ENCRYPTION_KEY", value)
 		cfg, err := Load()
 		if value == base64.StdEncoding.EncodeToString(valid) {
-			if err != nil || !bytes.Equal(cfg.WiFiPasswordEncryptionKey, valid) {
+			if err != nil || !bytes.Equal(cfg.WiFiPasswordEncryptionKey, valid) || cfg.RADIUSSnapshotMaxBytes != 4096 {
 				t.Fatal("valid key was not loaded")
 			}
 		} else if err == nil {
@@ -74,6 +77,7 @@ func TestValidateRequiresSecurityConfiguration(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*Config){
 		"Wi-Fi encryption key": func(cfg *Config) { cfg.WiFiPasswordEncryptionKey = nil },
+		"snapshot size limit":  func(cfg *Config) { cfg.RADIUSSnapshotMaxBytes = 0 },
 		"database":             func(cfg *Config) { cfg.Database.URL = "" },
 		"issuer":               func(cfg *Config) { cfg.Auth.JWTIssuer = "" },
 		"audience":             func(cfg *Config) { cfg.Auth.JWTAudience = "" },
@@ -98,12 +102,12 @@ func TestLoadDoesNotProvideInsecureJWTDefaults(t *testing.T) {
 	}
 }
 
-func TestEnvRADIUSMABTokenHashes(t *testing.T) {
+func TestEnvRADIUSTokenHashes(t *testing.T) {
 	first := sha256.Sum256([]byte("first-token"))
 	second := sha256.Sum256([]byte("second-token"))
 	t.Setenv("RADIUS_MAB_TOKEN_HASHES", fmt.Sprintf("site-one=%x,site-two=%x", first, second))
 
-	hashes, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	hashes, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES")
 	if err != nil {
 		t.Fatalf("parse token hashes: %v", err)
 	}
@@ -112,17 +116,28 @@ func TestEnvRADIUSMABTokenHashes(t *testing.T) {
 	}
 }
 
-func TestEnvRADIUSMABTokenHashesRejectsInvalidEntries(t *testing.T) {
+func TestEnvRADIUSTokenHashesRejectsInvalidEntries(t *testing.T) {
 	for name, value := range map[string]string{
 		"missing site":   "=0123",
 		"invalid hash":   "site-one=0123",
 		"duplicate site": fmt.Sprintf("site-one=%064x,site-one=%064x", 1, 2),
+		"reused token":   fmt.Sprintf("site-one=%064x,site-two=%064x", 1, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Setenv("RADIUS_MAB_TOKEN_HASHES", value)
-			if _, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES"); err == nil {
+			if _, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES"); err == nil {
 				t.Fatal("invalid token hashes unexpectedly parsed")
 			}
 		})
+	}
+}
+
+func TestRADIUSDownloadTokensMustBeSeparate(t *testing.T) {
+	cfg := testConfig("secret")
+	hash := sha256.Sum256([]byte("shared-token"))
+	cfg.RADIUSMAB.TokenHashes = []RADIUSTokenHash{{Site: "site-one", SHA256: hash}}
+	cfg.RADIUSPolicy.TokenHashes = []RADIUSTokenHash{{Site: "site-one", SHA256: hash}}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("MAB and private-policy routes accepted the same token")
 	}
 }

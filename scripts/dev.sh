@@ -107,6 +107,11 @@ cluster_database_url="$(load_backend_secret INTERN_API_DATABASE_URL)"
 export INTERN_API_DATABASE_URL="$(rewrite_database_url "$cluster_database_url")"
 export WIFI_PASSWORD_ENCRYPTION_KEY="$(load_backend_secret WIFI_PASSWORD_ENCRYPTION_KEY)"
 unset cluster_database_url
+if ! RADIUS_SNAPSHOT_MAX_BYTES="$(kubectl get configmap intern-backend-config -o 'jsonpath={.data.RADIUS_SNAPSHOT_MAX_BYTES}')" || [[ -z "$RADIUS_SNAPSHOT_MAX_BYTES" ]]; then
+  printf '%s\n' 'RADIUS_SNAPSHOT_MAX_BYTES is missing from intern-backend-config.' >&2
+  exit 1
+fi
+export RADIUS_SNAPSHOT_MAX_BYTES
 export AUTH_JWT_HMAC_SECRET="$(openssl rand -hex 32)"
 export INTERN_DEV_IDENTITY_MARKER="$(openssl rand -hex 32)"
 

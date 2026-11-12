@@ -831,6 +831,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/profile/sessions/{id}/revoke (the `RevokeProfileSession` operationId).
 	RevokeProfileSession(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRadiusMabSnapshot Download credential-free RADIUS MAB policy.
+	//
+	// Uses a site-specific MAB download token, separate from human authentication and private-policy tokens.
+	//
+	// Corresponds with GET /api/v1/radius/mab-snapshot (the `GetRadiusMabSnapshot` operationId).
+	GetRadiusMabSnapshot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetRadiusPolicySnapshot Download secret RADIUS policy for PPSK.
+	//
+	// Uses a separate site-specific policy token. Returns active device VLANs and enabled private passwords. Treat the response and all cached copies as secrets. Unknown devices use the shared fallback configured at the RADIUS server.
+	//
+	// Corresponds with GET /api/v1/radius/policy-snapshot (the `GetRadiusPolicySnapshot` operationId).
+	GetRadiusPolicySnapshot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListAdminAuditLogs List audit logs across the platform.
@@ -1537,6 +1551,40 @@ func (c *Client) RevokeOtherProfileSessions(ctx context.Context, reqEditors ...R
 // Corresponds with POST /api/v1/profile/sessions/{id}/revoke (the `RevokeProfileSession` operationId).
 func (c *Client) RevokeProfileSession(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeProfileSessionRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRadiusMabSnapshot Download credential-free RADIUS MAB policy.
+//
+// Uses a site-specific MAB download token, separate from human authentication and private-policy tokens.
+//
+// Corresponds with GET /api/v1/radius/mab-snapshot (the `GetRadiusMabSnapshot` operationId).
+func (c *Client) GetRadiusMabSnapshot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRadiusMabSnapshotRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRadiusPolicySnapshot Download secret RADIUS policy for PPSK.
+//
+// Uses a separate site-specific policy token. Returns active device VLANs and enabled private passwords. Treat the response and all cached copies as secrets. Unknown devices use the shared fallback configured at the RADIUS server.
+//
+// Corresponds with GET /api/v1/radius/policy-snapshot (the `GetRadiusPolicySnapshot` operationId).
+func (c *Client) GetRadiusPolicySnapshot(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRadiusPolicySnapshotRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -2904,6 +2952,60 @@ func NewRevokeProfileSessionRequest(server string, id SessionId) (*http.Request,
 	return req, nil
 }
 
+// NewGetRadiusMabSnapshotRequest constructs an http.Request for the GetRadiusMabSnapshot method
+func NewGetRadiusMabSnapshotRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/radius/mab-snapshot")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetRadiusPolicySnapshotRequest constructs an http.Request for the GetRadiusPolicySnapshot method
+func NewGetRadiusPolicySnapshotRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/radius/policy-snapshot")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -3265,6 +3367,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/profile/sessions/{id}/revoke (the `RevokeProfileSession` operationId).
 	RevokeProfileSessionWithResponse(ctx context.Context, id SessionId, reqEditors ...RequestEditorFn) (*RevokeProfileSessionResponse, error)
+
+	// GetRadiusMabSnapshotWithResponse Download credential-free RADIUS MAB policy.
+	//
+	// Uses a site-specific MAB download token, separate from human authentication and private-policy tokens.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/radius/mab-snapshot (the `GetRadiusMabSnapshot` operationId).
+	GetRadiusMabSnapshotWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRadiusMabSnapshotResponse, error)
+
+	// GetRadiusPolicySnapshotWithResponse Download secret RADIUS policy for PPSK.
+	//
+	// Uses a separate site-specific policy token. Returns active device VLANs and enabled private passwords. Treat the response and all cached copies as secrets. Unknown devices use the shared fallback configured at the RADIUS server.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/radius/policy-snapshot (the `GetRadiusPolicySnapshot` operationId).
+	GetRadiusPolicySnapshotWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRadiusPolicySnapshotResponse, error)
 }
 
 type ListAdminAuditLogsResponse struct {
@@ -5257,6 +5377,95 @@ func (r RevokeProfileSessionResponse) ContentType() string {
 	return ""
 }
 
+type GetRadiusMabSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRadiusMabSnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRadiusMabSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRadiusMabSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRadiusMabSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRadiusMabSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetRadiusPolicySnapshotResponse200Headers the declared response headers of an HTTP 200 response for GetRadiusPolicySnapshot
+type GetRadiusPolicySnapshotResponse200Headers struct {
+	CacheControl *string
+}
+
+type GetRadiusPolicySnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRadiusPolicySnapshotResponse200Headers
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRadiusPolicySnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRadiusPolicySnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRadiusPolicySnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRadiusPolicySnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRadiusPolicySnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListAdminAuditLogsWithResponse List audit logs across the platform.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -5837,6 +6046,36 @@ func (c *ClientWithResponses) RevokeProfileSessionWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseRevokeProfileSessionResponse(rsp)
+}
+
+// GetRadiusMabSnapshotWithResponse Download credential-free RADIUS MAB policy.
+//
+// Uses a site-specific MAB download token, separate from human authentication and private-policy tokens.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/radius/mab-snapshot (the `GetRadiusMabSnapshot` operationId).
+func (c *ClientWithResponses) GetRadiusMabSnapshotWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRadiusMabSnapshotResponse, error) {
+	rsp, err := c.GetRadiusMabSnapshot(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRadiusMabSnapshotResponse(rsp)
+}
+
+// GetRadiusPolicySnapshotWithResponse Download secret RADIUS policy for PPSK.
+//
+// Uses a separate site-specific policy token. Returns active device VLANs and enabled private passwords. Treat the response and all cached copies as secrets. Unknown devices use the shared fallback configured at the RADIUS server.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/radius/policy-snapshot (the `GetRadiusPolicySnapshot` operationId).
+func (c *ClientWithResponses) GetRadiusPolicySnapshotWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetRadiusPolicySnapshotResponse, error) {
+	rsp, err := c.GetRadiusPolicySnapshot(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRadiusPolicySnapshotResponse(rsp)
 }
 
 // ParseListAdminAuditLogsResponse parses an HTTP response from a ListAdminAuditLogsWithResponse call
@@ -7374,6 +7613,77 @@ func ParseRevokeProfileSessionResponse(rsp *http.Response) (*RevokeProfileSessio
 		}
 		response.JSON429 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseGetRadiusMabSnapshotResponse parses an HTTP response from a GetRadiusMabSnapshotWithResponse call
+func ParseGetRadiusMabSnapshotResponse(rsp *http.Response) (*GetRadiusMabSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRadiusMabSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	return response, nil
+}
+
+// ParseGetRadiusPolicySnapshotResponse parses an HTTP response from a GetRadiusPolicySnapshotWithResponse call
+func ParseGetRadiusPolicySnapshotResponse(rsp *http.Response) (*GetRadiusPolicySnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRadiusPolicySnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.StatusCode == 503:
+		break // No content-type
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRadiusPolicySnapshotResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
 	}
 
 	return response, nil

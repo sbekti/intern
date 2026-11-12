@@ -1280,6 +1280,7 @@ func testTimestamp() pgtype.Timestamptz {
 }
 
 type fakeDeviceService struct {
+	policyFn func(context.Context) ([]devices.RADIUSPolicyRecord, error)
 	revealFn func(context.Context, db.User, uuid.UUID) (string, error)
 	listFn   func(ctx context.Context) ([]devices.DeviceRecord, error)
 	getFn    func(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error)
@@ -1477,6 +1478,7 @@ func mustTestConfig(t *testing.T) config.Config {
 
 	cfg := config.Config{
 		WiFiPasswordEncryptionKey: make([]byte, 32),
+		RADIUSSnapshotMaxBytes:    4096,
 		Server:                    config.ServerConfig{Addr: ":8080"},
 		Database:                  config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
 		LogLevel:                  config.LogLevelInfo,
@@ -1566,4 +1568,8 @@ func (f fakeDeviceService) RevealWiFiPassword(ctx context.Context, actor db.User
 		return f.revealFn(ctx, actor, id)
 	}
 	return "", devices.ErrNotFound
+}
+
+func (f fakeDeviceService) RADIUSPolicy(ctx context.Context) ([]devices.RADIUSPolicyRecord, error) {
+	return f.policyFn(ctx)
 }

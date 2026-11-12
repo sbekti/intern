@@ -1041,6 +1041,7 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 	radiusMABTokenHash := sha256.Sum256([]byte(integrationRADIUSMABToken))
 	cfg := config.Config{
 		WiFiPasswordEncryptionKey: make([]byte, 32),
+		RADIUSSnapshotMaxBytes:    4096,
 		Server:                    config.ServerConfig{Addr: ":8080"},
 		Database:                  config.DatabaseConfig{URL: databaseURL},
 		LogLevel:                  config.LogLevelInfo,
@@ -1074,8 +1075,8 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 		Authorization: config.AuthorizationConfig{
 			AdminGroups: []string{"Super-Users"},
 		},
-		RADIUSMAB: config.RADIUSMABConfig{
-			TokenHashes: []config.RADIUSMABTokenHash{{Site: "integration", SHA256: radiusMABTokenHash}},
+		RADIUSMAB: config.RADIUSSnapshotConfig{
+			TokenHashes: []config.RADIUSTokenHash{{Site: "integration", SHA256: radiusMABTokenHash}},
 		},
 	}
 

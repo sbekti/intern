@@ -104,7 +104,7 @@ func newRADIUSMABTestHandler(t *testing.T, records []devices.DeviceRecord) http.
 	t.Helper()
 	cfg := mustTestConfig(t)
 	hash := sha256.Sum256([]byte(testRADIUSMABToken))
-	cfg.RADIUSMAB.TokenHashes = []config.RADIUSMABTokenHash{{Site: "site-one", SHA256: hash}}
+	cfg.RADIUSMAB.TokenHashes = []config.RADIUSTokenHash{{Site: "site-one", SHA256: hash}}
 	return NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
 		DeviceService: fakeDeviceService{listFn: func(_ context.Context) ([]devices.DeviceRecord, error) {
 			return records, nil

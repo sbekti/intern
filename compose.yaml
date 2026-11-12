@@ -7,6 +7,7 @@ services:
       INTERN_API_ADDR: ":8080"
       INTERN_API_DATABASE_URL: "${INTERN_API_DATABASE_URL:?set the explicitly configured production database URL}"
       INTERN_API_LOG_LEVEL: "${INTERN_API_LOG_LEVEL:?set the API log level}"
+      RADIUS_SNAPSHOT_MAX_BYTES: "${RADIUS_SNAPSHOT_MAX_BYTES:-}"
       WIFI_PASSWORD_ENCRYPTION_KEY: "${WIFI_PASSWORD_ENCRYPTION_KEY:-}"
       AUTH_PUBLIC_BASE_URL: "${AUTH_PUBLIC_BASE_URL:?set the public application URL}"
       AUTH_JWT_ISSUER: "${AUTH_JWT_ISSUER:?set the JWT issuer}"

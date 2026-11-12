@@ -21,7 +21,9 @@ type Config struct {
 	Auth                      AuthConfig
 	TrustedProxy              TrustedProxyConfig
 	Authorization             AuthorizationConfig
-	RADIUSMAB                 RADIUSMABConfig
+	RADIUSMAB                 RADIUSSnapshotConfig
+	RADIUSPolicy              RADIUSSnapshotConfig
+	RADIUSSnapshotMaxBytes    int64
 	WiFiPasswordEncryptionKey []byte
 }
 
@@ -66,9 +68,9 @@ type TrustedProxyConfig struct {
 
 type AuthorizationConfig struct{ AdminGroups []string }
 
-type RADIUSMABConfig struct{ TokenHashes []RADIUSMABTokenHash }
+type RADIUSSnapshotConfig struct{ TokenHashes []RADIUSTokenHash }
 
-type RADIUSMABTokenHash struct {
+type RADIUSTokenHash struct {
 	Site   string
 	SHA256 [sha256.Size]byte
 }
@@ -147,7 +149,15 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	radiusMABTokenHashes, err := envRADIUSMABTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	radiusMABTokenHashes, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	if err != nil {
+		return Config{}, err
+	}
+	radiusSnapshotTokenHashes, err := envRADIUSTokenHashes("RADIUS_SNAPSHOT_TOKEN_HASHES")
+	if err != nil {
+		return Config{}, err
+	}
+	radiusSnapshotMaxBytes, err := envInt64OrDefault("RADIUS_SNAPSHOT_MAX_BYTES", 0)
 	if err != nil {
 		return Config{}, err
 	}
@@ -188,7 +198,9 @@ func Load() (Config, error) {
 			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", ""),
 		},
 		Authorization:             AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
-		RADIUSMAB:                 RADIUSMABConfig{TokenHashes: radiusMABTokenHashes},
+		RADIUSMAB:                 RADIUSSnapshotConfig{TokenHashes: radiusMABTokenHashes},
+		RADIUSPolicy:              RADIUSSnapshotConfig{TokenHashes: radiusSnapshotTokenHashes},
+		RADIUSSnapshotMaxBytes:    radiusSnapshotMaxBytes,
 		WiFiPasswordEncryptionKey: wifiPasswordKey,
 	}
 
@@ -199,6 +211,17 @@ func Load() (Config, error) {
 }
 
 func (c Config) Validate() error {
+	if c.RADIUSSnapshotMaxBytes <= 0 {
+		return fmt.Errorf("RADIUS_SNAPSHOT_MAX_BYTES must be greater than zero")
+	}
+
+	for _, policy := range c.RADIUSPolicy.TokenHashes {
+		for _, mab := range c.RADIUSMAB.TokenHashes {
+			if policy.SHA256 == mab.SHA256 {
+				return fmt.Errorf("RADIUS policy and MAB downloads must use separate tokens")
+			}
+		}
+	}
 	if len(c.WiFiPasswordEncryptionKey) != 32 {
 		return fmt.Errorf("WIFI_PASSWORD_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
 	}
@@ -364,15 +387,16 @@ func envDurationOrDefault(key string, fallback time.Duration) (time.Duration, er
 	return parsed, nil
 }
 
-func envRADIUSMABTokenHashes(key string) ([]RADIUSMABTokenHash, error) {
+func envRADIUSTokenHashes(key string) ([]RADIUSTokenHash, error) {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
 		return nil, nil
 	}
 
 	entries := strings.Split(raw, ",")
-	hashes := make([]RADIUSMABTokenHash, 0, len(entries))
+	hashes := make([]RADIUSTokenHash, 0, len(entries))
 	seen := make(map[string]bool, len(entries))
+	seenHashes := make(map[[sha256.Size]byte]bool, len(entries))
 	for _, entry := range entries {
 		site, hash, ok := strings.Cut(strings.TrimSpace(entry), "=")
 		site = strings.TrimSpace(site)
@@ -385,7 +409,11 @@ func envRADIUSMABTokenHashes(key string) ([]RADIUSMABTokenHash, error) {
 		}
 		var tokenHash [sha256.Size]byte
 		copy(tokenHash[:], decoded)
-		hashes = append(hashes, RADIUSMABTokenHash{Site: site, SHA256: tokenHash})
+		if seenHashes[tokenHash] {
+			return nil, fmt.Errorf("%s must use a different token for each site", key)
+		}
+		seenHashes[tokenHash] = true
+		hashes = append(hashes, RADIUSTokenHash{Site: site, SHA256: tokenHash})
 		seen[site] = true
 	}
 	return hashes, nil
