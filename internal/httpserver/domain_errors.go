@@ -48,6 +48,8 @@ func handleDeviceError(w http.ResponseWriter, err error) {
 		writeAPIError(w, http.StatusNotFound, "not_found", "device not found")
 	case errors.Is(err, devices.ErrConflict):
 		writeAPIError(w, http.StatusConflict, "conflict", "device conflicts with an existing record")
+	case errors.Is(err, devices.ErrPasswordKeyMissing):
+		writeAPIError(w, http.StatusServiceUnavailable, "unavailable", "private Wi-Fi passwords are not configured")
 	default:
 		writeAPIError(w, http.StatusInternalServerError, "internal_error", "device operation failed")
 	}
@@ -55,10 +57,12 @@ func handleDeviceError(w http.ResponseWriter, err error) {
 
 func toAPINetworkDevice(record devices.DeviceRecord) api.NetworkDevice {
 	result := api.NetworkDevice{
-		Id:          openapi_types.UUID(record.Device.ID.Bytes),
-		MacAddress:  record.Device.MacAddress,
-		DisplayName: record.Device.DisplayName,
-		Disabled:    record.Device.Disabled,
+		Id:                         openapi_types.UUID(record.Device.ID.Bytes),
+		MacAddress:                 record.Device.MacAddress,
+		DisplayName:                record.Device.DisplayName,
+		Disabled:                   record.Device.Disabled,
+		PrivateWifiPasswordEnabled: record.Device.PrivateWifiPasswordEnabled,
+		WifiPasswordSet:            len(record.Device.WifiPasswordCiphertext) > 0,
 		Vlan: api.VlanRef{
 			Name:   record.VLAN.Name,
 			VlanId: record.VLAN.VlanID,

@@ -1280,6 +1280,7 @@ func testTimestamp() pgtype.Timestamptz {
 }
 
 type fakeDeviceService struct {
+	revealFn func(context.Context, db.User, uuid.UUID) (string, error)
 	listFn   func(ctx context.Context) ([]devices.DeviceRecord, error)
 	getFn    func(ctx context.Context, id uuid.UUID) (devices.DeviceRecord, error)
 	createFn func(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
@@ -1475,9 +1476,10 @@ func mustTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	cfg := config.Config{
-		Server:   config.ServerConfig{Addr: ":8080"},
-		Database: config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
-		LogLevel: config.LogLevelInfo,
+		WiFiPasswordEncryptionKey: make([]byte, 32),
+		Server:                    config.ServerConfig{Addr: ":8080"},
+		Database:                  config.DatabaseConfig{URL: "postgres://postgres:postgres@127.0.0.1:5432/intern_test?sslmode=disable"},
+		LogLevel:                  config.LogLevelInfo,
 		Auth: config.AuthConfig{
 			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",
@@ -1557,4 +1559,11 @@ func setForwardAuthHeaders(req *http.Request, username, name, email, groups stri
 		req.Header.Set("Remote-Groups", groups)
 	}
 	req.Header.Set("X-Intern-Forward-Auth", "authenticated-ingress")
+}
+
+func (f fakeDeviceService) RevealWiFiPassword(ctx context.Context, actor db.User, id uuid.UUID) (string, error) {
+	if f.revealFn != nil {
+		return f.revealFn(ctx, actor, id)
+	}
+	return "", devices.ErrNotFound
 }

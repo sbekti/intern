@@ -8,6 +8,10 @@ import { toast } from "@/components/ui/toast"
 import { MonitorSmartphoneIcon, PlusIcon } from "lucide-react"
 
 import { GuardedDialog } from "@/components/guarded-dialog"
+import {
+  DeviceWiFiPassword,
+  type WiFiPasswordForm,
+} from "@/components/device-wifi-password"
 import { RecordActions } from "@/components/record-actions"
 import { ListSort } from "@/components/list-sort"
 import {
@@ -100,7 +104,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-type DeviceFormState = {
+type DeviceFormState = WiFiPasswordForm & {
   display_name: string
   mac_address: string
   disabled: boolean
@@ -112,6 +116,8 @@ const defaultFormState: DeviceFormState = {
   mac_address: "",
   disabled: false,
   vlan_id: "",
+  private_wifi_password_enabled: false,
+  wifi_password: "",
 }
 
 const deviceDisabledFieldId = "device-disabled"
@@ -122,6 +128,8 @@ function mapDeviceToForm(device: NetworkDevice): DeviceFormState {
     mac_address: device.mac_address,
     disabled: device.disabled,
     vlan_id: String(device.vlan.vlan_id),
+    private_wifi_password_enabled: device.private_wifi_password_enabled,
+    wifi_password: "",
   }
 }
 
@@ -139,6 +147,8 @@ export function DeviceManager({
   const [form, setForm] = useState<DeviceFormState>(defaultFormState)
   const [initialForm, setInitialForm] = useState(defaultFormState)
   const [submitting, setSubmitting] = useState(false)
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const formBusy = submitting || passwordBusy
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
 
@@ -161,6 +171,11 @@ export function DeviceManager({
     () => [...vlans].sort((a, b) => a.vlan_id - b.vlan_id),
     [vlans]
   )
+
+  function handleDialogOpenChange(open: boolean) {
+    setDialogOpen(open)
+    if (!open) setForm((current) => ({ ...current, wifi_password: "" }))
+  }
 
   function openCreate() {
     setEditing(null)
@@ -193,6 +208,8 @@ export function DeviceManager({
       mac_address: form.mac_address.trim(),
       disabled: form.disabled,
       vlan_id: Number(form.vlan_id),
+      private_wifi_password_enabled: form.private_wifi_password_enabled,
+      ...(form.wifi_password ? { wifi_password: form.wifi_password } : {}),
     }
 
     try {
@@ -210,7 +227,7 @@ export function DeviceManager({
         type: "success",
         title: editing ? "Device updated" : "Device created",
       })
-      setDialogOpen(false)
+      handleDialogOpenChange(false)
       startTransition(() => router.refresh())
     } catch (error) {
       setSubmitError(
@@ -439,12 +456,12 @@ export function DeviceManager({
 
       <GuardedDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={handleDialogOpenChange}
         dirty={JSON.stringify(form) !== JSON.stringify(initialForm)}
-        busy={submitting}
+        busy={formBusy}
       >
         <DialogContent
-          showCloseButton={!submitting}
+          showCloseButton={!formBusy}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
         >
           <DialogHeader>
@@ -452,13 +469,11 @@ export function DeviceManager({
               {editing ? "Edit device" : "Create device"}
             </DialogTitle>
             <DialogDescription>
-              {editing
-                ? "Update the device name, MAC address, VLAN assignment, or authentication state."
-                : "Register a MAC address, attach it to a VLAN, and choose whether it should authenticate through RADIUS."}
+              Assign a network and manage access for this device.
             </DialogDescription>
           </DialogHeader>
           <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
-            <fieldset disabled={submitting} className="min-w-0">
+            <fieldset disabled={formBusy} className="min-w-0">
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="device-name">Display name</FieldLabel>
@@ -495,7 +510,7 @@ export function DeviceManager({
                 <Field>
                   <FieldLabel htmlFor="device-vlan">VLAN</FieldLabel>
                   <Select
-                    disabled={submitting}
+                    disabled={formBusy}
                     value={form.vlan_id}
                     onValueChange={(value) =>
                       setForm((current) => ({
@@ -530,7 +545,7 @@ export function DeviceManager({
                   <Field orientation="horizontal" className="items-start">
                     <Checkbox
                       id={deviceDisabledFieldId}
-                      disabled={submitting}
+                      disabled={formBusy}
                       checked={form.disabled}
                       onCheckedChange={(checked) =>
                         setForm((current) => ({
@@ -544,29 +559,37 @@ export function DeviceManager({
                         Disable this device
                       </FieldLabel>
                       <FieldDescription>
-                        Disabled devices stay visible and keep their MAC
-                        address, but they are excluded from RADIUS
-                        authentication until they are enabled again.
+                        Removes registered access while keeping this device and
+                        its saved settings.
                       </FieldDescription>
                     </FieldContent>
                   </Field>
                 </FieldSet>
+                {dialogOpen && (
+                  <DeviceWiFiPassword
+                    key={editing?.id ?? "new"}
+                    value={form}
+                    deviceId={editing?.id}
+                    passwordSet={editing?.wifi_password_set ?? false}
+                    disabled={formBusy}
+                    onBusyChange={setPasswordBusy}
+                    onChange={(patch) =>
+                      setForm((current) => ({ ...current, ...patch }))
+                    }
+                  />
+                )}
                 <FieldError>{submitError}</FieldError>
               </FieldGroup>
             </fieldset>
             <DialogFooter>
               <DialogClose
                 render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={submitting}
-                  />
+                  <Button type="button" variant="outline" disabled={formBusy} />
                 }
               >
                 Cancel
               </DialogClose>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={formBusy}>
                 {submitting
                   ? "Saving..."
                   : editing

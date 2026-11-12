@@ -27,7 +27,7 @@ INSERT INTO network_devices (
   $5,
   $6
 )
-RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
+RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled, private_wifi_password_enabled, wifi_password_ciphertext
 `
 
 type CreateNetworkDeviceParams struct {
@@ -59,6 +59,8 @@ func (q *Queries) CreateNetworkDevice(ctx context.Context, arg CreateNetworkDevi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Disabled,
+		&i.PrivateWifiPasswordEnabled,
+		&i.WifiPasswordCiphertext,
 	)
 	return i, err
 }
@@ -78,7 +80,7 @@ func (q *Queries) DeleteNetworkDevice(ctx context.Context, arg DeleteNetworkDevi
 }
 
 const getNetworkDeviceByID = `-- name: GetNetworkDeviceByID :one
-SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
+SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled, private_wifi_password_enabled, wifi_password_ciphertext
 FROM network_devices
 WHERE id = $1
 LIMIT 1
@@ -101,12 +103,43 @@ func (q *Queries) GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDevice
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Disabled,
+		&i.PrivateWifiPasswordEnabled,
+		&i.WifiPasswordCiphertext,
+	)
+	return i, err
+}
+
+const getNetworkDeviceForUpdate = `-- name: GetNetworkDeviceForUpdate :one
+SELECT id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled, private_wifi_password_enabled, wifi_password_ciphertext FROM network_devices
+WHERE id = $1
+FOR UPDATE
+`
+
+type GetNetworkDeviceForUpdateParams struct {
+	ID pgtype.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) GetNetworkDeviceForUpdate(ctx context.Context, arg GetNetworkDeviceForUpdateParams) (NetworkDevice, error) {
+	row := q.db.QueryRow(ctx, getNetworkDeviceForUpdate, arg.ID)
+	var i NetworkDevice
+	err := row.Scan(
+		&i.ID,
+		&i.MacAddress,
+		&i.DisplayName,
+		&i.VlanID,
+		&i.CreatedByUserID,
+		&i.UpdatedByUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Disabled,
+		&i.PrivateWifiPasswordEnabled,
+		&i.WifiPasswordCiphertext,
 	)
 	return i, err
 }
 
 const listNetworkDevices = `-- name: ListNetworkDevices :many
-SELECT network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at, vlans.color
+SELECT network_devices.id, network_devices.mac_address, network_devices.display_name, network_devices.vlan_id, network_devices.created_by_user_id, network_devices.updated_by_user_id, network_devices.created_at, network_devices.updated_at, network_devices.disabled, network_devices.private_wifi_password_enabled, network_devices.wifi_password_ciphertext, vlans.vlan_id, vlans.name, vlans.description, vlans.created_at, vlans.updated_at, vlans.color
 FROM network_devices
 JOIN vlans ON vlans.vlan_id = network_devices.vlan_id
 ORDER BY network_devices.display_name, network_devices.id
@@ -136,6 +169,8 @@ func (q *Queries) ListNetworkDevices(ctx context.Context) ([]ListNetworkDevicesR
 			&i.NetworkDevice.CreatedAt,
 			&i.NetworkDevice.UpdatedAt,
 			&i.NetworkDevice.Disabled,
+			&i.NetworkDevice.PrivateWifiPasswordEnabled,
+			&i.NetworkDevice.WifiPasswordCiphertext,
 			&i.Vlan.VlanID,
 			&i.Vlan.Name,
 			&i.Vlan.Description,
@@ -163,7 +198,7 @@ SET
   updated_by_user_id = $5,
   updated_at = NOW()
 WHERE id = $6
-RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled
+RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled, private_wifi_password_enabled, wifi_password_ciphertext
 `
 
 type UpdateNetworkDeviceParams struct {
@@ -195,6 +230,42 @@ func (q *Queries) UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDevi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Disabled,
+		&i.PrivateWifiPasswordEnabled,
+		&i.WifiPasswordCiphertext,
+	)
+	return i, err
+}
+
+const updateNetworkDeviceWiFi = `-- name: UpdateNetworkDeviceWiFi :one
+UPDATE network_devices
+SET private_wifi_password_enabled = $1,
+    wifi_password_ciphertext = $2,
+    updated_at = NOW()
+WHERE id = $3
+RETURNING id, mac_address, display_name, vlan_id, created_by_user_id, updated_by_user_id, created_at, updated_at, disabled, private_wifi_password_enabled, wifi_password_ciphertext
+`
+
+type UpdateNetworkDeviceWiFiParams struct {
+	PrivateWifiPasswordEnabled bool        `db:"private_wifi_password_enabled" json:"private_wifi_password_enabled"`
+	WifiPasswordCiphertext     []byte      `db:"wifi_password_ciphertext" json:"-"`
+	ID                         pgtype.UUID `db:"id" json:"id"`
+}
+
+func (q *Queries) UpdateNetworkDeviceWiFi(ctx context.Context, arg UpdateNetworkDeviceWiFiParams) (NetworkDevice, error) {
+	row := q.db.QueryRow(ctx, updateNetworkDeviceWiFi, arg.PrivateWifiPasswordEnabled, arg.WifiPasswordCiphertext, arg.ID)
+	var i NetworkDevice
+	err := row.Scan(
+		&i.ID,
+		&i.MacAddress,
+		&i.DisplayName,
+		&i.VlanID,
+		&i.CreatedByUserID,
+		&i.UpdatedByUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Disabled,
+		&i.PrivateWifiPasswordEnabled,
+		&i.WifiPasswordCiphertext,
 	)
 	return i, err
 }

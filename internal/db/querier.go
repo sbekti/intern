@@ -30,6 +30,7 @@ type Querier interface {
 	GetGizmoByNetworkDeviceID(ctx context.Context, arg GetGizmoByNetworkDeviceIDParams) (GetGizmoByNetworkDeviceIDRow, error)
 	GetKioskURLByMAC(ctx context.Context, arg GetKioskURLByMACParams) (*string, error)
 	GetNetworkDeviceByID(ctx context.Context, arg GetNetworkDeviceByIDParams) (NetworkDevice, error)
+	GetNetworkDeviceForUpdate(ctx context.Context, arg GetNetworkDeviceForUpdateParams) (NetworkDevice, error)
 	GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error)
 	GetUserByUsername(ctx context.Context, arg GetUserByUsernameParams) (User, error)
 	GetVlanByVlanID(ctx context.Context, arg GetVlanByVlanIDParams) (Vlan, error)
@@ -48,6 +49,7 @@ type Querier interface {
 	UpdateAuthDeviceAuthorizationStatus(ctx context.Context, arg UpdateAuthDeviceAuthorizationStatusParams) (AuthDeviceAuthorization, error)
 	UpdateGizmo(ctx context.Context, arg UpdateGizmoParams) (Gizmo, error)
 	UpdateNetworkDevice(ctx context.Context, arg UpdateNetworkDeviceParams) (NetworkDevice, error)
+	UpdateNetworkDeviceWiFi(ctx context.Context, arg UpdateNetworkDeviceWiFiParams) (NetworkDevice, error)
 	UpdateVlan(ctx context.Context, arg UpdateVlanParams) (Vlan, error)
 	UpsertUserByUsername(ctx context.Context, arg UpsertUserByUsernameParams) (User, error)
 }

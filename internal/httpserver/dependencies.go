@@ -55,6 +55,7 @@ type DeviceService interface {
 	Create(ctx context.Context, actor db.User, input api.NetworkDeviceWrite) (devices.DeviceRecord, error)
 	Update(ctx context.Context, actor db.User, id uuid.UUID, patch api.NetworkDevicePatch) (devices.DeviceRecord, error)
 	Delete(ctx context.Context, actor db.User, id uuid.UUID) error
+	RevealWiFiPassword(ctx context.Context, actor db.User, id uuid.UUID) (string, error)
 }
 
 type GizmoService interface {

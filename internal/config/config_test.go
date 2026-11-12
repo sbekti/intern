@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"net/netip"
 	"testing"
@@ -10,9 +12,10 @@ import (
 
 func testConfig(secret string) Config {
 	return Config{
-		Server:   ServerConfig{Addr: ":8080"},
-		Database: DatabaseConfig{URL: "postgres://localhost/intern"},
-		LogLevel: LogLevelInfo,
+		WiFiPasswordEncryptionKey: make([]byte, 32),
+		Server:                    ServerConfig{Addr: ":8080"},
+		Database:                  DatabaseConfig{URL: "postgres://localhost/intern"},
+		LogLevel:                  LogLevelInfo,
 		Auth: AuthConfig{
 			PublicBaseURL:      "https://intern.bekti.com",
 			JWTIssuer:          "intern.bekti.com",
@@ -40,17 +43,42 @@ func testConfig(secret string) Config {
 		Authorization: AuthorizationConfig{AdminGroups: []string{"Super-Users"}},
 	}
 }
+
+func TestLoadWiFiPasswordKeyIsRequiredAndValidated(t *testing.T) {
+	for key, value := range map[string]string{
+		"INTERN_API_DATABASE_URL": "postgres://localhost/intern_test",
+		"AUTH_PUBLIC_BASE_URL":    "https://example.test", "AUTH_JWT_ISSUER": "example.test",
+		"AUTH_JWT_AUDIENCE": "test", "AUTH_JWT_HMAC_SECRET": "test-jwt-secret",
+		"AUTH_FORWARD_AUTH_MARKER_HEADER": "X-Test-Auth", "AUTH_FORWARD_AUTH_MARKER_VALUE": "test-marker",
+		"RADIUS_MAB_TOKEN_HASHES": "",
+	} {
+		t.Setenv(key, value)
+	}
+	valid := bytes.Repeat([]byte{7}, 32)
+	for _, value := range []string{"", "not base64", base64.StdEncoding.EncodeToString(valid[:31]), base64.StdEncoding.EncodeToString(valid)} {
+		t.Setenv("WIFI_PASSWORD_ENCRYPTION_KEY", value)
+		cfg, err := Load()
+		if value == base64.StdEncoding.EncodeToString(valid) {
+			if err != nil || !bytes.Equal(cfg.WiFiPasswordEncryptionKey, valid) {
+				t.Fatal("valid key was not loaded")
+			}
+		} else if err == nil {
+			t.Fatal("accepted missing or invalid encryption key")
+		}
+	}
+}
 func TestValidateRequiresSecurityConfiguration(t *testing.T) {
 	t.Parallel()
 	if err := testConfig("secret").Validate(); err != nil {
 		t.Fatalf("valid config returned %v", err)
 	}
 	for name, mutate := range map[string]func(*Config){
-		"database": func(cfg *Config) { cfg.Database.URL = "" },
-		"issuer":   func(cfg *Config) { cfg.Auth.JWTIssuer = "" },
-		"audience": func(cfg *Config) { cfg.Auth.JWTAudience = "" },
-		"secret":   func(cfg *Config) { cfg.Auth.JWTHMACSecret = "" },
-		"marker":   func(cfg *Config) { cfg.TrustedProxy.MarkerValue = "" },
+		"Wi-Fi encryption key": func(cfg *Config) { cfg.WiFiPasswordEncryptionKey = nil },
+		"database":             func(cfg *Config) { cfg.Database.URL = "" },
+		"issuer":               func(cfg *Config) { cfg.Auth.JWTIssuer = "" },
+		"audience":             func(cfg *Config) { cfg.Auth.JWTAudience = "" },
+		"secret":               func(cfg *Config) { cfg.Auth.JWTHMACSecret = "" },
+		"marker":               func(cfg *Config) { cfg.TrustedProxy.MarkerValue = "" },
 	} {
 		cfg := testConfig("secret")
 		mutate(&cfg)

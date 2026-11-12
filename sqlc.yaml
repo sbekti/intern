@@ -21,3 +21,6 @@ sql:
         emit_pointers_for_null_types: true
         query_parameter_limit: 0
         json_tags_case_style: snake
+        overrides:
+          - column: network_devices.wifi_password_ciphertext
+            go_struct_tag: 'json:"-"'

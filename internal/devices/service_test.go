@@ -14,6 +14,7 @@ import (
 )
 
 type fakeQuerier struct {
+	updateWiFiFn     func(context.Context, db.UpdateNetworkDeviceWiFiParams) (db.NetworkDevice, error)
 	listFn           func(ctx context.Context) ([]db.ListNetworkDevicesRow, error)
 	getDeviceFn      func(ctx context.Context, arg db.GetNetworkDeviceByIDParams) (db.NetworkDevice, error)
 	createFn         func(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
@@ -85,7 +86,7 @@ func TestServiceListMapsJoinedRows(t *testing.T) {
 				Vlan:          db.Vlan{Name: "iot", VlanID: 20},
 			}}, nil
 		},
-	}, nil)
+	}, nil, nil)
 
 	records, err := service.List(context.Background())
 	if err != nil {
@@ -158,7 +159,7 @@ func TestServiceCreateNormalizesMAC(t *testing.T) {
 				return db.AuditLog{}, nil
 			},
 		},
-	})
+	}, nil)
 
 	record, err := service.Create(context.Background(), db.User{
 		ID:       pgtype.UUID{Valid: true},
@@ -201,7 +202,7 @@ func TestServiceCreatePersistsDisabledState(t *testing.T) {
 				return db.AuditLog{}, nil
 			},
 		},
-	})
+	}, nil)
 
 	record, err := service.Create(context.Background(), db.User{
 		ID:       pgtype.UUID{Valid: true},
@@ -227,7 +228,7 @@ func TestServiceGetReturnsNotFound(t *testing.T) {
 		getDeviceFn: func(ctx context.Context, arg db.GetNetworkDeviceByIDParams) (db.NetworkDevice, error) {
 			return db.NetworkDevice{}, pgx.ErrNoRows
 		},
-	}, nil)
+	}, nil, nil)
 
 	_, err := service.Get(context.Background(), uuid.MustParse("11111111-1111-1111-1111-111111111111"))
 	if !errors.Is(err, ErrNotFound) {
@@ -252,7 +253,7 @@ func TestServiceDeleteTreatsMissingAsSuccess(t *testing.T) {
 				return db.AuditLog{}, nil
 			},
 		},
-	})
+	}, nil)
 
 	if err := service.Delete(context.Background(), db.User{Username: "alice"}, uuid.MustParse("11111111-1111-1111-1111-111111111111")); err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -269,4 +270,11 @@ func TestClassifyDBError(t *testing.T) {
 
 func boolPtrUnit(value bool) *bool {
 	return &value
+}
+
+func (f fakeQuerier) GetNetworkDeviceForUpdate(ctx context.Context, arg db.GetNetworkDeviceForUpdateParams) (db.NetworkDevice, error) {
+	return f.GetNetworkDeviceByID(ctx, db.GetNetworkDeviceByIDParams{ID: arg.ID})
+}
+func (f fakeQuerier) UpdateNetworkDeviceWiFi(ctx context.Context, arg db.UpdateNetworkDeviceWiFiParams) (db.NetworkDevice, error) {
+	return f.updateWiFiFn(ctx, arg)
 }

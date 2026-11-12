@@ -25,6 +25,8 @@ export type NetworkDevice = {
   mac_address: string
   display_name: string
   disabled: boolean
+  private_wifi_password_enabled: boolean
+  wifi_password_set: boolean
   vlan: {
     name: string
     vlan_id: number

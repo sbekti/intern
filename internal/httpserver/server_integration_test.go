@@ -988,7 +988,7 @@ func newHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 		PreferencesStore:  queries,
 		UserStore:         queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
-		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
+		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool), nil),
 		SessionService:    sessionService,
 		ClientAuthService: clientAuthService,
 	})
@@ -1021,7 +1021,7 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, Dependencies{
 		UserStore:         queries,
 		VLANService:       vlans.NewService(queries, vlans.NewPGXTransactor(pg.Pool)),
-		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool)),
+		DeviceService:     devices.NewService(queries, devices.NewPGXTransactor(pg.Pool), nil),
 		SessionService:    sessionService,
 		ClientAuthService: clientAuthService,
 		AuthSpamService:   authspam.NewService(cfg.Auth.RateLimit),
@@ -1040,9 +1040,10 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 func integrationHandlerConfig(databaseURL string) config.Config {
 	radiusMABTokenHash := sha256.Sum256([]byte(integrationRADIUSMABToken))
 	cfg := config.Config{
-		Server:   config.ServerConfig{Addr: ":8080"},
-		Database: config.DatabaseConfig{URL: databaseURL},
-		LogLevel: config.LogLevelInfo,
+		WiFiPasswordEncryptionKey: make([]byte, 32),
+		Server:                    config.ServerConfig{Addr: ":8080"},
+		Database:                  config.DatabaseConfig{URL: databaseURL},
+		LogLevel:                  config.LogLevelInfo,
 		Auth: config.AuthConfig{
 			PublicBaseURL:      "https://intern.corp.example.com",
 			JWTIssuer:          "intern.corp.example.com",

@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -14,13 +15,14 @@ import (
 )
 
 type Config struct {
-	Server        ServerConfig
-	Database      DatabaseConfig
-	LogLevel      LogLevel
-	Auth          AuthConfig
-	TrustedProxy  TrustedProxyConfig
-	Authorization AuthorizationConfig
-	RADIUSMAB     RADIUSMABConfig
+	Server                    ServerConfig
+	Database                  DatabaseConfig
+	LogLevel                  LogLevel
+	Auth                      AuthConfig
+	TrustedProxy              TrustedProxyConfig
+	Authorization             AuthorizationConfig
+	RADIUSMAB                 RADIUSMABConfig
+	WiFiPasswordEncryptionKey []byte
 }
 
 type ServerConfig struct{ Addr string }
@@ -149,6 +151,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	wifiPasswordKey, err := base64.StdEncoding.DecodeString(os.Getenv("WIFI_PASSWORD_ENCRYPTION_KEY"))
+	if err != nil {
+		return Config{}, fmt.Errorf("WIFI_PASSWORD_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
+	}
 
 	cfg := Config{
 		Server:   ServerConfig{Addr: envOrDefault("INTERN_API_ADDR", ":8080")},
@@ -181,8 +187,9 @@ func Load() (Config, error) {
 			MarkerHeader: envOrDefault("AUTH_FORWARD_AUTH_MARKER_HEADER", ""),
 			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", ""),
 		},
-		Authorization: AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
-		RADIUSMAB:     RADIUSMABConfig{TokenHashes: radiusMABTokenHashes},
+		Authorization:             AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
+		RADIUSMAB:                 RADIUSMABConfig{TokenHashes: radiusMABTokenHashes},
+		WiFiPasswordEncryptionKey: wifiPasswordKey,
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -192,6 +199,9 @@ func Load() (Config, error) {
 }
 
 func (c Config) Validate() error {
+	if len(c.WiFiPasswordEncryptionKey) != 32 {
+		return fmt.Errorf("WIFI_PASSWORD_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
+	}
 	if strings.TrimSpace(c.Server.Addr) == "" {
 		return fmt.Errorf("INTERN_API_ADDR must not be empty")
 	}

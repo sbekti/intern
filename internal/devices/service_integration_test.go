@@ -34,7 +34,7 @@ func TestServiceCreateUpdateDeleteWritesDetailedAuditLogs(t *testing.T) {
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-FF",
 		DisplayName: "Camera",
@@ -121,7 +121,7 @@ func TestServiceDisableAndEnableUsesLatestValues(t *testing.T) {
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-55",
 		DisplayName: "Camera",
@@ -203,7 +203,7 @@ func TestServiceCreateRejectsDuplicateNormalizedMAC(t *testing.T) {
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	_, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-FF",
 		DisplayName: "Camera",
@@ -240,7 +240,7 @@ func TestServiceUpdateRejectsMissingVLANWithoutPartialChanges(t *testing.T) {
 	actor := createActor(t, ctx, queries)
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-11",
 		DisplayName: "Sensor",
@@ -284,7 +284,7 @@ func TestServiceUpdateRejectsDuplicateNormalizedMACWithoutPartialChanges(t *test
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 	guestID := vlanNumberByName(t, ctx, pg.Pool, "guest")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	_, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-31",
 		DisplayName: "Sensor",
@@ -336,7 +336,7 @@ func TestServiceDeleteSucceedsWithMissingReferencedVLAN(t *testing.T) {
 	actor := createActor(t, ctx, queries)
 	iotID := vlanNumberByName(t, ctx, pg.Pool, "iot")
 
-	service := NewService(queries, NewPGXTransactor(pg.Pool))
+	service := NewService(queries, NewPGXTransactor(pg.Pool), nil)
 	created, err := service.Create(ctx, actor, api.NetworkDeviceWrite{
 		MacAddress:  "AA-BB-CC-DD-EE-22",
 		DisplayName: "Tablet",

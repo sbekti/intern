@@ -23,6 +23,7 @@ func newDeviceCommand(options *RootOptions) *cobra.Command {
 	cmd.AddCommand(newDevicesEnableCommand(options))
 	cmd.AddCommand(newDevicesDisableCommand(options))
 	cmd.AddCommand(newDevicesDeleteCommand(options))
+	cmd.AddCommand(newDevicePasswordCommand(options))
 	return cmd
 }
 
@@ -88,6 +89,7 @@ func newDevicesListCommand(options *RootOptions) *cobra.Command {
 }
 
 func newDevicesCreateCommand(options *RootOptions) *cobra.Command {
+	var wifi wifiPasswordFlags
 	var name string
 	var macAddress string
 	var vlanID int32
@@ -116,10 +118,16 @@ func newDevicesCreateCommand(options *RootOptions) *cobra.Command {
 				return err
 			}
 
+			enabled, password, err := wifi.read(cmd)
+			if err != nil {
+				return err
+			}
 			device, err := client.CreateNetworkDevice(cmd.Context(), api.NetworkDeviceWrite{
-				DisplayName: name,
-				MacAddress:  macAddress,
-				VlanId:      vlanID,
+				DisplayName:                name,
+				MacAddress:                 macAddress,
+				VlanId:                     vlanID,
+				PrivateWifiPasswordEnabled: enabled,
+				WifiPassword:               password,
 			})
 			if err != nil {
 				return mapDeviceMutationError(err, "create")
@@ -133,11 +141,13 @@ func newDevicesCreateCommand(options *RootOptions) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Device display name")
 	cmd.Flags().StringVar(&macAddress, "mac-address", "", "Device MAC address")
 	cmd.Flags().Int32Var(&vlanID, "vlan-id", 0, "Assigned network VLAN ID")
+	wifi.bind(cmd)
 
 	return cmd
 }
 
 func newDevicesUpdateCommand(options *RootOptions) *cobra.Command {
+	var wifi wifiPasswordFlags
 	var name string
 	var macAddress string
 	var vlanID int32
@@ -148,7 +158,13 @@ func newDevicesUpdateCommand(options *RootOptions) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			patch := api.NetworkDevicePatch{}
-			changed := false
+			enabled, password, err := wifi.read(cmd)
+			if err != nil {
+				return err
+			}
+			patch.PrivateWifiPasswordEnabled = enabled
+			patch.WifiPassword = password
+			changed := enabled != nil || password != nil
 
 			if cmd.Flags().Changed("name") {
 				patch.DisplayName = &name
@@ -195,6 +211,7 @@ func newDevicesUpdateCommand(options *RootOptions) *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Device display name")
 	cmd.Flags().StringVar(&macAddress, "mac-address", "", "Device MAC address")
 	cmd.Flags().Int32Var(&vlanID, "vlan-id", 0, "Assigned network VLAN ID")
+	wifi.bind(cmd)
 
 	return cmd
 }

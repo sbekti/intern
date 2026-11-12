@@ -261,10 +261,14 @@ type NetworkDevice struct {
 	Id              openapi_types.UUID  `json:"id"`
 
 	// MacAddress Example: aa:bb:cc:dd:ee:ff
-	MacAddress      string              `json:"mac_address"`
-	UpdatedAt       time.Time           `json:"updated_at"`
-	UpdatedByUserId *openapi_types.UUID `json:"updated_by_user_id,omitempty"`
-	Vlan            VlanRef             `json:"vlan"`
+	MacAddress                 string              `json:"mac_address"`
+	PrivateWifiPasswordEnabled bool                `json:"private_wifi_password_enabled"`
+	UpdatedAt                  time.Time           `json:"updated_at"`
+	UpdatedByUserId            *openapi_types.UUID `json:"updated_by_user_id,omitempty"`
+	Vlan                       VlanRef             `json:"vlan"`
+
+	// WifiPasswordSet Whether a recoverable password is saved; never contains the password.
+	WifiPasswordSet bool `json:"wifi_password_set"`
 }
 
 // NetworkDeviceList defines model for NetworkDeviceList.
@@ -278,8 +282,12 @@ type NetworkDevicePatch struct {
 	DisplayName *string `json:"display_name,omitempty"`
 
 	// MacAddress Example: aa:bb:cc:dd:ee:ff
-	MacAddress *string `json:"mac_address,omitempty"`
-	VlanId     *int32  `json:"vlan_id,omitempty"`
+	MacAddress                 *string `json:"mac_address,omitempty"`
+	PrivateWifiPasswordEnabled *bool   `json:"private_wifi_password_enabled,omitempty"`
+	VlanId                     *int32  `json:"vlan_id,omitempty"`
+
+	// WifiPassword New password of 8-63 printable ASCII characters. Omit or leave blank to retain the saved password.
+	WifiPassword *string `json:"wifi_password,omitempty"`
 }
 
 // NetworkDeviceWrite defines model for NetworkDeviceWrite.
@@ -288,8 +296,12 @@ type NetworkDeviceWrite struct {
 	DisplayName string `json:"display_name"`
 
 	// MacAddress Example: aa:bb:cc:dd:ee:ff
-	MacAddress string `json:"mac_address"`
-	VlanId     int32  `json:"vlan_id"`
+	MacAddress                 string `json:"mac_address"`
+	PrivateWifiPasswordEnabled *bool  `json:"private_wifi_password_enabled,omitempty"`
+	VlanId                     int32  `json:"vlan_id"`
+
+	// WifiPassword New password of 8-63 printable ASCII characters. Omit or leave blank to retain the saved password.
+	WifiPassword *string `json:"wifi_password,omitempty"`
 }
 
 // Preferences defines model for Preferences.
@@ -358,6 +370,11 @@ type VlanWrite struct {
 	Description *string    `json:"description,omitempty"`
 	Name        string     `json:"name"`
 	VlanId      int32      `json:"vlan_id"`
+}
+
+// WiFiPassword defines model for WiFiPassword.
+type WiFiPassword struct {
+	Password string `json:"password"`
 }
 
 // DeviceId defines model for DeviceId.
@@ -691,6 +708,11 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/networks/devices (the `CreateNetworkDevice` operationId).
 	CreateNetworkDevice(ctx context.Context, body CreateNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GenerateWiFiPassword Generate an unsaved four-word Wi-Fi password.
+	//
+	// Corresponds with POST /api/v1/networks/devices/wifi-password/generate (the `GenerateWiFiPassword` operationId).
+	GenerateWiFiPassword(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteNetworkDevice Delete a network device.
 	//
 	// Corresponds with DELETE /api/v1/networks/devices/{id} (the `DeleteNetworkDevice` operationId).
@@ -714,6 +736,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/networks/devices/{id} (the `PatchNetworkDevice` operationId).
 	PatchNetworkDevice(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RevealWiFiPassword Reveal a saved Wi-Fi password and audit the access.
+	//
+	// Corresponds with POST /api/v1/networks/devices/{id}/wifi-password/reveal (the `RevealWiFiPassword` operationId).
+	RevealWiFiPassword(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListVlans List VLAN definitions.
 	//
@@ -1196,6 +1223,21 @@ func (c *Client) CreateNetworkDevice(ctx context.Context, body CreateNetworkDevi
 	return c.Client.Do(req)
 }
 
+// GenerateWiFiPassword Generate an unsaved four-word Wi-Fi password.
+//
+// Corresponds with POST /api/v1/networks/devices/wifi-password/generate (the `GenerateWiFiPassword` operationId).
+func (c *Client) GenerateWiFiPassword(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGenerateWiFiPasswordRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // DeleteNetworkDevice Delete a network device.
 //
 // Corresponds with DELETE /api/v1/networks/devices/{id} (the `DeleteNetworkDevice` operationId).
@@ -1250,6 +1292,21 @@ func (c *Client) PatchNetworkDeviceWithBody(ctx context.Context, id DeviceId, co
 // Corresponds with PATCH /api/v1/networks/devices/{id} (the `PatchNetworkDevice` operationId).
 func (c *Client) PatchNetworkDevice(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPatchNetworkDeviceRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RevealWiFiPassword Reveal a saved Wi-Fi password and audit the access.
+//
+// Corresponds with POST /api/v1/networks/devices/{id}/wifi-password/reveal (the `RevealWiFiPassword` operationId).
+func (c *Client) RevealWiFiPassword(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRevealWiFiPasswordRequest(c.Server, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2268,6 +2325,33 @@ func NewCreateNetworkDeviceRequestWithBody(server string, contentType string, bo
 	return req, nil
 }
 
+// NewGenerateWiFiPasswordRequest constructs an http.Request for the GenerateWiFiPassword method
+func NewGenerateWiFiPasswordRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/networks/devices/wifi-password/generate")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewDeleteNetworkDeviceRequest constructs an http.Request for the DeleteNetworkDevice method
 func NewDeleteNetworkDeviceRequest(server string, id DeviceId) (*http.Request, error) {
 	var err error
@@ -2379,6 +2463,40 @@ func NewPatchNetworkDeviceRequestWithBody(server string, id DeviceId, contentTyp
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRevealWiFiPasswordRequest constructs an http.Request for the RevealWiFiPassword method
+func NewRevealWiFiPasswordRequest(server string, id DeviceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/networks/devices/%s/wifi-password/reveal", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -3000,6 +3118,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/networks/devices (the `CreateNetworkDevice` operationId).
 	CreateNetworkDeviceWithResponse(ctx context.Context, body CreateNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateNetworkDeviceResponse, error)
 
+	// GenerateWiFiPasswordWithResponse Generate an unsaved four-word Wi-Fi password.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/networks/devices/wifi-password/generate (the `GenerateWiFiPassword` operationId).
+	GenerateWiFiPasswordWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GenerateWiFiPasswordResponse, error)
+
 	// DeleteNetworkDeviceWithResponse Delete a network device.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -3027,6 +3152,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /api/v1/networks/devices/{id} (the `PatchNetworkDevice` operationId).
 	PatchNetworkDeviceWithResponse(ctx context.Context, id DeviceId, body PatchNetworkDeviceJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchNetworkDeviceResponse, error)
+
+	// RevealWiFiPasswordWithResponse Reveal a saved Wi-Fi password and audit the access.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/networks/devices/{id}/wifi-password/reveal (the `RevealWiFiPassword` operationId).
+	RevealWiFiPasswordWithResponse(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*RevealWiFiPasswordResponse, error)
 
 	// ListVlansWithResponse List VLAN definitions.
 	//
@@ -4133,6 +4265,89 @@ func (r CreateNetworkDeviceResponse) ContentType() string {
 	return ""
 }
 
+// GenerateWiFiPasswordResponse200Headers the declared response headers of an HTTP 200 response for GenerateWiFiPassword
+type GenerateWiFiPasswordResponse200Headers struct {
+	CacheControl *string
+}
+
+type GenerateWiFiPasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WiFiPassword
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GenerateWiFiPasswordResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON200() *WiFiPassword {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GenerateWiFiPasswordResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GenerateWiFiPasswordResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GenerateWiFiPasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GenerateWiFiPasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GenerateWiFiPasswordResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type DeleteNetworkDeviceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4327,6 +4542,89 @@ func (r PatchNetworkDeviceResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PatchNetworkDeviceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// RevealWiFiPasswordResponse200Headers the declared response headers of an HTTP 200 response for RevealWiFiPassword
+type RevealWiFiPasswordResponse200Headers struct {
+	CacheControl *string
+}
+
+type RevealWiFiPasswordResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WiFiPassword
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ErrorResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *RevealWiFiPasswordResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON200() *WiFiPassword {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RevealWiFiPasswordResponse) GetJSON503() *ErrorResponse {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r RevealWiFiPasswordResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RevealWiFiPasswordResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevealWiFiPasswordResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevealWiFiPasswordResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -5273,6 +5571,19 @@ func (c *ClientWithResponses) CreateNetworkDeviceWithResponse(ctx context.Contex
 	return ParseCreateNetworkDeviceResponse(rsp)
 }
 
+// GenerateWiFiPasswordWithResponse Generate an unsaved four-word Wi-Fi password.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/networks/devices/wifi-password/generate (the `GenerateWiFiPassword` operationId).
+func (c *ClientWithResponses) GenerateWiFiPasswordWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GenerateWiFiPasswordResponse, error) {
+	rsp, err := c.GenerateWiFiPassword(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGenerateWiFiPasswordResponse(rsp)
+}
+
 // DeleteNetworkDeviceWithResponse Delete a network device.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -5323,6 +5634,19 @@ func (c *ClientWithResponses) PatchNetworkDeviceWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePatchNetworkDeviceResponse(rsp)
+}
+
+// RevealWiFiPasswordWithResponse Reveal a saved Wi-Fi password and audit the access.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/networks/devices/{id}/wifi-password/reveal (the `RevealWiFiPassword` operationId).
+func (c *ClientWithResponses) RevealWiFiPasswordWithResponse(ctx context.Context, id DeviceId, reqEditors ...RequestEditorFn) (*RevealWiFiPasswordResponse, error) {
+	rsp, err := c.RevealWiFiPassword(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRevealWiFiPasswordResponse(rsp)
 }
 
 // ListVlansWithResponse List VLAN definitions.
@@ -6276,6 +6600,80 @@ func ParseCreateNetworkDeviceResponse(rsp *http.Response) (*CreateNetworkDeviceR
 	return response, nil
 }
 
+// ParseGenerateWiFiPasswordResponse parses an HTTP response from a GenerateWiFiPasswordWithResponse call
+func ParseGenerateWiFiPasswordResponse(rsp *http.Response) (*GenerateWiFiPasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GenerateWiFiPasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WiFiPassword
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GenerateWiFiPasswordResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseDeleteNetworkDeviceResponse parses an HTTP response from a DeleteNetworkDeviceWithResponse call
 func ParseDeleteNetworkDeviceResponse(rsp *http.Response) (*DeleteNetworkDeviceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -6429,6 +6827,80 @@ func ParsePatchNetworkDeviceResponse(rsp *http.Response) (*PatchNetworkDeviceRes
 		}
 		response.JSON409 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseRevealWiFiPasswordResponse parses an HTTP response from a RevealWiFiPasswordWithResponse call
+func ParseRevealWiFiPasswordResponse(rsp *http.Response) (*RevealWiFiPasswordResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevealWiFiPasswordResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WiFiPassword
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers RevealWiFiPasswordResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
 	}
 
 	return response, nil

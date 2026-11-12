@@ -5,7 +5,7 @@ export async function mutate(path: string, options: RequestInit) {
   } catch {
     throw new Error("Couldn't reach the server. Try again.")
   }
-  if (response.ok) return
+  if (response.ok) return response
 
   let message = `Request failed (${response.status}). Try again.`
   try {

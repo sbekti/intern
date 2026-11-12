@@ -61,7 +61,12 @@ func main() {
 	clientAuthService := clientauth.NewService(cfg, queries, clientauth.NewPGXTransactor(pool))
 	authSpamService := authspam.NewService(cfg.Auth.RateLimit)
 	auditLogService := auditlogs.NewService(queries)
-	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool))
+	passwordCipher, err := devices.NewPasswordCipher(cfg.WiFiPasswordEncryptionKey)
+	if err != nil {
+		logger.Error("failed to configure Wi-Fi password encryption", "error", err)
+		os.Exit(1)
+	}
+	deviceService := devices.NewService(queries, devices.NewPGXTransactor(pool), passwordCipher)
 	gizmoService := gizmos.NewService(queries, gizmos.NewPGXTransactor(pool))
 	sessionService := sessions.NewService(queries)
 	vlanService := vlans.NewService(queries, vlans.NewPGXTransactor(pool))

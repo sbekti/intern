@@ -551,6 +551,74 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/networks/devices/wifi-password/generate:
+    post:
+      operationId: generateWiFiPassword
+      tags: [Networks]
+      summary: Generate an unsaved four-word Wi-Fi password.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wi-Fi password. Not cacheable.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Always no-store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WiFiPassword'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Wi-Fi password encryption is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/networks/devices/{id}/wifi-password/reveal:
+    post:
+      operationId: revealWiFiPassword
+      tags: [Networks]
+      summary: Reveal a saved Wi-Fi password and audit the access.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Wi-Fi password. Not cacheable.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+              description: Always no-store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WiFiPassword'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: Wi-Fi password encryption is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/v1/gizmos:
     get:
       operationId: listGizmos
@@ -1134,6 +1202,8 @@ components:
         - mac_address
         - display_name
         - disabled
+        - private_wifi_password_enabled
+        - wifi_password_set
         - vlan
         - created_at
         - updated_at
@@ -1148,6 +1218,11 @@ components:
           type: string
         disabled:
           type: boolean
+        private_wifi_password_enabled:
+          type: boolean
+        wifi_password_set:
+          type: boolean
+          description: Whether a recoverable password is saved; never contains the password.
         vlan:
           $ref: '#/components/schemas/VlanRef'
         created_by_user_id:
@@ -1176,6 +1251,13 @@ components:
       type: object
       required: [mac_address, display_name, vlan_id]
       properties:
+        private_wifi_password_enabled:
+          type: boolean
+        wifi_password:
+          type: string
+          writeOnly: true
+          maxLength: 63
+          description: New password of 8-63 printable ASCII characters. Omit or leave blank to retain the saved password.
         mac_address:
           type: string
           example: aa:bb:cc:dd:ee:ff
@@ -1191,6 +1273,13 @@ components:
     NetworkDevicePatch:
       type: object
       properties:
+        private_wifi_password_enabled:
+          type: boolean
+        wifi_password:
+          type: string
+          writeOnly: true
+          maxLength: 63
+          description: New password of 8-63 printable ASCII characters. Omit or leave blank to retain the saved password.
         mac_address:
           type: string
           example: aa:bb:cc:dd:ee:ff
@@ -1203,6 +1292,12 @@ components:
           format: int32
           minimum: 1
           maximum: 4094
+    WiFiPassword:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
     Gizmo:
       type: object
       required: [network_device, kiosk_url, created_at, updated_at]

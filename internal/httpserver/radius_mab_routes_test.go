@@ -22,7 +22,8 @@ func TestRADIUSMABSnapshot(t *testing.T) {
 	t.Parallel()
 
 	records := []devices.DeviceRecord{
-		{Device: db.NetworkDevice{MacAddress: "AA:BB:CC:DD:EE:02", DisplayName: "must-not-leak", VlanID: 20}},
+		{Device: db.NetworkDevice{MacAddress: "AA:BB:CC:DD:EE:02", DisplayName: "must-not-leak", VlanID: 20,
+			PrivateWifiPasswordEnabled: true, WifiPasswordCiphertext: []byte("must-not-leak")}},
 		{Device: db.NetworkDevice{MacAddress: "AA:BB:CC:DD:EE:03", VlanID: 30, Disabled: true}},
 		{Device: db.NetworkDevice{MacAddress: "AA:BB:CC:DD:EE:01", VlanID: 10}},
 	}
@@ -81,6 +82,8 @@ func TestRADIUSMABSnapshotTokenIsRouteSpecific(t *testing.T) {
 		"wrong token":        {http.MethodGet, radiusMABSnapshotPath, "wrong", http.StatusUnauthorized},
 		"human route":        {http.MethodGet, "/api/v1/networks/devices", testRADIUSMABToken, http.StatusUnauthorized},
 		"human write route":  {http.MethodPost, "/api/v1/networks/devices", testRADIUSMABToken, http.StatusUnauthorized},
+		"password reveal":    {http.MethodPost, "/api/v1/networks/devices/11111111-1111-1111-1111-111111111111/wifi-password/reveal", testRADIUSMABToken, http.StatusUnauthorized},
+		"password generate":  {http.MethodPost, "/api/v1/networks/devices/wifi-password/generate", testRADIUSMABToken, http.StatusUnauthorized},
 		"unsupported method": {http.MethodPost, radiusMABSnapshotPath, testRADIUSMABToken, http.StatusUnauthorized},
 	} {
 		t.Run(name, func(t *testing.T) {

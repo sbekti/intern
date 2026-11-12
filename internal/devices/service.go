@@ -40,6 +40,8 @@ type DeviceRecord struct {
 type Querier interface {
 	ListNetworkDevices(ctx context.Context) ([]db.ListNetworkDevicesRow, error)
 	GetNetworkDeviceByID(ctx context.Context, arg db.GetNetworkDeviceByIDParams) (db.NetworkDevice, error)
+	GetNetworkDeviceForUpdate(ctx context.Context, arg db.GetNetworkDeviceForUpdateParams) (db.NetworkDevice, error)
+	UpdateNetworkDeviceWiFi(ctx context.Context, arg db.UpdateNetworkDeviceWiFiParams) (db.NetworkDevice, error)
 	CreateNetworkDevice(ctx context.Context, arg db.CreateNetworkDeviceParams) (db.NetworkDevice, error)
 	UpdateNetworkDevice(ctx context.Context, arg db.UpdateNetworkDeviceParams) (db.NetworkDevice, error)
 	DeleteNetworkDevice(ctx context.Context, arg db.DeleteNetworkDeviceParams) error
@@ -52,18 +54,20 @@ type Transactor interface {
 }
 
 type Service struct {
-	queries Querier
-	tx      Transactor
+	queries        Querier
+	tx             Transactor
+	passwordCipher *PasswordCipher
 }
 
 type PGXTransactor struct {
 	pool *pgxpool.Pool
 }
 
-func NewService(queries Querier, tx Transactor) *Service {
+func NewService(queries Querier, tx Transactor, passwordCipher *PasswordCipher) *Service {
 	return &Service{
-		queries: queries,
-		tx:      tx,
+		queries:        queries,
+		tx:             tx,
+		passwordCipher: passwordCipher,
 	}
 }
 
@@ -160,7 +164,12 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 			return classifyDBError(err)
 		}
 
-		metadata, err := json.Marshal(map[string]any{
+		device, err = s.updateWiFiPassword(ctx, q, device, input.PrivateWifiPasswordEnabled, input.WifiPassword)
+		if err != nil {
+			return err
+		}
+
+		metadataBody := map[string]any{
 			"after": map[string]any{
 				"id":           deviceIDString(device.ID),
 				"mac_address":  device.MacAddress,
@@ -168,7 +177,11 @@ func (s *Service) Create(ctx context.Context, actor db.User, input api.NetworkDe
 				"disabled":     device.Disabled,
 				"vlan_id":      device.VlanID,
 			},
-		})
+		}
+		if input.PrivateWifiPasswordEnabled != nil || (input.WifiPassword != nil && *input.WifiPassword != "") {
+			metadataBody["wifi"] = wiFiAuditMetadata(device, input.WifiPassword)
+		}
+		metadata, err := json.Marshal(metadataBody)
 		if err != nil {
 			return err
 		}
@@ -202,7 +215,7 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 
 	var updated DeviceRecord
 	err := s.tx.InTx(ctx, func(q Querier) error {
-		current, err := q.GetNetworkDeviceByID(ctx, db.GetNetworkDeviceByIDParams{ID: toPgUUID(id)})
+		current, err := q.GetNetworkDeviceForUpdate(ctx, db.GetNetworkDeviceForUpdateParams{ID: toPgUUID(id)})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
@@ -235,6 +248,10 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 		if err != nil {
 			return classifyDBError(err)
 		}
+		device, err = s.updateWiFiPassword(ctx, q, device, patch.PrivateWifiPasswordEnabled, patch.WifiPassword)
+		if err != nil {
+			return err
+		}
 
 		action := "device.update"
 		switch {
@@ -265,6 +282,9 @@ func (s *Service) Update(ctx context.Context, actor db.User, id uuid.UUID, patch
 			metadataBody["new_mac_address"] = device.MacAddress
 		}
 
+		if patch.PrivateWifiPasswordEnabled != nil || (patch.WifiPassword != nil && *patch.WifiPassword != "") {
+			metadataBody["wifi"] = wiFiAuditMetadata(device, patch.WifiPassword)
+		}
 		metadata, err := json.Marshal(metadataBody)
 		if err != nil {
 			return err
@@ -365,7 +385,7 @@ func normalizeCreate(input api.NetworkDeviceWrite) (normalizedCreate, error) {
 }
 
 func mergePatch(current db.NetworkDevice, patch api.NetworkDevicePatch) (db.UpdateNetworkDeviceParams, error) {
-	if patch.DisplayName == nil && patch.VlanId == nil && patch.MacAddress == nil && patch.Disabled == nil {
+	if patch.DisplayName == nil && patch.VlanId == nil && patch.MacAddress == nil && patch.Disabled == nil && patch.PrivateWifiPasswordEnabled == nil && patch.WifiPassword == nil {
 		return db.UpdateNetworkDeviceParams{}, ValidationError{Message: "patch must include at least one field"}
 	}
 

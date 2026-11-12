@@ -63,15 +63,17 @@ type Gizmo struct {
 }
 
 type NetworkDevice struct {
-	ID              pgtype.UUID        `db:"id" json:"id"`
-	MacAddress      string             `db:"mac_address" json:"mac_address"`
-	DisplayName     string             `db:"display_name" json:"display_name"`
-	VlanID          int32              `db:"vlan_id" json:"vlan_id"`
-	CreatedByUserID pgtype.UUID        `db:"created_by_user_id" json:"created_by_user_id"`
-	UpdatedByUserID pgtype.UUID        `db:"updated_by_user_id" json:"updated_by_user_id"`
-	CreatedAt       pgtype.Timestamptz `db:"created_at" json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
-	Disabled        bool               `db:"disabled" json:"disabled"`
+	ID                         pgtype.UUID        `db:"id" json:"id"`
+	MacAddress                 string             `db:"mac_address" json:"mac_address"`
+	DisplayName                string             `db:"display_name" json:"display_name"`
+	VlanID                     int32              `db:"vlan_id" json:"vlan_id"`
+	CreatedByUserID            pgtype.UUID        `db:"created_by_user_id" json:"created_by_user_id"`
+	UpdatedByUserID            pgtype.UUID        `db:"updated_by_user_id" json:"updated_by_user_id"`
+	CreatedAt                  pgtype.Timestamptz `db:"created_at" json:"created_at"`
+	UpdatedAt                  pgtype.Timestamptz `db:"updated_at" json:"updated_at"`
+	Disabled                   bool               `db:"disabled" json:"disabled"`
+	PrivateWifiPasswordEnabled bool               `db:"private_wifi_password_enabled" json:"private_wifi_password_enabled"`
+	WifiPasswordCiphertext     []byte             `db:"wifi_password_ciphertext" json:"-"`
 }
 
 type User struct {

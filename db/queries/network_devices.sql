@@ -10,6 +10,19 @@ FROM network_devices
 WHERE id = sqlc.arg(id)
 LIMIT 1;
 
+-- name: GetNetworkDeviceForUpdate :one
+SELECT * FROM network_devices
+WHERE id = sqlc.arg(id)
+FOR UPDATE;
+
+-- name: UpdateNetworkDeviceWiFi :one
+UPDATE network_devices
+SET private_wifi_password_enabled = sqlc.arg(private_wifi_password_enabled),
+    wifi_password_ciphertext = sqlc.narg(wifi_password_ciphertext),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;
+
 -- name: CreateNetworkDevice :one
 INSERT INTO network_devices (
   mac_address,

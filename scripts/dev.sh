@@ -66,15 +66,15 @@ fi
 
 printf 'Kubernetes context: %s\n' "$(kubectl config current-context)"
 
-load_database_url() {
-  local encoded
+load_backend_secret() {
+  local key=$1 encoded
 
-  if ! encoded="$(kubectl get secret intern-backend-secret -o 'jsonpath={.data.INTERN_API_DATABASE_URL}')"; then
-    printf '%s\n' 'Could not read INTERN_API_DATABASE_URL from intern-backend-secret in the current namespace.' >&2
+  if ! encoded="$(kubectl get secret intern-backend-secret -o "jsonpath={.data.$key}")"; then
+    printf 'Could not read %s from intern-backend-secret in the current namespace.\n' "$key" >&2
     exit 1
   fi
   if [[ -z "$encoded" ]]; then
-    printf '%s\n' 'INTERN_API_DATABASE_URL is missing from intern-backend-secret.' >&2
+    printf '%s is missing from intern-backend-secret.\n' "$key" >&2
     exit 1
   fi
 
@@ -103,8 +103,9 @@ rewrite_database_url() {
   printf '%s@host.docker.internal:15432/%s' "$credentials" "$database_path"
 }
 
-cluster_database_url="$(load_database_url)"
+cluster_database_url="$(load_backend_secret INTERN_API_DATABASE_URL)"
 export INTERN_API_DATABASE_URL="$(rewrite_database_url "$cluster_database_url")"
+export WIFI_PASSWORD_ENCRYPTION_KEY="$(load_backend_secret WIFI_PASSWORD_ENCRYPTION_KEY)"
 unset cluster_database_url
 export AUTH_JWT_HMAC_SECRET="$(openssl rand -hex 32)"
 export INTERN_DEV_IDENTITY_MARKER="$(openssl rand -hex 32)"

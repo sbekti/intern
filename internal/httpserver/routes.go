@@ -23,6 +23,7 @@ func registerAPIRoutes(
 		registerSystemProfileRoutes(r, authorizer, sessionService)
 		registerAdminRoutes(r, authorizer, sessionService, auditLogService)
 		registerNetworkRoutes(r, authorizer, vlanService, deviceService)
+		registerWiFiPasswordRoutes(r, authorizer, deviceService)
 		registerGizmoRoutes(r, authorizer, gizmoService)
 		registerDeviceAuthRoutes(r, logger, authorizer, clientAuthService, authSpamService)
 	})

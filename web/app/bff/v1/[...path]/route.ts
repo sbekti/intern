@@ -79,6 +79,7 @@ async function proxy(request: NextRequest, path: string[]) {
   })
 
   const headers = new Headers()
+  headers.set("cache-control", "no-store")
   const contentType = response.headers.get("content-type")
 
   if (contentType) {

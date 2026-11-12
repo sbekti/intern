@@ -51,6 +51,51 @@ namespaces and preserve others. The first namespace is `dashboard`, containing
 there are no per-account overrides. Deploy the additive database migration
 before the updated API and frontend.
 
+## Private Wi-Fi passwords
+
+The device editor can save a private Wi-Fi password or retain the shared-password
+policy. Generate fills an unsaved four-word EFF passphrase; Save commits it and
+Cancel discards edits. Blank password fields retain the saved value. Turning
+private access off retains the encrypted password for later reuse. These are
+saved policies, not live access-point status; network policy delivery is separate.
+
+Passwords accept 8 to 63 printable ASCII characters. They are encrypted with
+AES-256-GCM using random nonces and the immutable device UUID as authenticated
+data. Ordinary device responses expose only enabled/present metadata. Saved
+passwords are revealed only through an admin-only, audited POST with
+`Cache-Control: no-store`; audit records contain neither plaintext nor ciphertext.
+
+RADIUS needs the original Wi-Fi key. This is the
+[recoverable-secret case described by OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#hashing-vs-encryption).
+The implementation uses Go's
+[AES-GCM with automatic random nonces](https://pkg.go.dev/crypto/cipher#NewGCMWithRandomNonce)
+and follows [OWASP's key separation guidance](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html#separation-of-keys-and-data).
+
+Set `WIFI_PASSWORD_ENCRYPTION_KEY` to a base64-encoded random 32-byte key in the
+deployment's encrypted secret. Keep it outside the database. Back up both the
+encrypted database and this key: restoring one without the other cannot recover
+passwords. Restore the original device UUIDs with the ciphertext. For SOPS
+deployments, retain the identity needed to decrypt the secret. Keep the same
+key across replicas and deployments. Do not regenerate
+it during startup or development. Rotation requires re-encrypting stored records;
+replacing the environment value alone makes existing ciphertext unreadable.
+The backend requires this key at startup, like its existing JWT secret.
+
+Apply the additive database migration, provision the backend key, then deploy the
+API and frontend. Development against the deployed database uses its deployed key.
+
+```sh
+# Generate and save through stdin, without password arguments or terminal output.
+internctl device password generate |
+  internctl device update <id> --private-wifi-password --wifi-password-stdin
+# Alternatively, prompt without echoing the password.
+internctl device update <id> --private-wifi-password --wifi-password
+internctl device update <id> --private-wifi-password=false
+# These explicit actions print a password to stdout.
+internctl device password generate
+internctl device password show <id>
+```
+
 ## Development
 
 Intern development connects to the production PostgreSQL and Prometheus services
@@ -67,7 +112,8 @@ The defaults work at `http://127.0.0.1:3000`. To open Intern from another
 machine, change `AUTH_PUBLIC_BASE_URL` in `.env` to the URL used by your browser,
 such as `http://<host-ip>:3000`. This is the only host-specific setting.
 
-At startup, the helper reads `INTERN_API_DATABASE_URL` and the deployed metrics
+At startup, the helper reads `INTERN_API_DATABASE_URL`, the deployed Wi-Fi
+encryption key, and the deployed metrics
 ConfigMap from the current Kubernetes namespace. It rewrites the database host
 to the local PostgreSQL port-forward and mounts the metrics definition from a
 temporary file, without storing either value in `.env`. The temporary metrics
