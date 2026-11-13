@@ -19,3 +19,7 @@ registry and reviewing the dry-run diff:
 npx shadcn@latest info
 npx shadcn@latest docs <component>
 ```
+
+Set `AUTH_PUBLIC_BASE_URL` to the externally visible application URL. Browser
+mutations require an exact matching Origin; missing or foreign origins are
+rejected before forwarding credentials or request bodies to the API.

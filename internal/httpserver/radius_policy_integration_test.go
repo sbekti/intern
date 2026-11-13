@@ -79,10 +79,10 @@ func TestHandlerIntegrationRADIUSPolicy(t *testing.T) {
 	if mab.Code != http.StatusOK || strings.Contains(mab.Body.String(), "Tunnel-Password") {
 		t.Fatal("private passwords altered the credential-free MAB contract")
 	}
-	if infra := os.Getenv("HOMEINFRA_ANSIBLE_DIR"); infra != "" {
+	if script := os.Getenv("RADIUS_NATIVE_TEST_SCRIPT"); script != "" {
 		image := os.Getenv("RADIUS_NATIVE_TEST_IMAGE")
 		if image == "" {
-			t.Fatal("set RADIUS_NATIVE_TEST_IMAGE with HOMEINFRA_ANSIBLE_DIR")
+			t.Fatal("set RADIUS_NATIVE_TEST_IMAGE with RADIUS_NATIVE_TEST_SCRIPT")
 		}
 		directory := t.TempDir()
 		policyPath, passwordPath := filepath.Join(directory, "policy-users"), filepath.Join(directory, "private-password")
@@ -92,8 +92,7 @@ func TestHandlerIntegrationRADIUSPolicy(t *testing.T) {
 		if err := os.WriteFile(passwordPath, []byte(password), 0600); err != nil {
 			t.Fatal(err)
 		}
-		command := exec.CommandContext(ctx, "sh", filepath.Join(infra, "tests", "test-radius-native.sh"), image, policyPath, passwordPath)
-		command.Env = append(os.Environ(), "PYTHON="+filepath.Join(infra, ".venv", "bin", "python"))
+		command := exec.CommandContext(ctx, script, image, policyPath, passwordPath)
 		output, err := command.CombinedOutput()
 		if err != nil {
 			t.Fatalf("native RADIUS protocol checks failed: %v\n%s", err, output)

@@ -88,7 +88,7 @@ API and frontend. Development against the deployed database uses its deployed ke
 ```sh
 # Generate and save through stdin, without password arguments or terminal output.
 internctl device password generate |
-  internctl device update <id> --private-wifi-password --wifi-password-stdin
+  internctl device update <id> --private-wifi-password --wifi-password
 # Alternatively, prompt without echoing the password.
 internctl device update <id> --private-wifi-password --wifi-password
 internctl device update <id> --private-wifi-password=false
@@ -117,10 +117,8 @@ site's verified cutover and rollback window, retire its old MAB token and hash
 entry. Other sites keep their MAB credentials until they migrate.
 
 Set the required `RADIUS_SNAPSHOT_MAX_BYTES` environment variable to a positive
-byte limit appropriate for the router transport. Homeinfra supplies one shared
-`snapshot_max_bytes` deployment setting to Ansible, RouterOS, and the backend
-ConfigMap. Development loads that deployed ConfigMap value. There is no numeric
-default in the application. The device service handles inventory and decryption.
+byte limit appropriate for the receiver transport. There is no numeric default
+in the application. The device service handles inventory and decryption.
 Both HTTP endpoints share the FreeRADIUS renderer; the policy endpoint enforces
 the configured byte limit.
 
@@ -139,19 +137,16 @@ return HTTP 503
 without partial policy. The router retains its last-good file. Revoking a
 download token stops updates; it does not erase already cached policy.
 
-Homeinfra uses its existing five-minute scheduler and container restart/rollback
-procedure. It downloads changed content directly to disk because RouterOS logs
-values supplied to file-content commands. The staged file must match the
-validated in-memory response before installation. A second download is needed
-only when the revision changes. Changes apply at a fresh RADIUS authorization;
-there is no automatic disconnect or CoA.
+Consumers should retain the last working policy when a download fails. Changes
+apply at a fresh RADIUS authorization; there is no automatic disconnect or CoA.
 
 The optional integration check below exercises a real API/database policy with
-Homeinfra's native FreeRADIUS protocol tests. Use the published runtime image
-pinned by the deployment being tested; all credentials in this check are synthetic.
+an external native FreeRADIUS protocol test. The executable receives the runtime
+image, policy file, and password file as positional arguments. It inherits the
+caller's environment. All credentials in this check are synthetic.
 
 ```sh
-HOMEINFRA_ANSIBLE_DIR=/path/to/homeinfra/ansible \
+RADIUS_NATIVE_TEST_SCRIPT=/path/to/radius-protocol-test \
 RADIUS_NATIVE_TEST_IMAGE=<published-runtime-image> \
   go test -tags integration ./internal/httpserver -run TestHandlerIntegrationRADIUSPolicy -v
 ```

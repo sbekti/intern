@@ -27,7 +27,7 @@ func TestAuditSearchAcrossPages(t *testing.T) {
 	}
 	for i := 0; i < 6; i++ {
 		metadata, err := json.Marshal(map[string]any{
-			"display_name": "BDO1 Camera", "mac": "AA:BB:CC:00:01", "note": "100% Office_LAN",
+			"display_name": "Office Camera", "mac": "AA:BB:CC:00:01", "note": "100% Office_LAN",
 		})
 		if err != nil {
 			t.Fatal(err)

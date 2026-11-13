@@ -27,8 +27,7 @@ func renderRADIUSSnapshot(marker string, records []devices.RADIUSPolicyRecord) [
 	return []byte(fmt.Sprintf("# %s\n# revision=%x\n%s", marker, revision, entryText))
 }
 
-// Escape expansions before FreeRADIUS parses the literal value. Keep this in
-// step with Homeinfra's freeradius_quote filter for native configuration.
+// Escape expansions before FreeRADIUS parses the literal value.
 func quoteRADIUSLiteral(value string) string {
 	escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\044`, "%", `\045`).Replace(value)
 	return `"` + escaped + `"`

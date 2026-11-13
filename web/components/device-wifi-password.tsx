@@ -1,7 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { CopyIcon, EyeIcon, EyeOffIcon, RefreshCwIcon } from "lucide-react"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Field,
@@ -11,7 +22,6 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui/toast"
 import { buildBffPath } from "@/lib/bff"
 import { mutate } from "@/lib/mutations"
@@ -101,10 +111,10 @@ export function DeviceWiFiPassword({
 
   return (
     <FieldSet>
-      <Field orientation="horizontal" data-disabled={disabled}>
+      <Field orientation="horizontal" data-disabled={disabled || busy}>
         <Checkbox
           id="device-private-wifi"
-          disabled={disabled}
+          disabled={disabled || busy}
           checked={value.private_wifi_password_enabled}
           onCheckedChange={(checked) =>
             onChange({ private_wifi_password_enabled: checked })
@@ -112,11 +122,8 @@ export function DeviceWiFiPassword({
         />
         <FieldContent>
           <FieldLabel htmlFor="device-private-wifi">
-            Use private Wi-Fi password
+            Give this device its own Wi-Fi password
           </FieldLabel>
-          <FieldDescription>
-            Applies on networks configured for private passwords.
-          </FieldDescription>
         </FieldContent>
       </Field>
       {value.private_wifi_password_enabled && (
@@ -124,59 +131,82 @@ export function DeviceWiFiPassword({
           <FieldLabel htmlFor="device-wifi-passphrase">
             Wi-Fi password
           </FieldLabel>
-          <Input
-            id="device-wifi-passphrase"
-            name="wifi-passphrase"
-            type={visible ? "text" : "password"}
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-            pattern="[ -~]{8,63}"
-            title="Use 8 to 63 printable ASCII characters."
-            required={!passwordSet}
-            disabled={disabled || busy}
-            aria-invalid={Boolean(error)}
-            placeholder={passwordSet ? "Saved password" : "Enter a password"}
-            value={value.wifi_password || savedPassword || ""}
-            onChange={(event) => {
-              setSavedPassword(null)
-              onChange({ wifi_password: event.target.value })
-            }}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
+          <InputGroup>
+            <InputGroupInput
+              id="device-wifi-passphrase"
+              name="wifi-passphrase"
+              type={visible ? "text" : "password"}
+              autoComplete="off"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              pattern="[ -~]{8,63}"
+              title="Use 8 to 63 printable ASCII characters."
+              required={!passwordSet}
               disabled={disabled || busy}
-              onClick={() => handleAction("generate")}
-            >
-              Generate
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled || busy || !hasPassword}
-              onClick={() => handleAction("show")}
-            >
-              {visible ? "Hide" : "Show"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={disabled || busy || !hasPassword}
-              onClick={() => handleAction("copy")}
-            >
-              Copy
-            </Button>
-          </div>
-          <FieldDescription>
-            {passwordSet ? "Leave blank to keep the saved password. " : ""}
-            Turning private access off keeps the saved password.
-          </FieldDescription>
+              aria-invalid={Boolean(error)}
+              placeholder={passwordSet ? "Saved password" : "Enter a password"}
+              value={value.wifi_password || savedPassword || ""}
+              onChange={(event) => {
+                setSavedPassword(null)
+                onChange({ wifi_password: event.target.value })
+              }}
+            />
+            <InputGroupAddon align="inline-end">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <InputGroupButton
+                      size="icon-sm"
+                      aria-label={visible ? "Hide password" : "Show password"}
+                      disabled={disabled || busy || !hasPassword}
+                      onClick={() => handleAction("show")}
+                    />
+                  }
+                >
+                  {visible ? <EyeOffIcon /> : <EyeIcon />}
+                </TooltipTrigger>
+                <TooltipContent>
+                  {visible ? "Hide password" : "Show password"}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <InputGroupButton
+                      size="icon-sm"
+                      aria-label="Copy password"
+                      disabled={disabled || busy || !hasPassword}
+                      onClick={() => handleAction("copy")}
+                    />
+                  }
+                >
+                  <CopyIcon />
+                </TooltipTrigger>
+                <TooltipContent>Copy password</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <InputGroupButton
+                      size="icon-sm"
+                      aria-label="Generate password"
+                      disabled={disabled || busy}
+                      onClick={() => handleAction("generate")}
+                    />
+                  }
+                >
+                  <RefreshCwIcon />
+                </TooltipTrigger>
+                <TooltipContent>Generate password</TooltipContent>
+              </Tooltip>
+            </InputGroupAddon>
+          </InputGroup>
+          {passwordSet && (
+            <FieldDescription>
+              Leave blank to keep the saved password.
+            </FieldDescription>
+          )}
           <FieldError>{error}</FieldError>
         </Field>
       )}

@@ -461,7 +461,7 @@ export function DeviceManager({
         busy={formBusy}
       >
         <DialogContent
-          showCloseButton={!formBusy}
+          closeButtonDisabled={formBusy}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
         >
           <DialogHeader>
@@ -473,7 +473,7 @@ export function DeviceManager({
             </DialogDescription>
           </DialogHeader>
           <form className="flex min-h-0 flex-col gap-6" onSubmit={handleSubmit}>
-            <fieldset disabled={formBusy} className="min-w-0">
+            <fieldset disabled={submitting} className="min-w-0">
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="device-name">Display name</FieldLabel>
@@ -510,7 +510,7 @@ export function DeviceManager({
                 <Field>
                   <FieldLabel htmlFor="device-vlan">VLAN</FieldLabel>
                   <Select
-                    disabled={formBusy}
+                    disabled={submitting}
                     value={form.vlan_id}
                     onValueChange={(value) =>
                       setForm((current) => ({
@@ -545,7 +545,7 @@ export function DeviceManager({
                   <Field orientation="horizontal" className="items-start">
                     <Checkbox
                       id={deviceDisabledFieldId}
-                      disabled={formBusy}
+                      disabled={submitting}
                       checked={form.disabled}
                       onCheckedChange={(checked) =>
                         setForm((current) => ({
@@ -571,7 +571,7 @@ export function DeviceManager({
                     value={form}
                     deviceId={editing?.id}
                     passwordSet={editing?.wifi_password_set ?? false}
-                    disabled={formBusy}
+                    disabled={submitting}
                     onBusyChange={setPasswordBusy}
                     onChange={(patch) =>
                       setForm((current) => ({ ...current, ...patch }))

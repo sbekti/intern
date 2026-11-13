@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server"
 
 import { buildForwardHeaders, resolveApiBaseUrl } from "@/lib/api"
-import { resolveBffTarget } from "@/lib/bff-proxy"
+import { isTrustedMutationOrigin, resolveBffTarget } from "@/lib/bff-proxy"
 
 const maxRequestBodyBytes = 1 << 20
 
@@ -55,12 +55,24 @@ async function readRequestBody(request: NextRequest) {
 }
 
 async function proxy(request: NextRequest, path: string[]) {
+  const hasBody = request.method !== "GET" && request.method !== "HEAD"
+  if (
+    hasBody &&
+    !isTrustedMutationOrigin(
+      request.headers.get("origin"),
+      process.env.AUTH_PUBLIC_BASE_URL
+    )
+  ) {
+    return Response.json(
+      { code: "forbidden", message: "same-origin request required" },
+      { status: 403, headers: { "cache-control": "no-store" } }
+    )
+  }
   const baseUrl = await resolveApiBaseUrl()
   const target = resolveBffTarget(baseUrl, path, request.nextUrl.search)
   if (!target) {
     return new Response(null, { status: 404 })
   }
-  const hasBody = request.method !== "GET" && request.method !== "HEAD"
   const body = hasBody ? await readRequestBody(request) : undefined
 
   if (body === null) {

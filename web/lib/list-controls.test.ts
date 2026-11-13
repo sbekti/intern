@@ -161,7 +161,7 @@ test("VLAN names and descriptions contain text while IDs and colors remain exact
 
 test("Gizmo name, MAC and URL tokens match independently", () => {
   const item: Gizmo = {
-    network_device: { ...devices[0], display_name: "jfk1-av-gzm-x1" },
+    network_device: { ...devices[0], display_name: "office-gzm-01" },
     kiosk_url: "https://ha.example.test/gizmo-home?kiosk",
     created_at: stamp,
     updated_at: stamp,

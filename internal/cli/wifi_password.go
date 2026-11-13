@@ -12,16 +12,13 @@ import (
 )
 
 type wifiPasswordFlags struct {
-	private bool
-	stdin   bool
-	prompt  bool
+	private      bool
+	readPassword bool
 }
 
 func (f *wifiPasswordFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.private, "private-wifi-password", false, "Use a private Wi-Fi password for this device")
-	cmd.Flags().BoolVar(&f.stdin, "wifi-password-stdin", false, "Read a new Wi-Fi password from standard input")
-	cmd.Flags().BoolVar(&f.prompt, "wifi-password", false, "Prompt for a new Wi-Fi password without echoing it")
-	cmd.MarkFlagsMutuallyExclusive("wifi-password-stdin", "wifi-password")
+	cmd.Flags().BoolVar(&f.readPassword, "wifi-password", false, "Read a new Wi-Fi password (hidden terminal prompt or standard input)")
 }
 
 func (f wifiPasswordFlags) read(cmd *cobra.Command) (*bool, *string, error) {
@@ -29,23 +26,20 @@ func (f wifiPasswordFlags) read(cmd *cobra.Command) (*bool, *string, error) {
 	if cmd.Flags().Changed("private-wifi-password") {
 		enabled = &f.private
 	}
-	if !f.stdin && !f.prompt {
+	if !f.readPassword {
 		return enabled, nil, nil
 	}
 	var value []byte
 	var err error
-	if f.stdin {
-		// One trailing line ending is allowed; spaces are part of the password.
-		value, err = io.ReadAll(io.LimitReader(cmd.InOrStdin(), 66))
-		value = []byte(strings.TrimSuffix(strings.TrimSuffix(string(value), "\n"), "\r"))
-	} else {
-		input, ok := cmd.InOrStdin().(*os.File)
-		if !ok || !term.IsTerminal(int(input.Fd())) {
-			return nil, nil, errors.New("use --wifi-password-stdin when input is not a terminal")
-		}
+	input, isFile := cmd.InOrStdin().(*os.File)
+	if isFile && term.IsTerminal(int(input.Fd())) {
 		fmt.Fprint(cmd.ErrOrStderr(), "New Wi-Fi password: ")
 		value, err = term.ReadPassword(int(input.Fd()))
 		fmt.Fprintln(cmd.ErrOrStderr())
+	} else {
+		// Allow one trailing line ending; spaces are part of the password.
+		value, err = io.ReadAll(io.LimitReader(cmd.InOrStdin(), 66))
+		value = []byte(strings.TrimSuffix(strings.TrimSuffix(string(value), "\n"), "\r"))
 	}
 	if err != nil {
 		return nil, nil, errors.New("could not read Wi-Fi password")

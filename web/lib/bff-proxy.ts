@@ -30,3 +30,13 @@ export function resolveBffTarget(
   target.search = search
   return target
 }
+
+export function isTrustedMutationOrigin(
+  origin: string | null,
+  publicBaseUrl: string | undefined
+) {
+  if (!publicBaseUrl) throw new Error("AUTH_PUBLIC_BASE_URL is required")
+  return Boolean(
+    origin && origin !== "null" && origin === new URL(publicBaseUrl).origin
+  )
+}

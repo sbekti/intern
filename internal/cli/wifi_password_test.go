@@ -25,7 +25,7 @@ func TestWiFiPasswordStdinPreservesSpacesAndRejectsOversizedInput(t *testing.T) 
 		cmd := &cobra.Command{}
 		var flags wifiPasswordFlags
 		flags.bind(cmd)
-		if err := cmd.ParseFlags([]string{"--wifi-password-stdin", "--private-wifi-password"}); err != nil {
+		if err := cmd.ParseFlags([]string{"--wifi-password", "--private-wifi-password"}); err != nil {
 			t.Fatal(err)
 		}
 		cmd.SetIn(strings.NewReader(test.input))
@@ -85,7 +85,7 @@ func TestDevicePasswordCommandsKeepSecretsOutOfWriteOutput(t *testing.T) {
 		}
 		return out.String()
 	}
-	output := run(password+"\n", "update", id, "--private-wifi-password", "--wifi-password-stdin")
+	output := run(password+"\n", "update", id, "--private-wifi-password", "--wifi-password")
 	if patch.PrivateWifiPasswordEnabled == nil || !*patch.PrivateWifiPasswordEnabled || patch.WifiPassword == nil || *patch.WifiPassword != password {
 		t.Fatal("update did not preserve secret input and enabled state")
 	}

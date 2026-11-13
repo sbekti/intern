@@ -43,9 +43,11 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  closeButtonDisabled = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  closeButtonDisabled?: boolean
 }) {
   return (
     <DialogPortal>
@@ -62,6 +64,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
+            disabled={closeButtonDisabled}
             render={
               <Button
                 variant="ghost"
@@ -70,8 +73,7 @@ function DialogContent({
               />
             }
           >
-            <XIcon
-            />
+            <XIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}

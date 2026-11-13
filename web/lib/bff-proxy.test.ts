@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { resolveBffTarget } from "./bff-proxy.ts"
+import { isTrustedMutationOrigin, resolveBffTarget } from "./bff-proxy.ts"
 
 const baseUrl = "http://backend.example.test:8080"
 
@@ -64,4 +64,28 @@ test("reserved characters stay inside their path segment", () => {
 test("a configured API base path stays intact", () => {
   const target = resolveBffTarget(`${baseUrl}/service`, ["profile"], "")
   assert.equal(target?.href, `${baseUrl}/service/api/v1/profile`)
+})
+
+test("browser mutations require the exact configured origin", () => {
+  const publicUrl = "https://app.example.test"
+  assert.ok(isTrustedMutationOrigin(publicUrl, publicUrl))
+  for (const origin of [
+    null,
+    "null",
+    "",
+    "https://other.example.test",
+    "https://app.example.test.attacker.test",
+    "http://app.example.test",
+    "https://app.example.test:8443",
+  ]) {
+    assert.equal(isTrustedMutationOrigin(origin, publicUrl), false)
+  }
+  assert.ok(
+    isTrustedMutationOrigin("http://127.0.0.1:3000", "http://127.0.0.1:3000")
+  )
+  assert.equal(isTrustedMutationOrigin("null", "file:///tmp/app"), false)
+  assert.throws(
+    () => isTrustedMutationOrigin(publicUrl, undefined),
+    /AUTH_PUBLIC_BASE_URL/
+  )
 })
