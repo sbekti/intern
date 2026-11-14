@@ -18,8 +18,8 @@ func testConfig(secret string) Config {
 		Database:                  DatabaseConfig{URL: "postgres://localhost/intern"},
 		LogLevel:                  LogLevelInfo,
 		Auth: AuthConfig{
-			PublicBaseURL:      "https://intern.bekti.com",
-			JWTIssuer:          "intern.bekti.com",
+			PublicBaseURL:      "https://intern.example.test",
+			JWTIssuer:          "intern.example.test",
 			JWTAudience:        "internctl",
 			JWTHMACSecret:      secret,
 			AccessTokenTTL:     15 * time.Minute,
@@ -51,7 +51,6 @@ func TestLoadWiFiPasswordKeyIsRequiredAndValidated(t *testing.T) {
 		"AUTH_PUBLIC_BASE_URL":    "https://example.test", "AUTH_JWT_ISSUER": "example.test",
 		"AUTH_JWT_AUDIENCE": "test", "AUTH_JWT_HMAC_SECRET": "test-jwt-secret",
 		"AUTH_FORWARD_AUTH_MARKER_HEADER": "X-Test-Auth", "AUTH_FORWARD_AUTH_MARKER_VALUE": "test-marker",
-		"RADIUS_MAB_TOKEN_HASHES":      "",
 		"RADIUS_SNAPSHOT_TOKEN_HASHES": "",
 		"RADIUS_SNAPSHOT_MAX_BYTES":    "4096",
 	} {
@@ -105,9 +104,9 @@ func TestLoadDoesNotProvideInsecureJWTDefaults(t *testing.T) {
 func TestEnvRADIUSTokenHashes(t *testing.T) {
 	first := sha256.Sum256([]byte("first-token"))
 	second := sha256.Sum256([]byte("second-token"))
-	t.Setenv("RADIUS_MAB_TOKEN_HASHES", fmt.Sprintf("site-one=%x,site-two=%x", first, second))
+	t.Setenv("RADIUS_SNAPSHOT_TOKEN_HASHES", fmt.Sprintf("site-one=%x,site-two=%x", first, second))
 
-	hashes, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES")
+	hashes, err := envRADIUSTokenHashes("RADIUS_SNAPSHOT_TOKEN_HASHES")
 	if err != nil {
 		t.Fatalf("parse token hashes: %v", err)
 	}
@@ -124,20 +123,10 @@ func TestEnvRADIUSTokenHashesRejectsInvalidEntries(t *testing.T) {
 		"reused token":   fmt.Sprintf("site-one=%064x,site-two=%064x", 1, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
-			t.Setenv("RADIUS_MAB_TOKEN_HASHES", value)
-			if _, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES"); err == nil {
+			t.Setenv("RADIUS_SNAPSHOT_TOKEN_HASHES", value)
+			if _, err := envRADIUSTokenHashes("RADIUS_SNAPSHOT_TOKEN_HASHES"); err == nil {
 				t.Fatal("invalid token hashes unexpectedly parsed")
 			}
 		})
-	}
-}
-
-func TestRADIUSDownloadTokensMustBeSeparate(t *testing.T) {
-	cfg := testConfig("secret")
-	hash := sha256.Sum256([]byte("shared-token"))
-	cfg.RADIUSMAB.TokenHashes = []RADIUSTokenHash{{Site: "site-one", SHA256: hash}}
-	cfg.RADIUSPolicy.TokenHashes = []RADIUSTokenHash{{Site: "site-one", SHA256: hash}}
-	if err := cfg.Validate(); err == nil {
-		t.Fatal("MAB and private-policy routes accepted the same token")
 	}
 }

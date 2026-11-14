@@ -22,7 +22,7 @@ func registerRADIUSPolicyRoutes(router chi.Router, logger *slog.Logger, cfg conf
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
 			return
 		}
-		snapshot := renderRADIUSSnapshot("radius-policy-v1", records)
+		snapshot := renderRADIUSSnapshot(records)
 		if int64(len(snapshot)) >= maxBytes {
 			logger.Error("RADIUS policy exceeds the configured snapshot size limit", "max_bytes", maxBytes)
 			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)

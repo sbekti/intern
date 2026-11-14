@@ -5,7 +5,6 @@ package httpserver
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -35,8 +34,6 @@ import (
 	"github.com/sbekti/intern/internal/testutil"
 	"github.com/sbekti/intern/internal/vlans"
 )
-
-const integrationRADIUSMABToken = "integration-radius-mab-token"
 
 func TestHandlerIntegrationProfileLookupIsReadOnly(t *testing.T) {
 	t.Parallel()
@@ -327,45 +324,6 @@ func TestHandlerIntegrationDeviceListIncludesDisabledState(t *testing.T) {
 	}
 	if !payload.Items[0].Disabled {
 		t.Fatalf("expected disabled device payload, got %#v", payload.Items[0])
-	}
-}
-
-func TestHandlerIntegrationRADIUSMABSnapshotFromDeviceInventory(t *testing.T) {
-	t.Parallel()
-
-	testEnv := newHandlerIntegrationEnv(t)
-	for _, body := range []string{
-		`{"display_name":"Second","mac_address":"02:00:00:00:00:02","vlan_id":20}`,
-		`{"display_name":"Disabled","mac_address":"02:00:00:00:00:03","disabled":true,"vlan_id":10}`,
-		`{"display_name":"First","mac_address":"02:00:00:00:00:01","vlan_id":1}`,
-	} {
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/networks/devices", bytes.NewBufferString(body))
-		req.RemoteAddr = net.JoinHostPort("127.0.0.1", "43210")
-		req.Header.Set("Content-Type", "application/json")
-		setForwardAuthHeaders(req, "bob", "Bob Example", "bob@example.com", "Users, Super-Users")
-		rec := httptest.NewRecorder()
-		testEnv.handler.ServeHTTP(rec, req)
-		if rec.Code != http.StatusCreated {
-			t.Fatalf("device create status = %d, want %d; body=%s", rec.Code, http.StatusCreated, rec.Body.String())
-		}
-	}
-
-	req := httptest.NewRequest(http.MethodGet, radiusMABSnapshotPath, nil)
-	req.Header.Set("Authorization", "Bearer "+integrationRADIUSMABToken)
-	rec := httptest.NewRecorder()
-	testEnv.handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("snapshot status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
-	}
-	entries :=
-		"020000000001 Cleartext-Password := \"020000000001\"\n" +
-			"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"1\"\n\n" +
-			"020000000002 Cleartext-Password := \"020000000002\"\n" +
-			"\tTunnel-Type := VLAN,\n\tTunnel-Medium-Type := IEEE-802,\n\tTunnel-Private-Group-Id := \"20\"\n\n"
-	want := expectedRADIUSMABSnapshot(entries)
-	if rec.Body.String() != want {
-		t.Fatalf("snapshot body = %q, want %q", rec.Body.String(), want)
 	}
 }
 
@@ -1038,7 +996,6 @@ func newRateLimitedHandlerIntegrationEnv(t *testing.T) handlerIntegrationEnv {
 }
 
 func integrationHandlerConfig(databaseURL string) config.Config {
-	radiusMABTokenHash := sha256.Sum256([]byte(integrationRADIUSMABToken))
 	cfg := config.Config{
 		WiFiPasswordEncryptionKey: make([]byte, 32),
 		RADIUSSnapshotMaxBytes:    4096,
@@ -1074,9 +1031,6 @@ func integrationHandlerConfig(databaseURL string) config.Config {
 		},
 		Authorization: config.AuthorizationConfig{
 			AdminGroups: []string{"Super-Users"},
-		},
-		RADIUSMAB: config.RADIUSSnapshotConfig{
-			TokenHashes: []config.RADIUSTokenHash{{Site: "integration", SHA256: radiusMABTokenHash}},
 		},
 	}
 

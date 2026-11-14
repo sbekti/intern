@@ -59,6 +59,11 @@ func TestHandlerIntegrationRADIUSPolicy(t *testing.T) {
 	if _, err := service.Create(ctx, actor, api.NetworkDeviceWrite{DisplayName: "Shared", MacAddress: "02:00:00:00:00:02", VlanId: 20}); err != nil {
 		t.Fatal(err)
 	}
+	disabled := true
+	if _, err := service.Create(ctx, actor, api.NetworkDeviceWrite{DisplayName: "Disabled", MacAddress: "02:00:00:00:00:03", VlanId: 20, Disabled: &disabled}); err != nil {
+		t.Fatal(err)
+	}
+
 	download := func(path, token string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -71,13 +76,13 @@ func TestHandlerIntegrationRADIUSPolicy(t *testing.T) {
 	if policy.Code != http.StatusOK || policy.Header().Get("Cache-Control") != "no-store" || !strings.Contains(policy.Body.String(), "Tunnel-Password :=") {
 		t.Fatal("authenticated private-policy download failed")
 	}
+	if strings.Contains(policy.Body.String(), "020000000003") || !strings.Contains(policy.Body.String(), "020000000002") {
+		t.Fatal("policy must include active MAC registrations and exclude disabled devices")
+	}
+
 	again := download(radiusPolicySnapshotPath, testRADIUSSnapshotToken)
 	if !bytes.Equal(policy.Body.Bytes(), again.Body.Bytes()) {
 		t.Fatal("unchanged inventory changed the revision")
-	}
-	mab := download(radiusMABSnapshotPath, integrationRADIUSMABToken)
-	if mab.Code != http.StatusOK || strings.Contains(mab.Body.String(), "Tunnel-Password") {
-		t.Fatal("private passwords altered the credential-free MAB contract")
 	}
 	if script := os.Getenv("RADIUS_NATIVE_TEST_SCRIPT"); script != "" {
 		image := os.Getenv("RADIUS_NATIVE_TEST_IMAGE")

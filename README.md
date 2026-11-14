@@ -2,7 +2,7 @@
 
 Intern is a Go API, `internctl` CLI, and Next.js authenticated web app in one repository.
 
-The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, gizmo kiosk destinations, and RADIUS MAB snapshots. The authenticated home route shows live host metrics from Prometheus.
+The API preserves authentication, authorization, sessions, audit logs, VLAN and network-device CRUD, disabled device state, gizmo kiosk destinations, and RADIUS policy snapshots. The authenticated home route shows live host metrics from Prometheus.
 
 The monitoring page reuses the groups and lanes in the frontend metrics YAML.
 Electrical lanes support `watts`, `volt-amperes-reactive`, `volts`, `amperes`,
@@ -99,30 +99,25 @@ internctl device password show <id>
 
 ## RADIUS policy delivery
 
-`GET /api/v1/radius/mab-snapshot` retains its credential-free v1 users-file
-format. `GET /api/v1/radius/policy-snapshot` returns a separate versioned users
-file with the same active device VLANs and any enabled private passwords.
-Disabled devices and retained passwords with private access off are excluded.
-Unknown devices use the shared password configured at the RADIUS server.
+`GET /api/v1/radius/policy-snapshot` returns a versioned FreeRADIUS users file
+with active device VLANs and enabled private passwords. It serves wired MAC
+registration and PPSK from one inventory. Disabled devices and retained passwords
+with private access off are excluded. Unknown devices use the shared password
+configured at the RADIUS server.
 
-Configure separate `RADIUS_MAB_TOKEN_HASHES` and `RADIUS_SNAPSHOT_TOKEN_HASHES`
-environment variables as comma-separated `site=sha256` entries. Hash the exact
-opaque bearer token supplied to the router. Each site has its own token for
-independent attribution and revocation; private passwords are shared across
-migrated sites, so every authorized site receives the same inventory policy.
-An empty setting denies all downloads for that endpoint. The API rejects token
-reuse between sites or between the two endpoint types. These download tokens
-cannot access ordinary API routes or human password-reveal endpoints. After a
-site's verified cutover and rollback window, retire its old MAB token and hash
-entry. Other sites keep their MAB credentials until they migrate.
+Configure `RADIUS_SNAPSHOT_TOKEN_HASHES` as comma-separated `site=sha256` entries.
+Hash the exact opaque bearer token supplied to the router. Each site has its own
+token for independent attribution and revocation; every authorized site receives
+the same inventory policy. An empty setting denies all downloads. Reusing a token
+across sites is rejected. Download tokens cannot access human API routes or
+password-reveal endpoints.
 
 Set the required `RADIUS_SNAPSHOT_MAX_BYTES` environment variable to a positive
 byte limit appropriate for the receiver transport. There is no numeric default
 in the application. The device service handles inventory and decryption.
-Both HTTP endpoints share the FreeRADIUS renderer; the policy endpoint enforces
-the configured byte limit.
+The HTTP handler formats the policy and enforces the configured byte limit.
 
-Both downloads use `Cache-Control: no-store`. The private-policy response and
+Downloads use `Cache-Control: no-store`. The private-policy response and
 its persistent cache, staging file, and rollback copy contain recoverable secrets.
 Use HTTPS with certificate validation and protected, read-only container mounts.
 FreeRADIUS holds private passwords in control attributes; only a successful PPSK

@@ -21,7 +21,6 @@ type Config struct {
 	Auth                      AuthConfig
 	TrustedProxy              TrustedProxyConfig
 	Authorization             AuthorizationConfig
-	RADIUSMAB                 RADIUSSnapshotConfig
 	RADIUSPolicy              RADIUSSnapshotConfig
 	RADIUSSnapshotMaxBytes    int64
 	WiFiPasswordEncryptionKey []byte
@@ -149,10 +148,6 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	radiusMABTokenHashes, err := envRADIUSTokenHashes("RADIUS_MAB_TOKEN_HASHES")
-	if err != nil {
-		return Config{}, err
-	}
 	radiusSnapshotTokenHashes, err := envRADIUSTokenHashes("RADIUS_SNAPSHOT_TOKEN_HASHES")
 	if err != nil {
 		return Config{}, err
@@ -198,7 +193,6 @@ func Load() (Config, error) {
 			MarkerValue:  envOrDefault("AUTH_FORWARD_AUTH_MARKER_VALUE", ""),
 		},
 		Authorization:             AuthorizationConfig{AdminGroups: envCSVOrDefault("AUTH_ADMIN_GROUPS", []string{"Super-Users"})},
-		RADIUSMAB:                 RADIUSSnapshotConfig{TokenHashes: radiusMABTokenHashes},
 		RADIUSPolicy:              RADIUSSnapshotConfig{TokenHashes: radiusSnapshotTokenHashes},
 		RADIUSSnapshotMaxBytes:    radiusSnapshotMaxBytes,
 		WiFiPasswordEncryptionKey: wifiPasswordKey,
@@ -215,13 +209,6 @@ func (c Config) Validate() error {
 		return fmt.Errorf("RADIUS_SNAPSHOT_MAX_BYTES must be greater than zero")
 	}
 
-	for _, policy := range c.RADIUSPolicy.TokenHashes {
-		for _, mab := range c.RADIUSMAB.TokenHashes {
-			if policy.SHA256 == mab.SHA256 {
-				return fmt.Errorf("RADIUS policy and MAB downloads must use separate tokens")
-			}
-		}
-	}
 	if len(c.WiFiPasswordEncryptionKey) != 32 {
 		return fmt.Errorf("WIFI_PASSWORD_ENCRYPTION_KEY must be a base64-encoded 32-byte key")
 	}

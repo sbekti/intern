@@ -9,7 +9,7 @@ import (
 	"github.com/sbekti/intern/internal/devices"
 )
 
-func renderRADIUSSnapshot(marker string, records []devices.RADIUSPolicyRecord) []byte {
+func renderRADIUSSnapshot(records []devices.RADIUSPolicyRecord) []byte {
 	sort.Slice(records, func(i, j int) bool {
 		return records[i].MACAddress < records[j].MACAddress
 	})
@@ -24,7 +24,7 @@ func renderRADIUSSnapshot(marker string, records []devices.RADIUSPolicyRecord) [
 	}
 	entryText := entries.String()
 	revision := sha256.Sum256([]byte(entryText))
-	return []byte(fmt.Sprintf("# %s\n# revision=%x\n%s", marker, revision, entryText))
+	return []byte(fmt.Sprintf("# radius-policy-v1\n# revision=%x\n%s", revision, entryText))
 }
 
 // Escape expansions before FreeRADIUS parses the literal value.

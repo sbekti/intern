@@ -34,7 +34,6 @@ func NewHandler(logger *slog.Logger, cfg config.Config, deps Dependencies) http.
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
 
-	registerRADIUSMABRoutes(router, logger, cfg.RADIUSMAB, deviceService)
 	registerRADIUSPolicyRoutes(router, logger, cfg.RADIUSPolicy, deviceService, cfg.RADIUSSnapshotMaxBytes)
 	registerKioskRoutes(router, gizmoService)
 

@@ -15,11 +15,10 @@ import (
 	"github.com/sbekti/intern/internal/devices"
 )
 
-const testRADIUSSnapshotToken = "separate-snapshot-download-token"
+const testRADIUSSnapshotToken = "snapshot-download-token"
 
 func TestRADIUSPolicyAuthorizationAndNoStore(t *testing.T) {
 	cfg := mustTestConfig(t)
-	cfg.RADIUSMAB.TokenHashes = []config.RADIUSTokenHash{{Site: "site-one", SHA256: sha256.Sum256([]byte(testRADIUSMABToken))}}
 	cfg.RADIUSPolicy.TokenHashes = []config.RADIUSTokenHash{{Site: "site-one", SHA256: sha256.Sum256([]byte(testRADIUSSnapshotToken))}}
 	var logs bytes.Buffer
 	calls := 0
@@ -29,7 +28,7 @@ func TestRADIUSPolicyAuthorizationAndNoStore(t *testing.T) {
 			return []devices.RADIUSPolicyRecord{{MACAddress: "02:00:00:00:00:01", VLANID: 100, PrivatePassword: "secret-policy-body"}}, nil
 		},
 	}})
-	for _, token := range []string{"", "wrong-token", testRADIUSMABToken, testRADIUSSnapshotToken} {
+	for _, token := range []string{"", "wrong-token", testRADIUSSnapshotToken} {
 		req := httptest.NewRequest(http.MethodGet, radiusPolicySnapshotPath, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
@@ -51,9 +50,9 @@ func TestRADIUSPolicyAuthorizationAndNoStore(t *testing.T) {
 	if !strings.Contains(logs.String(), "site=site-one") {
 		t.Fatal("download is not attributed to its configured site")
 	}
-	for _, path := range []string{radiusMABSnapshotPath, "/api/v1/networks/devices", "/api/v1/networks/devices/wifi-password/generate"} {
+	for _, path := range []string{"/api/v1/networks/devices", "/api/v1/networks/devices/11111111-1111-1111-1111-111111111111/wifi-password/reveal", "/api/v1/networks/devices/wifi-password/generate"} {
 		method := http.MethodGet
-		if strings.HasSuffix(path, "/generate") {
+		if strings.HasSuffix(path, "/generate") || strings.HasSuffix(path, "/reveal") {
 			method = http.MethodPost
 		}
 		req := httptest.NewRequest(method, path, nil)
@@ -85,7 +84,7 @@ func TestRADIUSPolicyBuildFailureReturnsNoPolicy(t *testing.T) {
 
 func TestRADIUSPolicyRejectsTheConfiguredSizeLimit(t *testing.T) {
 	records := []devices.RADIUSPolicyRecord{{MACAddress: "02:00:00:00:00:01", VLANID: 100, PrivatePassword: "forest-river-cloud-moon"}}
-	size := int64(len(renderRADIUSSnapshot("radius-policy-v1", records)))
+	size := int64(len(renderRADIUSSnapshot(records)))
 	for _, limit := range []int64{size - 1, size, size + 1} {
 		cfg := mustTestConfig(t)
 		cfg.RADIUSSnapshotMaxBytes = limit
