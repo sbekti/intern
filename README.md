@@ -114,7 +114,9 @@ password-reveal endpoints.
 
 Set the required `RADIUS_SNAPSHOT_MAX_BYTES` environment variable to a positive
 byte limit appropriate for the receiver transport. There is no numeric default
-in the application. The device service handles inventory and decryption.
+in the application. This protects receivers with bounded download or file-reading
+interfaces: an oversized policy is rejected rather than partially published, so
+they can retain their last good policy. The device service handles inventory and decryption.
 The HTTP handler formats the policy and enforces the configured byte limit.
 
 Downloads use `Cache-Control: no-store`. The private-policy response and

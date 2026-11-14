@@ -1,7 +1,13 @@
 "use client"
 
-import { useState } from "react"
-import { CopyIcon, EyeIcon, EyeOffIcon, RefreshCwIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import {
+  CheckIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  RefreshCwIcon,
+} from "lucide-react"
 import {
   InputGroup,
   InputGroupAddon,
@@ -22,7 +28,6 @@ import {
   FieldLabel,
   FieldSet,
 } from "@/components/ui/field"
-import { toast } from "@/components/ui/toast"
 import { buildBffPath } from "@/lib/bff"
 import { mutate } from "@/lib/mutations"
 
@@ -46,10 +51,17 @@ export function DeviceWiFiPassword({
   disabled: boolean
   onBusyChange: (busy: boolean) => void
 }) {
+  const [copied, setCopied] = useState(false)
   const [visible, setVisible] = useState(false)
   const [savedPassword, setSavedPassword] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!copied) return
+    const timeout = window.setTimeout(() => setCopied(false), 2000)
+    return () => window.clearTimeout(timeout)
+  }, [copied])
 
   async function requestPassword(path: string) {
     const response = await mutate(buildBffPath(path), {
@@ -73,6 +85,8 @@ export function DeviceWiFiPassword({
   }
 
   async function handleAction(action: "generate" | "show" | "copy") {
+    if (busy || disabled) return
+    setCopied(false)
     setBusy(true)
     onBusyChange(true)
     setError(null)
@@ -95,7 +109,7 @@ export function DeviceWiFiPassword({
             ),
           }),
         ])
-        toast.add({ type: "success", title: "Password copied" })
+        setCopied(true)
       }
     } catch (error) {
       setError(
@@ -111,10 +125,11 @@ export function DeviceWiFiPassword({
 
   return (
     <FieldSet>
-      <Field orientation="horizontal" data-disabled={disabled || busy}>
+      <Field orientation="horizontal" data-disabled={disabled}>
         <Checkbox
           id="device-private-wifi"
-          disabled={disabled || busy}
+          disabled={disabled}
+          readOnly={busy}
           checked={value.private_wifi_password_enabled}
           onCheckedChange={(checked) =>
             onChange({ private_wifi_password_enabled: checked })
@@ -143,7 +158,8 @@ export function DeviceWiFiPassword({
               pattern="[ -~]{8,63}"
               title="Use 8 to 63 printable ASCII characters."
               required={!passwordSet}
-              disabled={disabled || busy}
+              disabled={disabled}
+              readOnly={busy}
               aria-invalid={Boolean(error)}
               placeholder={passwordSet ? "Saved password" : "Enter a password"}
               value={value.wifi_password || savedPassword || ""}
@@ -159,7 +175,8 @@ export function DeviceWiFiPassword({
                     <InputGroupButton
                       size="icon-sm"
                       aria-label={visible ? "Hide password" : "Show password"}
-                      disabled={disabled || busy || !hasPassword}
+                      disabled={disabled || !hasPassword}
+                      aria-disabled={busy || undefined}
                       onClick={() => handleAction("show")}
                     />
                   }
@@ -176,12 +193,13 @@ export function DeviceWiFiPassword({
                     <InputGroupButton
                       size="icon-sm"
                       aria-label="Copy password"
-                      disabled={disabled || busy || !hasPassword}
+                      disabled={disabled || !hasPassword}
+                      aria-disabled={busy || undefined}
                       onClick={() => handleAction("copy")}
                     />
                   }
                 >
-                  <CopyIcon />
+                  {copied ? <CheckIcon /> : <CopyIcon />}
                 </TooltipTrigger>
                 <TooltipContent>Copy password</TooltipContent>
               </Tooltip>
@@ -191,7 +209,8 @@ export function DeviceWiFiPassword({
                     <InputGroupButton
                       size="icon-sm"
                       aria-label="Generate password"
-                      disabled={disabled || busy}
+                      disabled={disabled}
+                      aria-disabled={busy || undefined}
                       onClick={() => handleAction("generate")}
                     />
                   }
@@ -207,6 +226,9 @@ export function DeviceWiFiPassword({
               Leave blank to keep the saved password.
             </FieldDescription>
           )}
+          <span role="status" className="sr-only">
+            {copied ? "Password copied" : ""}
+          </span>
           <FieldError>{error}</FieldError>
         </Field>
       )}
