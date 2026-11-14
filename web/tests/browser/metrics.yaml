@@ -1,0 +1,12 @@
+groups:
+  - id: example
+    title: Example
+    lanes:
+      - id: count
+        label: Count
+        format: count
+        extent: [0, 10]
+        series:
+          - id: value
+            label: Value
+            promql: vector(0)

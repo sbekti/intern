@@ -11,7 +11,7 @@ import {
   ItemGroup,
 } from "@/components/ui/item"
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { startTransition, useRef, useState } from "react"
 import { LaptopIcon, LoaderCircleIcon, LogOutIcon } from "lucide-react"
 import { toast } from "@/components/ui/toast"
 
@@ -23,6 +23,7 @@ import {
   responsiveCompactButtonClass,
 } from "@/components/compact-button-label"
 import { LocalTimestamp } from "@/components/local-timestamp"
+import { FieldError } from "@/components/ui/field"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -69,6 +70,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type SecuritySessionsProps = {
+  username: string
   isAdmin: boolean
   activeTab: "mine" | "all"
   personalSessions: AuthSessionPage
@@ -81,10 +83,13 @@ type SessionCardProps = {
   description: string
   sessions: AuthSession[]
   showUsername: boolean
-  pendingPath: string | null
-  isPending: boolean
+  isPending: (session: AuthSession) => boolean
   revokePathFor: (session: AuthSession) => string
-  onRevoke: (path: string, successMessage: string) => void
+  onRevoke: (
+    path: string,
+    successMessage: string,
+    session?: AuthSession
+  ) => void
   action: React.ReactNode
   scopeControl?: React.ReactNode
   emptyTitle: string
@@ -131,7 +136,6 @@ function SessionCard({
   description,
   sessions,
   showUsername,
-  pendingPath,
   isPending,
   revokePathFor,
   onRevoke,
@@ -147,11 +151,11 @@ function SessionCard({
       <Button
         variant="outline"
         size="sm"
-        disabled={isPending}
-        onClick={() => onRevoke(path, "Client session signed out.")}
+        disabled={isPending(session)}
+        onClick={() => onRevoke(path, "Client session signed out.", session)}
         aria-label={`Sign out ${session.client_name}`}
       >
-        {pendingPath === path ? (
+        {isPending(session) ? (
           <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
         ) : (
           <LogOutIcon data-icon="inline-start" />
@@ -281,6 +285,7 @@ function SessionCard({
 }
 
 export function SecuritySessions({
+  username,
   isAdmin,
   activeTab,
   personalSessions,
@@ -288,9 +293,21 @@ export function SecuritySessions({
   adminPageSizes,
 }: SecuritySessionsProps) {
   const router = useRouter()
-  const [pendingPath, setPendingPath] = useState<string | null>(null)
+  const active = useRef(new Map<string, AuthSession | undefined>())
+  const [pending, setPending] = useState(
+    new Map<string, AuthSession | undefined>()
+  )
+  const [actionError, setActionError] = useState<string | null>(null)
   const [dialogTarget, setDialogTarget] = useState<"mine" | "all" | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const bulkPending =
+    pending.has(personalBulkPath) || pending.has(adminBulkPath)
+  const personalPending =
+    bulkPending ||
+    [...pending.values()].some((session) => session?.username === username)
+  const sessionPending = (session: AuthSession) =>
+    pending.has(adminBulkPath) ||
+    (pending.has(personalBulkPath) && session.username === username) ||
+    [...pending.values()].some((item) => item?.id === session.id)
 
   const adminPage = adminSessions ?? {
     items: [],
@@ -312,20 +329,29 @@ export function SecuritySessions({
     )
   }
 
-  function runAction(path: string, successMessage: string) {
-    setPendingPath(path)
-    startTransition(async () => {
-      try {
-        await post(path)
-        toast.add({ type: "success", title: successMessage })
-        router.refresh()
-      } catch {
+  async function runAction(
+    path: string,
+    successMessage: string,
+    session?: AuthSession
+  ) {
+    if (active.current.has(path)) return
+    active.current.set(path, session)
+    setPending(new Map(active.current))
+    setActionError(null)
+    const bulk = path === personalBulkPath || path === adminBulkPath
+    try {
+      await post(path)
+      if (bulk) setDialogTarget(null)
+      toast.add({ type: "success", title: successMessage })
+      startTransition(() => router.refresh())
+    } catch {
+      if (bulk) setActionError("Session update failed. Try again.")
+      else
         toast.add({ type: "error", title: "Session update failed. Try again." })
-      } finally {
-        setDialogTarget(null)
-        setPendingPath(null)
-      }
-    })
+    } finally {
+      active.current.delete(path)
+      setPending(new Map(active.current))
+    }
   }
 
   const sessionScopeControl = isAdmin ? (
@@ -384,8 +410,7 @@ export function SecuritySessions({
       }
       sessions={personalSessions.items}
       showUsername={false}
-      pendingPath={pendingPath}
-      isPending={isPending}
+      isPending={sessionPending}
       revokePathFor={(session) =>
         buildBffPath(`/profile/sessions/${session.id}/revoke`)
       }
@@ -396,8 +421,11 @@ export function SecuritySessions({
           variant="outline"
           size="icon-sm"
           className={responsiveCompactButtonClass}
-          disabled={isPending || personalSessions.pagination.total === 0}
-          onClick={() => setDialogTarget("mine")}
+          disabled={personalPending || personalSessions.pagination.total === 0}
+          onClick={() => {
+            setActionError(null)
+            setDialogTarget("mine")
+          }}
           aria-label="Sign out all client sessions"
         >
           <LogOutIcon data-icon="inline-start" />
@@ -424,8 +452,7 @@ export function SecuritySessions({
       description={"Active client sessions across all users."}
       sessions={adminPage.items}
       showUsername
-      pendingPath={pendingPath}
-      isPending={isPending}
+      isPending={sessionPending}
       revokePathFor={(session) =>
         buildBffPath(`/admin/auth/sessions/${session.id}/revoke`)
       }
@@ -436,8 +463,11 @@ export function SecuritySessions({
           variant="outline"
           size="icon-sm"
           className={responsiveCompactButtonClass}
-          disabled={isPending || adminPage.pagination.total === 0}
-          onClick={() => setDialogTarget("all")}
+          disabled={pending.size > 0 || adminPage.pagination.total === 0}
+          onClick={() => {
+            setActionError(null)
+            setDialogTarget("all")
+          }}
           aria-label="Sign out all users sessions"
         >
           <LogOutIcon data-icon="inline-start" />
@@ -465,7 +495,10 @@ export function SecuritySessions({
 
         <AlertDialog
           open={dialogTarget === "mine"}
-          onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}
+          onOpenChange={(open) => {
+            if (!pending.has(personalBulkPath))
+              setDialogTarget(open ? "mine" : null)
+          }}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -475,17 +508,18 @@ export function SecuritySessions({
                 Your current browser SSO session will stay active.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <FieldError role="alert">{actionError}</FieldError>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={pendingPath === personalBulkPath}>
+              <AlertDialogCancel disabled={pending.has(personalBulkPath)}>
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                disabled={pendingPath === personalBulkPath}
+                disabled={pending.has(personalBulkPath)}
                 onClick={() =>
                   runAction(personalBulkPath, "All client sessions signed out.")
                 }
               >
-                {pendingPath === personalBulkPath ? (
+                {pending.has(personalBulkPath) ? (
                   <LoaderCircleIcon
                     className="animate-spin"
                     data-icon="inline-start"
@@ -506,7 +540,10 @@ export function SecuritySessions({
 
       <AlertDialog
         open={dialogTarget === "mine"}
-        onOpenChange={(open) => setDialogTarget(open ? "mine" : null)}
+        onOpenChange={(open) => {
+          if (!pending.has(personalBulkPath))
+            setDialogTarget(open ? "mine" : null)
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -516,17 +553,18 @@ export function SecuritySessions({
               Your current browser SSO session will stay active.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <FieldError role="alert">{actionError}</FieldError>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingPath === personalBulkPath}>
+            <AlertDialogCancel disabled={pending.has(personalBulkPath)}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={pendingPath === personalBulkPath}
+              disabled={pending.has(personalBulkPath)}
               onClick={() =>
                 runAction(personalBulkPath, "All client sessions signed out.")
               }
             >
-              {pendingPath === personalBulkPath ? (
+              {pending.has(personalBulkPath) ? (
                 <LoaderCircleIcon
                   className="animate-spin"
                   data-icon="inline-start"
@@ -540,7 +578,9 @@ export function SecuritySessions({
 
       <AlertDialog
         open={dialogTarget === "all"}
-        onOpenChange={(open) => setDialogTarget(open ? "all" : null)}
+        onOpenChange={(open) => {
+          if (!pending.has(adminBulkPath)) setDialogTarget(open ? "all" : null)
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -551,17 +591,18 @@ export function SecuritySessions({
               session will stay active.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <FieldError role="alert">{actionError}</FieldError>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={pendingPath === adminBulkPath}>
+            <AlertDialogCancel disabled={pending.has(adminBulkPath)}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={pendingPath === adminBulkPath}
+              disabled={pending.has(adminBulkPath)}
               onClick={() =>
                 runAction(adminBulkPath, "All client sessions signed out.")
               }
             >
-              {pendingPath === adminBulkPath ? (
+              {pending.has(adminBulkPath) ? (
                 <LoaderCircleIcon
                   className="animate-spin"
                   data-icon="inline-start"

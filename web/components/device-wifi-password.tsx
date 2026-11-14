@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   CheckIcon,
   CopyIcon,
@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/field"
 import { buildBffPath } from "@/lib/bff"
 import { mutate } from "@/lib/mutations"
+import { cn } from "@/lib/utils"
 
 export type WiFiPasswordForm = {
   private_wifi_password_enabled: boolean
@@ -42,19 +43,34 @@ export function DeviceWiFiPassword({
   deviceId,
   passwordSet,
   disabled,
-  onBusyChange,
+  signal,
 }: {
   value: WiFiPasswordForm
   onChange: (patch: Partial<WiFiPasswordForm>) => void
   deviceId?: string
   passwordSet: boolean
   disabled: boolean
-  onBusyChange: (busy: boolean) => void
+  signal: AbortSignal
 }) {
   const [copied, setCopied] = useState(false)
   const [visible, setVisible] = useState(false)
   const [savedPassword, setSavedPassword] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  type Action = "generate" | "show" | "copy"
+  const requests = useRef(new Map<Action, AbortController>())
+  const [pending, setPending] = useState<Set<Action>>(new Set())
+
+  function cancelRequests() {
+    for (const controller of requests.current.values()) controller.abort()
+    requests.current.clear()
+    setPending(new Set())
+  }
+
+  useEffect(() => {
+    const controllers = requests.current
+    return () => {
+      for (const controller of controllers.values()) controller.abort()
+    }
+  }, [signal])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,61 +79,80 @@ export function DeviceWiFiPassword({
     return () => window.clearTimeout(timeout)
   }, [copied])
 
-  async function requestPassword(path: string) {
+  async function requestPassword(path: string, requestSignal: AbortSignal) {
     const response = await mutate(buildBffPath(path), {
       method: "POST",
       cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.any([
+        requestSignal,
+        signal,
+        AbortSignal.timeout(15_000),
+      ]),
     })
     const data: { password: string } = await response.json()
     return data.password
   }
 
-  async function readPassword() {
+  async function readPassword(requestSignal: AbortSignal) {
     if (value.wifi_password) return value.wifi_password
     if (savedPassword !== null) return savedPassword
     if (!deviceId || !passwordSet) throw new Error("No password saved.")
     const password = await requestPassword(
-      `/networks/devices/${deviceId}/wifi-password/reveal`
+      `/networks/devices/${deviceId}/wifi-password/reveal`,
+      requestSignal
     )
+    requestSignal.throwIfAborted()
+    signal.throwIfAborted()
     setSavedPassword(password)
     return password
   }
 
-  async function handleAction(action: "generate" | "show" | "copy") {
-    if (busy || disabled) return
+  async function handleAction(action: Action) {
+    if (requests.current.has(action) || disabled || signal.aborted) return
+    const controller = new AbortController()
+    requests.current.set(action, controller)
+    setPending((previous) => new Set(previous).add(action))
     setCopied(false)
-    setBusy(true)
-    onBusyChange(true)
     setError(null)
+    const current = () => !controller.signal.aborted && !signal.aborted
     try {
       if (action === "generate") {
         const password = await requestPassword(
-          "/networks/devices/wifi-password/generate"
+          "/networks/devices/wifi-password/generate",
+          controller.signal
         )
+        if (!current()) return
         setSavedPassword(null)
         onChange({ wifi_password: password })
       } else if (action === "show") {
-        if (!visible) await readPassword()
-        setVisible(!visible)
+        if (!visible) await readPassword(controller.signal)
+        if (current()) setVisible(!visible)
       } else {
-        // Start the clipboard write in the click gesture, including on Safari.
         await navigator.clipboard.write([
           new ClipboardItem({
-            "text/plain": readPassword().then(
+            "text/plain": readPassword(controller.signal).then(
               (password) => new Blob([password], { type: "text/plain" })
             ),
           }),
         ])
-        setCopied(true)
+        if (current()) setCopied(true)
       }
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Couldn't access the password."
-      )
+      if (current())
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Couldn't access the password."
+        )
     } finally {
-      setBusy(false)
-      onBusyChange(false)
+      if (requests.current.get(action) === controller) {
+        requests.current.delete(action)
+        setPending((previous) => {
+          const next = new Set(previous)
+          next.delete(action)
+          return next
+        })
+      }
     }
   }
 
@@ -129,11 +164,11 @@ export function DeviceWiFiPassword({
         <Checkbox
           id="device-private-wifi"
           disabled={disabled}
-          readOnly={busy}
           checked={value.private_wifi_password_enabled}
-          onCheckedChange={(checked) =>
+          onCheckedChange={(checked) => {
+            cancelRequests()
             onChange({ private_wifi_password_enabled: checked })
-          }
+          }}
         />
         <FieldContent>
           <FieldLabel htmlFor="device-private-wifi">
@@ -159,11 +194,11 @@ export function DeviceWiFiPassword({
               title="Use 8 to 63 printable ASCII characters."
               required={!passwordSet}
               disabled={disabled}
-              readOnly={busy}
               aria-invalid={Boolean(error)}
               placeholder={passwordSet ? "Saved password" : "Enter a password"}
               value={value.wifi_password || savedPassword || ""}
               onChange={(event) => {
+                cancelRequests()
                 setSavedPassword(null)
                 onChange({ wifi_password: event.target.value })
               }}
@@ -176,7 +211,8 @@ export function DeviceWiFiPassword({
                       size="icon-sm"
                       aria-label={visible ? "Hide password" : "Show password"}
                       disabled={disabled || !hasPassword}
-                      aria-disabled={busy || undefined}
+                      aria-disabled={pending.has("show") || undefined}
+                      aria-busy={pending.has("show") || undefined}
                       onClick={() => handleAction("show")}
                     />
                   }
@@ -194,7 +230,8 @@ export function DeviceWiFiPassword({
                       size="icon-sm"
                       aria-label="Copy password"
                       disabled={disabled || !hasPassword}
-                      aria-disabled={busy || undefined}
+                      aria-disabled={pending.has("copy") || undefined}
+                      aria-busy={pending.has("copy") || undefined}
                       onClick={() => handleAction("copy")}
                     />
                   }
@@ -210,12 +247,17 @@ export function DeviceWiFiPassword({
                       size="icon-sm"
                       aria-label="Generate password"
                       disabled={disabled}
-                      aria-disabled={busy || undefined}
+                      aria-disabled={pending.has("generate") || undefined}
+                      aria-busy={pending.has("generate") || undefined}
                       onClick={() => handleAction("generate")}
                     />
                   }
                 >
-                  <RefreshCwIcon />
+                  <RefreshCwIcon
+                    className={cn(
+                      pending.has("generate") && "motion-safe:animate-spin"
+                    )}
+                  />
                 </TooltipTrigger>
                 <TooltipContent>Generate password</TooltipContent>
               </Tooltip>

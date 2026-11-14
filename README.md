@@ -241,3 +241,12 @@ committing credentials:
 
 The workflow exchanges these values for a short-lived GitHub App token scoped to the
 `homebrew-tap` repository.
+
+### Browser interaction tests
+
+After `npm ci`, run `npm run build`, then
+`npx --workspace web playwright install --with-deps chromium webkit` and
+`npm --workspace web run test:browser`. The suite starts the production frontend
+with a localhost fixture API and controlled mutation responses. It does not
+connect to a database or external services. Fixtures contain synthetic identities
+and passwords. Both complete dialogs and their parent controls are tested.

@@ -167,6 +167,7 @@ export function SectionsDialog({
     }))
   }
   async function save() {
+    if (busy) return
     setBusy(true)
     setError(null)
     try {
@@ -204,7 +205,7 @@ export function SectionsDialog({
         <SlidersHorizontalIcon data-icon="inline-start" />
         Sections
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent closeButtonDisabled={busy}>
         <DialogHeader>
           <DialogTitle>Sections</DialogTitle>
           <DialogDescription>

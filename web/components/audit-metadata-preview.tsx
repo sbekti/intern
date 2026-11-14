@@ -1,7 +1,8 @@
 "use client"
 
-import { CopyIcon } from "lucide-react"
-import { toast } from "@/components/ui/toast"
+import { useEffect, useState } from "react"
+import { CheckIcon, CopyIcon } from "lucide-react"
+import { FieldError } from "@/components/ui/field"
 
 import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -45,22 +46,40 @@ function MetadataPreviewCode({ preview }: { preview: string }) {
   )
 }
 
-function MetadataDetail({
-  full,
-  onCopy,
-}: {
-  full: string
-  onCopy: () => void
-}) {
+function MetadataDetail({ full }: { full: string }) {
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+  async function copy() {
+    setError(null)
+    try {
+      await navigator.clipboard.writeText(full)
+      setCopied(true)
+    } catch {
+      setError("Couldn't copy. Try again.")
+    }
+  }
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold">Metadata</p>
-        <Button variant="ghost" size="xs" onClick={onCopy}>
-          <CopyIcon data-icon="inline-start" />
+        <Button variant="ghost" size="xs" onClick={copy}>
+          {copied ? (
+            <CheckIcon data-icon="inline-start" />
+          ) : (
+            <CopyIcon data-icon="inline-start" />
+          )}
           Copy
         </Button>
       </div>
+      <span role="status" className="sr-only">
+        {copied ? "Metadata copied" : ""}
+      </span>
+      <FieldError role="alert">{error}</FieldError>
       <pre className="max-h-72 overflow-auto rounded-md bg-muted/40 p-2 text-xs leading-5 text-foreground">
         {full}
       </pre>
@@ -81,15 +100,6 @@ export function AuditMetadataPreview({
 }) {
   const isMobile = useIsMobile()
   const formatted = formatMetadata(metadata)
-
-  async function copyMetadata() {
-    try {
-      await navigator.clipboard.writeText(formatted.full)
-      toast.add({ type: "success", title: "Metadata copied." })
-    } catch {
-      toast.add({ type: "error", title: "Metadata copy failed." })
-    }
-  }
 
   const trigger = (
     <Button
@@ -118,7 +128,7 @@ export function AuditMetadataPreview({
             </DrawerDescription>
           </DrawerHeader>
           <div className="min-h-0 overflow-y-auto px-4 pb-4">
-            <MetadataDetail full={formatted.full} onCopy={copyMetadata} />
+            <MetadataDetail full={formatted.full} />
           </div>
         </DrawerContent>
       </Drawer>
@@ -135,7 +145,7 @@ export function AuditMetadataPreview({
             {action} by {actorUsername || "Unknown actor"}
           </DialogDescription>
         </DialogHeader>
-        <MetadataDetail full={formatted.full} onCopy={copyMetadata} />
+        <MetadataDetail full={formatted.full} />
       </DialogContent>
     </Dialog>
   )

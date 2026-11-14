@@ -130,6 +130,7 @@ export function VlanManager({
   const [initialForm, setInitialForm] = useState(defaultFormState)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
 
   const controls = useListControls(
@@ -166,6 +167,7 @@ export function VlanManager({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting) return
     setSubmitting(true)
     setSubmitError(null)
 
@@ -206,6 +208,8 @@ export function VlanManager({
 
   async function handleDelete() {
     if (!deleting) return
+    if (deletingBusy) return
+    setDeleteError(null)
     setDeletingBusy(true)
     try {
       await mutate(buildBffPath(`/networks/vlans/${deleting.vlan_id}`), {
@@ -215,11 +219,9 @@ export function VlanManager({
       setDeleting(null)
       startTransition(() => router.refresh())
     } catch (error) {
-      toast.add({
-        type: "error",
-        title:
-          error instanceof Error ? error.message : "Couldn't delete the VLAN.",
-      })
+      setDeleteError(
+        error instanceof Error ? error.message : "Could not delete. Try again."
+      )
     } finally {
       setDeletingBusy(false)
     }
@@ -248,7 +250,10 @@ export function VlanManager({
       <RecordActions
         name={vlan.name}
         onEdit={() => openEdit(vlan)}
-        onDelete={() => setDeleting(vlan)}
+        onDelete={() => {
+          setDeleteError(null)
+          setDeleting(vlan)
+        }}
         activityHref={`/admin/audit-logs?resource_type=vlan&resource_id=${vlan.vlan_id}`}
       />
     )
@@ -403,7 +408,7 @@ export function VlanManager({
         busy={submitting}
       >
         <DialogContent
-          showCloseButton={!submitting}
+          closeButtonDisabled={submitting}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
         >
           <DialogHeader>
@@ -541,6 +546,7 @@ export function VlanManager({
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <FieldError role="alert">{deleteError}</FieldError>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deletingBusy}>
               Cancel

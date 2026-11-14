@@ -147,9 +147,11 @@ export function DeviceManager({
   const [form, setForm] = useState<DeviceFormState>(defaultFormState)
   const [initialForm, setInitialForm] = useState(defaultFormState)
   const [submitting, setSubmitting] = useState(false)
-  const [passwordBusy, setPasswordBusy] = useState(false)
-  const formBusy = submitting || passwordBusy
+  const [passwordRequests, setPasswordRequests] = useState(
+    () => new AbortController()
+  )
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingBusy, setDeletingBusy] = useState(false)
 
   const controls = useListControls(
@@ -173,11 +175,13 @@ export function DeviceManager({
   )
 
   function handleDialogOpenChange(open: boolean) {
+    if (!open) passwordRequests.abort()
     setDialogOpen(open)
     if (!open) setForm((current) => ({ ...current, wifi_password: "" }))
   }
 
   function openCreate() {
+    setPasswordRequests(new AbortController())
     setEditing(null)
     const next = {
       ...defaultFormState,
@@ -190,6 +194,7 @@ export function DeviceManager({
   }
 
   function openEdit(device: NetworkDevice) {
+    setPasswordRequests(new AbortController())
     const next = mapDeviceToForm(device)
     setEditing(device)
     setForm(next)
@@ -200,6 +205,9 @@ export function DeviceManager({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting) return
+    passwordRequests.abort()
+    setPasswordRequests(new AbortController())
     setSubmitting(true)
     setSubmitError(null)
 
@@ -242,6 +250,8 @@ export function DeviceManager({
 
   async function handleDelete() {
     if (!deleting) return
+    if (deletingBusy) return
+    setDeleteError(null)
     setDeletingBusy(true)
     try {
       await mutate(buildBffPath(`/networks/devices/${deleting.id}`), {
@@ -251,13 +261,9 @@ export function DeviceManager({
       setDeleting(null)
       startTransition(() => router.refresh())
     } catch (error) {
-      toast.add({
-        type: "error",
-        title:
-          error instanceof Error
-            ? error.message
-            : "Couldn't delete the device.",
-      })
+      setDeleteError(
+        error instanceof Error ? error.message : "Could not delete. Try again."
+      )
     } finally {
       setDeletingBusy(false)
     }
@@ -268,7 +274,10 @@ export function DeviceManager({
       <RecordActions
         name={device.display_name}
         onEdit={() => openEdit(device)}
-        onDelete={() => setDeleting(device)}
+        onDelete={() => {
+          setDeleteError(null)
+          setDeleting(device)
+        }}
         activityHref={`/admin/audit-logs?resource_type=network_device&resource_id=${encodeURIComponent(device.id)}`}
         copies={[{ label: "MAC address", value: device.mac_address }]}
       />
@@ -458,10 +467,10 @@ export function DeviceManager({
         open={dialogOpen}
         onOpenChange={handleDialogOpenChange}
         dirty={JSON.stringify(form) !== JSON.stringify(initialForm)}
-        busy={formBusy}
+        busy={submitting}
       >
         <DialogContent
-          closeButtonDisabled={formBusy}
+          closeButtonDisabled={submitting}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
         >
           <DialogHeader>
@@ -572,7 +581,7 @@ export function DeviceManager({
                     deviceId={editing?.id}
                     passwordSet={editing?.wifi_password_set ?? false}
                     disabled={submitting}
-                    onBusyChange={setPasswordBusy}
+                    signal={passwordRequests.signal}
                     onChange={(patch) =>
                       setForm((current) => ({ ...current, ...patch }))
                     }
@@ -584,12 +593,16 @@ export function DeviceManager({
             <DialogFooter>
               <DialogClose
                 render={
-                  <Button type="button" variant="outline" disabled={formBusy} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={submitting}
+                  />
                 }
               >
                 Cancel
               </DialogClose>
-              <Button type="submit" disabled={formBusy}>
+              <Button type="submit" disabled={submitting}>
                 {submitting
                   ? "Saving..."
                   : editing
@@ -614,6 +627,7 @@ export function DeviceManager({
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <FieldError role="alert">{deleteError}</FieldError>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deletingBusy}>
               Cancel

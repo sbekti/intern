@@ -27,6 +27,7 @@ type TablePaginationProps = {
   offset: number
   total: number
   pageSizes: readonly number[]
+  onNavigate?: (limit: number, offset: number) => void
   buildHref: (params: { limit: number; offset: number }) => string
 }
 
@@ -37,6 +38,7 @@ export function TablePagination({
   total,
   pageSizes,
   buildHref,
+  onNavigate,
 }: TablePaginationProps) {
   const router = useRouter()
 
@@ -50,6 +52,10 @@ export function TablePagination({
   const hasNext = nextOffset < total
 
   function goTo(nextLimit: number, nextOffset: number) {
+    if (onNavigate) {
+      onNavigate(nextLimit, nextOffset)
+      return
+    }
     startTransition(() => {
       router.push(buildHref({ limit: nextLimit, offset: nextOffset }))
     })
@@ -98,7 +104,23 @@ export function TablePagination({
           disabled={!hasPrevious}
           nativeButton={hasPrevious ? false : true}
           render={
-            hasPrevious ? <Link href={buildHref({ limit, offset: 0 })} /> : undefined
+            hasPrevious ? (
+              <Link
+                href={buildHref({ limit, offset: 0 })}
+                onClick={(event) => {
+                  if (
+                    onNavigate &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault()
+                    onNavigate(limit, 0)
+                  }
+                }}
+              />
+            ) : undefined
           }
           aria-label="Go to first page"
         >
@@ -112,7 +134,21 @@ export function TablePagination({
           nativeButton={hasPrevious ? false : true}
           render={
             hasPrevious ? (
-              <Link href={buildHref({ limit, offset: previousOffset })} />
+              <Link
+                href={buildHref({ limit, offset: previousOffset })}
+                onClick={(event) => {
+                  if (
+                    onNavigate &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault()
+                    onNavigate(limit, previousOffset)
+                  }
+                }}
+              />
             ) : undefined
           }
           aria-label="Go to previous page"
@@ -126,7 +162,23 @@ export function TablePagination({
           disabled={!hasNext}
           nativeButton={hasNext ? false : true}
           render={
-            hasNext ? <Link href={buildHref({ limit, offset: nextOffset })} /> : undefined
+            hasNext ? (
+              <Link
+                href={buildHref({ limit, offset: nextOffset })}
+                onClick={(event) => {
+                  if (
+                    onNavigate &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault()
+                    onNavigate(limit, nextOffset)
+                  }
+                }}
+              />
+            ) : undefined
           }
           aria-label="Go to next page"
         >
@@ -139,7 +191,23 @@ export function TablePagination({
           disabled={!hasNext}
           nativeButton={hasNext ? false : true}
           render={
-            hasNext ? <Link href={buildHref({ limit, offset: lastOffset })} /> : undefined
+            hasNext ? (
+              <Link
+                href={buildHref({ limit, offset: lastOffset })}
+                onClick={(event) => {
+                  if (
+                    onNavigate &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault()
+                    onNavigate(limit, lastOffset)
+                  }
+                }}
+              />
+            ) : undefined
           }
           aria-label="Go to last page"
         >

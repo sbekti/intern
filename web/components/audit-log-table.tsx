@@ -62,6 +62,14 @@ export function AuditLogTable({
     defaultAuditSort,
     true
   )
+  const limit =
+    pageSizes.find((size) => String(size) === controls.query.get("limit")) ??
+    page.pagination.limit
+  const requestedOffset = Number(controls.query.get("offset") ?? 0)
+  const offset =
+    Number.isSafeInteger(requestedOffset) && requestedOffset >= 0
+      ? requestedOffset
+      : page.pagination.offset
   const start = page.pagination.total === 0 ? 0 : page.pagination.offset + 1
   const end = Math.min(
     page.pagination.offset + page.items.length,
@@ -106,7 +114,6 @@ export function AuditLogTable({
                       sortKey="created_at"
                       sort={controls.sort}
                       onSort={controls.setSort}
-                      disabled={controls.pending}
                     >
                       Timestamp
                     </SortableTableHead>
@@ -114,7 +121,6 @@ export function AuditLogTable({
                       sortKey="actor_username"
                       sort={controls.sort}
                       onSort={controls.setSort}
-                      disabled={controls.pending}
                     >
                       Actor
                     </SortableTableHead>
@@ -122,7 +128,6 @@ export function AuditLogTable({
                       sortKey="action"
                       sort={controls.sort}
                       onSort={controls.setSort}
-                      disabled={controls.pending}
                     >
                       Action
                     </SortableTableHead>
@@ -130,7 +135,6 @@ export function AuditLogTable({
                       sortKey="resource"
                       sort={controls.sort}
                       onSort={controls.setSort}
-                      disabled={controls.pending}
                     >
                       Resource
                     </SortableTableHead>
@@ -169,7 +173,6 @@ export function AuditLogTable({
               <ListSort
                 sort={controls.sort}
                 onSort={controls.setSort}
-                disabled={controls.pending}
                 options={[
                   {
                     key: "created_at",
@@ -215,12 +218,13 @@ export function AuditLogTable({
         )}
       </CardContent>
       {page.items.length ? (
-        <CardFooter inert={controls.pending}>
+        <CardFooter>
           <AuditLogPagination
+            onNavigate={controls.setPage}
             filters={controls.filters}
             sort={controls.sort}
-            limit={page.pagination.limit}
-            offset={page.pagination.offset}
+            limit={limit}
+            offset={offset}
             total={page.pagination.total}
             pageSizes={pageSizes}
           />

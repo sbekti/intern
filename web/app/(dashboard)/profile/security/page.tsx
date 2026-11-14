@@ -1,7 +1,11 @@
 import { ForbiddenState, UnauthorizedState } from "@/components/api-state"
 import { SecurityLoadingPanel } from "@/components/loading-panels"
 import { SecuritySessions } from "@/components/security-sessions"
-import { getProfile, listAdminAuthSessions, listProfileSessions } from "@/lib/api"
+import {
+  getProfile,
+  listAdminAuthSessions,
+  listProfileSessions,
+} from "@/lib/api"
 import { createPageMetadata } from "@/lib/page-titles"
 import { hasForcedGlimmer } from "@/lib/utils"
 const defaultAdminPageSize = 25
@@ -70,7 +74,8 @@ export default async function ProfileSecurityPage({
     return <UnauthorizedState />
   }
 
-  const activeTab = profile.data.is_admin && requestedTab === "all" ? "all" : "mine"
+  const activeTab =
+    profile.data.is_admin && requestedTab === "all" ? "all" : "mine"
   const adminSessions =
     profile.data.is_admin && activeTab === "all"
       ? await listAdminAuthSessions({ limit, offset })
@@ -87,6 +92,7 @@ export default async function ProfileSecurityPage({
   return (
     <div className="grid gap-4 px-4 lg:px-6">
       <SecuritySessions
+        username={profile.data.username}
         isAdmin={profile.data.is_admin}
         activeTab={activeTab}
         personalSessions={sessions.data}

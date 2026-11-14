@@ -25,9 +25,12 @@ export function useListControls(
   const filters = readFilters(listParams, filterKeys)
   const sort = readSort(listParams, sortKeys, fallback)
 
-  function update(changes: Record<string, string | undefined>) {
+  function update(
+    changes: Record<string, string | undefined>,
+    resetOffset = server
+  ) {
     const current = server ? optimisticQuery : window.location.search
-    const query = updateListQuery(current, changes, server)
+    const query = updateListQuery(current, changes, resetOffset)
     const href = pathname + (query ? `?${query}` : "") + window.location.hash
     if (query === new URLSearchParams(current).toString()) return
     if (server)
@@ -52,5 +55,14 @@ export function useListControls(
     })
   }
 
-  return { filters, sort, pending, setFilters, setSort }
+  return {
+    filters,
+    sort,
+    pending,
+    query: listParams,
+    setFilters,
+    setSort,
+    setPage: (limit: number, offset: number) =>
+      update({ limit: String(limit), offset: String(offset) }, false),
+  }
 }

@@ -111,6 +111,7 @@ export function GizmoManager({
   const [initialForm, setInitialForm] = useState({ deviceId: "", kioskUrl: "" })
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const [removingBusy, setRemovingBusy] = useState(false)
 
   const controls = useListControls(
@@ -162,6 +163,7 @@ export function GizmoManager({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting) return
     setSubmitting(true)
     setSubmitError(null)
 
@@ -197,6 +199,8 @@ export function GizmoManager({
 
   async function handleRemove() {
     if (!removing) return
+    if (removingBusy) return
+    setRemoveError(null)
     setRemovingBusy(true)
     try {
       await mutate(buildBffPath(`/gizmos/${removing.network_device.id}`), {
@@ -206,11 +210,9 @@ export function GizmoManager({
       setRemoving(null)
       startTransition(() => router.refresh())
     } catch (error) {
-      toast.add({
-        type: "error",
-        title:
-          error instanceof Error ? error.message : "Couldn't remove the Gizmo.",
-      })
+      setRemoveError(
+        error instanceof Error ? error.message : "Could not remove. Try again."
+      )
     } finally {
       setRemovingBusy(false)
     }
@@ -221,7 +223,10 @@ export function GizmoManager({
       <RecordActions
         name={item.network_device.display_name}
         onEdit={() => openEdit(item)}
-        onDelete={() => setRemoving(item)}
+        onDelete={() => {
+          setRemoveError(null)
+          setRemoving(item)
+        }}
         deleteLabel="Remove"
         activityHref={`/admin/audit-logs?resource_type=gizmo&resource_id=${encodeURIComponent(item.network_device.id)}`}
         copies={[
@@ -398,7 +403,7 @@ export function GizmoManager({
         busy={submitting}
       >
         <DialogContent
-          showCloseButton={!submitting}
+          closeButtonDisabled={submitting}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl"
         >
           <DialogHeader>
@@ -496,6 +501,7 @@ export function GizmoManager({
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <FieldError role="alert">{removeError}</FieldError>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removingBusy}>
               Cancel

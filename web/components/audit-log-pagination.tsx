@@ -5,6 +5,7 @@ import { withQuery } from "@/lib/query-string"
 import type { Filters, Sort } from "@/lib/list-controls"
 
 type AuditLogPaginationProps = {
+  onNavigate: (limit: number, offset: number) => void
   filters: Filters
   sort: Sort
   limit: number
@@ -15,6 +16,7 @@ type AuditLogPaginationProps = {
 
 export function AuditLogPagination({
   filters,
+  onNavigate,
   sort,
   limit,
   offset,
@@ -29,6 +31,7 @@ export function AuditLogPagination({
 
   return (
     <TablePagination
+      onNavigate={onNavigate}
       pageSizeId="audit-page-size"
       limit={limit}
       offset={offset}
