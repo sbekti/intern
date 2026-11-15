@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["gomod", "npm", "dockerfile", "github-actions"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "timezone": "America/New_York",
+  "schedule": ["* * * * 5"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "compatible dependencies"
+    },
+    {
+      "matchPackageNames": ["node", "actions/node-versions", "@types/node"],
+      "allowedVersions": "<27"
+    }
+  ]
+}
